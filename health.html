@@ -603,17 +603,28 @@ main {
     .wh-err { background:rgba(255,107,107,0.08); border:1px solid rgba(255,107,107,0.28); color:#FF8A8A; padding:10px 12px; border-radius:10px; font-size:11.5px; font-family:var(--font-mono); margin-bottom:14px; }
   </style>
   <div class="whoop-section">
-    <div class="section-title">Whoop</div>
+    <style>
+      .wh-extras { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
+      .wh-ex { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:10px 8px; text-align:center; }
+      .wh-ex-label { font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-tertiary); }
+      .wh-ex-val { font-size:17px; font-weight:600; margin-top:3px; }
+      .wh-ex-sub { font-size:10px; color:var(--text-tertiary); margin-top:1px; }
+      .wh-workouts { margin-top:14px; display:flex; flex-direction:column; gap:6px; }
+      .wh-wk { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:8px 12px; font-size:12px; }
+      .wh-wk-type { font-weight:600; }
+      .wh-wk-meta { color:var(--text-tertiary); font-family:var(--font-mono); font-size:11px; }
+      @media (max-width:480px){ .wh-extras { grid-template-columns:repeat(3,1fr);} }
+    </style>
+    <div class="section-title">Apple Watch</div>
     <div class="whoop-card">
       <div id="whDisc" class="wh-disc">
-        <div class="wh-brand"><span class="wh-brand-mark">W</span><span class="wh-brand-text">WHOOP</span></div>
-        <div class="wh-disc-title">Not connected</div>
-        <div class="wh-disc-sub">Link your account to see live recovery, sleep, and strain.</div>
-        <button id="whConnectBtn" class="wh-connect" type="button">Connect WHOOP</button>
+        <div class="wh-brand"><span class="wh-brand-mark">⌚</span><span class="wh-brand-text">APPLE WATCH</span></div>
+        <div class="wh-disc-title">No data yet</div>
+        <div class="wh-disc-sub">Install the Perform Health app on your iPhone and tap “Sync now”. Your readiness, sleep, and training load will appear here.</div>
       </div>
       <div id="whConn" style="display:none">
         <div class="wh-head">
-          <div class="wh-brand"><span class="wh-brand-mark">W</span><span class="wh-brand-text">WHOOP</span><span class="wh-live"><span class="wh-live-dot"></span>live</span></div>
+          <div class="wh-brand"><span class="wh-brand-mark">⌚</span><span class="wh-brand-text">APPLE WATCH</span><span class="wh-live"><span class="wh-live-dot"></span>synced</span></div>
           <div class="wh-head-right">
             <span id="whUpdated" class="wh-updated">—</span>
             <button id="whRefresh" class="wh-refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/></svg></button>
@@ -627,7 +638,7 @@ main {
           </svg>
           <div class="wh-ring-center">
             <div id="whRecNum" class="wh-ring-num">—</div>
-            <div class="wh-ring-unit">recovery</div>
+            <div class="wh-ring-unit">readiness</div>
             <div id="whRecLabel" class="wh-ring-label">—</div>
           </div>
         </div>
@@ -642,21 +653,32 @@ main {
           <div class="wh-stages-legend">
             <div class="wh-leg"><span class="wh-leg-dot d-rem"></span>REM<span class="wh-leg-num" id="whRem">—</span></div>
             <div class="wh-leg"><span class="wh-leg-dot d-deep"></span>Deep<span class="wh-leg-num" id="whDeep">—</span></div>
-            <div class="wh-leg"><span class="wh-leg-dot d-light"></span>Light<span class="wh-leg-num" id="whLight">—</span></div>
+            <div class="wh-leg"><span class="wh-leg-dot d-light"></span>Core<span class="wh-leg-num" id="whLight">—</span></div>
             <div class="wh-leg"><span class="wh-leg-dot d-awake"></span>Awake<span class="wh-leg-num" id="whAwake">—</span></div>
           </div>
         </div>
         <div class="wh-stats">
           <div class="wh-stat"><span class="wh-zone" id="whZoneSleep"></span><div class="wh-stat-label">Sleep</div><div class="wh-stat-val" id="whSleep">—</div><div class="wh-stat-sub" id="whSleepSub">—</div></div>
-          <div class="wh-stat"><span class="wh-zone" id="whZoneStrain"></span><div class="wh-stat-label">Strain</div><div class="wh-stat-val" id="whStrain">—</div><div class="wh-stat-sub" id="whStrainSub">today</div></div>
+          <div class="wh-stat"><span class="wh-zone" id="whZoneStrain"></span><div class="wh-stat-label">Load</div><div class="wh-stat-val" id="whStrain">—</div><div class="wh-stat-sub" id="whStrainSub">today</div></div>
           <div class="wh-stat"><span class="wh-zone" id="whZoneHrv"></span><div class="wh-stat-label">HRV</div><div class="wh-stat-val" id="whHrv">—</div><div class="wh-stat-sub">ms</div></div>
           <div class="wh-stat"><span class="wh-zone" id="whZoneRhr"></span><div class="wh-stat-label">RHR</div><div class="wh-stat-val" id="whRhr">—</div><div class="wh-stat-sub">bpm</div></div>
         </div>
         <div id="whBio" class="wh-bio" style="display:none">
-          <div class="wh-bio-item"><span class="wh-zone" id="whZoneSkin"></span><span class="wh-bio-label">Skin temp</span><span class="wh-bio-val" id="whSkin">—</span></div>
+          <div class="wh-bio-item"><span class="wh-zone" id="whZoneSkin"></span><span class="wh-bio-label">Wrist temp</span><span class="wh-bio-val" id="whSkin">—</span></div>
           <div class="wh-bio-item"><span class="wh-zone" id="whZoneSpo2"></span><span class="wh-bio-label">Blood O₂</span><span class="wh-bio-val" id="whSpo2">—</span></div>
           <div class="wh-bio-item"><span class="wh-zone" id="whZoneResp"></span><span class="wh-bio-label">Resp rate</span><span class="wh-bio-val" id="whResp">—</span></div>
         </div>
+        <div id="whExtras" class="wh-extras" style="display:none">
+          <div class="wh-ex" id="exVo2" style="display:none"><div class="wh-ex-label">VO₂max</div><div class="wh-ex-val" id="whVo2">—</div><div class="wh-ex-sub">ml/kg·min</div></div>
+          <div class="wh-ex" id="exCardio" style="display:none"><div class="wh-ex-label">Cardio rec.</div><div class="wh-ex-val" id="whCardioRec">—</div><div class="wh-ex-sub">bpm ↓ 1min</div></div>
+          <div class="wh-ex" id="exSteps" style="display:none"><div class="wh-ex-label">Steps</div><div class="wh-ex-val" id="whSteps">—</div><div class="wh-ex-sub" id="whStepsSub">today</div></div>
+          <div class="wh-ex" id="exExercise" style="display:none"><div class="wh-ex-label">Exercise</div><div class="wh-ex-val" id="whExercise">—</div><div class="wh-ex-sub">min</div></div>
+          <div class="wh-ex" id="exStand" style="display:none"><div class="wh-ex-label">Stand</div><div class="wh-ex-val" id="whStand">—</div><div class="wh-ex-sub">hrs</div></div>
+          <div class="wh-ex" id="exActive" style="display:none"><div class="wh-ex-label">Active</div><div class="wh-ex-val" id="whActive">—</div><div class="wh-ex-sub">kcal</div></div>
+          <div class="wh-ex" id="exWeight" style="display:none"><div class="wh-ex-label">Weight</div><div class="wh-ex-val" id="whWeight">—</div><div class="wh-ex-sub">kg</div></div>
+          <div class="wh-ex" id="exFat" style="display:none"><div class="wh-ex-label">Body fat</div><div class="wh-ex-val" id="whBodyFat">—</div><div class="wh-ex-sub">%</div></div>
+        </div>
+        <div id="whWorkouts" class="wh-workouts" style="display:none"></div>
         <div class="wh-legend">
           <span class="wh-leg-item"><span class="wh-zone z-good"></span>Good</span>
           <span class="wh-leg-item"><span class="wh-zone z-norm"></span>Normal</span>
@@ -668,223 +690,237 @@ main {
           <div id="whVerdictHead" class="wh-verdict-headline"></div>
           <div id="whVerdictReasons" class="wh-verdict-reasons"></div>
         </div>
-        <button id="whDisconnectBtn" class="wh-disconnect-link" type="button">Disconnect</button>
       </div>
     </div>
   </div>
   <script>
+  // ============================================================
+  // Apple Watch panel — reads health_metrics from Supabase (written
+  // by the PerformHealth iOS app via /api/health-sync) and renders
+  // readiness, sleep, load, and biomarkers. No WHOOP, no OAuth.
+  // ============================================================
   (function () {
-    const KEY = 'whoop_tokens_v1';
-    const CLIENT_ID = '3b9d1b01-31fb-4bd8-b18c-c7fa27deed2f';
-    const REDIRECT  = window.location.origin + '/api/whoop-callback';
-    const SCOPES    = 'read:recovery read:sleep read:workout read:cycles read:profile read:body_measurement offline';
-
-    function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
-    function save(t) { try { localStorage.setItem(KEY, JSON.stringify(t)); } catch {} }
-    function wipe() { try { localStorage.removeItem(KEY); } catch {} }
-
-    if (location.hash && location.hash.indexOf('whoop_access') !== -1) {
-      const h = new URLSearchParams(location.hash.slice(1));
-      const access = h.get('whoop_access'), refresh = h.get('whoop_refresh');
-      const expires = Number(h.get('whoop_expires')) || Date.now() + 3500e3;
-      if (access) { save({ access, refresh, expires }); history.replaceState(null, '', location.pathname + location.search); }
-    }
-
     const $ = (id) => document.getElementById(id);
     const errEl = $('whErr');
-    function showErr(m) { errEl.textContent = m || ''; errEl.style.display = m ? 'block' : 'none'; }
+    function showErr(m) { if (!errEl) return; errEl.textContent = m || ''; errEl.style.display = m ? 'block' : 'none'; }
 
-    $('whConnectBtn').addEventListener('click', () => {
-      const url = 'https://api.prod.whoop.com/oauth/oauth2/auth'
-        + '?client_id='     + encodeURIComponent(CLIENT_ID)
-        + '&redirect_uri='  + encodeURIComponent(REDIRECT)
-        + '&response_type=code'
-        + '&scope='         + encodeURIComponent(SCOPES)
-        + '&state='         + Math.random().toString(36).slice(2);
-      location.href = url;
-    });
-    $('whDisconnectBtn').addEventListener('click', () => { wipe(); render(); });
-    $('whRefresh').addEventListener('click', async (e) => {
-      const btn = e.currentTarget; btn.classList.add('spin');
-      try { await loadData(); } finally { setTimeout(() => btn.classList.remove('spin'), 600); }
-    });
+    const SUPA_URL = (window.DASH_SUPABASE_URL) || '';
+    const SUPA_KEY = (window.DASH_SUPABASE_KEY) || '';
 
-    async function refreshTok(t) {
-      if (!t.refresh) return null;
-      try {
-        const r = await fetch('/api/whoop-refresh', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh_token: t.refresh }) });
-        const j = await r.json();
-        if (j.access_token) {
-          const next = { access: j.access_token, refresh: j.refresh_token || t.refresh, expires: Date.now() + (j.expires_in||3500)*1000 };
-          save(next); return next;
-        }
-      } catch {}
-      return null;
+    // ---- helpers ----
+    const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+    function median(arr) {
+      const a = arr.filter(v => v != null && !isNaN(v)).sort((x, y) => x - y);
+      if (!a.length) return null;
+      const m = Math.floor(a.length / 2);
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
     }
-    async function whFetch(path, t) {
-      const [p, qs] = path.split('?');
-      const params = new URLSearchParams(qs || ''); params.set('path', p);
-      const r = await fetch('/api/whoop-data?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + t.access, 'Accept':'application/json' } });
-      if (r.status === 401) { const n = await refreshTok(t); if (n) return whFetch(path, n); throw new Error('unauthorized — reconnect'); }
-      if (!r.ok) throw new Error('WHOOP ' + r.status + ': ' + (await r.text()));
-      return await r.json();
+    function fmtMin(min) {
+      if (min == null) return '—';
+      const h = Math.floor(min / 60), m = Math.round(min % 60);
+      return (h > 0 ? h + 'h ' : '') + m + 'm';
     }
+    function setText(id, v) { const el = $(id); if (el) el.textContent = v; }
+    function zone(el, c) { if (!el) return; el.className = 'wh-zone'; if (c) el.classList.add('z-' + c); }
 
-    function fmtMins(ms) { const m = Math.round(ms/60000); const h = Math.floor(m/60); return h + 'h ' + String(m%60).padStart(2,'0') + 'm'; }
-    function fmtMinsShort(ms) { const m = Math.round(ms/60000); const h = Math.floor(m/60); return (h>0?h+'h ':'') + (m%60)+'m'; }
-    function zone(el, c) { el.className = 'wh-zone'; if (c) el.classList.add('z-' + c); }
-    function recoveryZone(v) { if (v == null) return null; if (v >= 67) return 'good'; if (v >= 34) return 'warn'; return 'bad'; }
+    // ---- zone thresholds (tuned for Apple Watch / SDNN) ----
+    function readyZone(v) { if (v == null) return null; if (v >= 67) return 'good'; if (v >= 34) return 'warn'; return 'bad'; }
     function sleepZone(p) { if (p == null) return null; if (p >= 85) return 'good'; if (p >= 70) return 'norm'; return 'warn'; }
-    function strainZone(s) { if (s == null) return null; if (s < 6) return 'norm'; if (s < 14) return 'good'; if (s < 18) return 'warn'; return 'bad'; }
-    function hrvZone(h) { if (h == null) return null; if (h >= 60) return 'good'; if (h >= 40) return 'norm'; return 'warn'; }
-    function rhrZone(r) { if (r == null) return null; if (r <= 55) return 'good'; if (r <= 70) return 'norm'; return 'warn'; }
-    function tempZone(t) { if (t == null) return null; if (t >= 32.5 && t <= 34) return 'good'; if (t >= 31 && t <= 35) return 'norm'; return 'warn'; }
-    function spo2Zone(s) { if (s == null) return null; if (s >= 95) return 'good'; if (s >= 92) return 'norm'; if (s >= 88) return 'warn'; return 'bad'; }
-    function respZone(r) { if (r == null) return null; if (r >= 12 && r <= 18) return 'good'; if (r >= 10 && r <= 22) return 'norm'; return 'warn'; }
+    function hrvZone(h)   { if (h == null) return null; if (h >= 60) return 'good'; if (h >= 40) return 'norm'; return 'warn'; }
+    function rhrZone(r)   { if (r == null) return null; if (r <= 55) return 'good'; if (r <= 70) return 'norm'; return 'warn'; }
+    function spo2Zone(s)  { if (s == null) return null; if (s >= 95) return 'good'; if (s >= 92) return 'norm'; if (s >= 88) return 'warn'; return 'bad'; }
+    function respZone(r)  { if (r == null) return null; if (r >= 12 && r <= 18) return 'good'; if (r >= 10 && r <= 22) return 'norm'; return 'warn'; }
+    function tempDevZone(d){ if (d == null) return null; const a = Math.abs(d); if (a <= 0.3) return 'good'; if (a <= 0.7) return 'norm'; return 'warn'; }
 
-    function ringStroke(score) {
-      // green > yellow > red
-      if (score >= 67) return '#6BE3A4';
-      if (score >= 34) return '#F2C063';
-      return '#FF8A8A';
-    }
-    function recoveryLabel(score) {
-      if (score >= 67) return 'Go hard today';
-      if (score >= 34) return 'Moderate — listen to body';
-      return 'Recover today';
-    }
+    function ringStroke(score) { if (score >= 67) return '#6BE3A4'; if (score >= 34) return '#F2C063'; return '#FF8A8A'; }
+    function readyLabel(s) { if (s >= 67) return 'Go hard today'; if (s >= 34) return 'Moderate — listen to body'; return 'Recover today'; }
 
-    function verdict(rec, strain, sleepPerf) {
+    function verdict(rec) {
       if (rec == null) return null;
-      let cls = 'green', badge = 'GREEN', headline = 'Push hard today. Body\'s primed — go for the PR, do the harder workout, take on the heavy task.';
-      if (rec < 67 && rec >= 34) { cls = 'yellow'; badge = 'YELLOW'; headline = 'Moderate day. Train, but don\'t max out. Stick to planned volume, skip the max effort sets.'; }
+      let cls = 'green', badge = 'GREEN', headline = "Push hard today. Body's primed — go for the PR, do the harder workout, take on the heavy task.";
+      if (rec < 67 && rec >= 34) { cls = 'yellow'; badge = 'YELLOW'; headline = "Moderate day. Train, but don't max out. Stick to planned volume, skip the max-effort sets."; }
       else if (rec < 34) { cls = 'red'; badge = 'RED'; headline = 'Recover. Body is asking for rest — light movement, walk, mobility, sleep early.'; }
       return { cls, badge, headline };
     }
 
-    async function loadData() {
-      let t = load(); if (!t) return;
-      if (t.expires && Date.now() > t.expires - 60000) { const n = await refreshTok(t); if (n) t = n; }
+    // ---- readiness from a day's metrics vs personal baseline ----
+    function computeReadiness(day, base) {
+      const parts = [];
+      if (day.hrv != null && base.hrv) parts.push([0.30, clamp(50 + 50 * Math.tanh((day.hrv - base.hrv) / (base.hrv * 0.3)), 0, 100)]);
+      else if (day.hrv != null)        parts.push([0.30, clamp((day.hrv - 25) / 55 * 100, 0, 100)]);
+      if (day.resting_hr != null && base.rhr) parts.push([0.20, clamp(50 + 50 * Math.tanh((base.rhr - day.resting_hr) / (base.rhr * 0.12)), 0, 100)]);
+      else if (day.resting_hr != null)        parts.push([0.20, clamp((75 - day.resting_hr) / 25 * 100, 0, 100)]);
+      if (day.sleep_total_min != null) parts.push([0.35, clamp(day.sleep_total_min / 450 * 100, 0, 100)]);
+      if (day.respiratory_rate != null && base.resp) parts.push([0.075, clamp(100 - Math.abs(day.respiratory_rate - base.resp) * 25, 0, 100)]);
+      if (day.wrist_temp_deviation != null) parts.push([0.075, clamp(100 - Math.abs(day.wrist_temp_deviation) * 60, 0, 100)]);
+      if (!parts.length) return null;
+      let wsum = 0, vsum = 0;
+      for (const [w, v] of parts) { wsum += w; vsum += w * v; }
+      return Math.round(vsum / wsum);
+    }
+
+    function showEx(id, show) { const el = $(id); if (el) el.style.display = show ? '' : 'none'; }
+
+    function render(rows) {
+      if (!rows || !rows.length) { $('whDisc').style.display = ''; $('whConn').style.display = 'none'; return; }
+      $('whDisc').style.display = 'none'; $('whConn').style.display = '';
+
+      const latest = rows[0];                    // sorted day DESC
+      const base = {
+        hrv:  median(rows.map(r => r.hrv)),
+        rhr:  median(rows.map(r => r.resting_hr)),
+        resp: median(rows.map(r => r.respiratory_rate)),
+      };
+
+      // Readiness ring
+      const ready = computeReadiness(latest, base);
+      const ringEl = $('whRingFill');
+      const R = 96, C = 2 * Math.PI * R;
+      if (ringEl) { ringEl.style.strokeDasharray = C; }
+      if (ready != null) {
+        setText('whRecNum', String(ready));
+        setText('whRecLabel', readyLabel(ready));
+        if (ringEl) { ringEl.style.strokeDashoffset = C * (1 - ready / 100); ringEl.style.stroke = ringStroke(ready); }
+      } else {
+        setText('whRecNum', '—'); setText('whRecLabel', 'Not enough data');
+        if (ringEl) ringEl.style.strokeDashoffset = C;
+      }
+
+      // Sleep stages
+      const rem = latest.sleep_rem_min, deep = latest.sleep_deep_min, core = latest.sleep_core_min, awake = latest.sleep_awake_min;
+      const total = latest.sleep_total_min;
+      if (total != null && total > 0) {
+        $('whStages').style.display = '';
+        const span = (rem || 0) + (deep || 0) + (core || 0) + (awake || 0);
+        const pct = (x) => span > 0 ? (100 * (x || 0) / span) : 0;
+        $('whBarRem').style.width   = pct(rem) + '%';
+        $('whBarDeep').style.width  = pct(deep) + '%';
+        $('whBarLight').style.width = pct(core) + '%';
+        $('whBarAwake').style.width = pct(awake) + '%';
+        setText('whRem', fmtMin(rem)); setText('whDeep', fmtMin(deep));
+        setText('whLight', fmtMin(core)); setText('whAwake', fmtMin(awake));
+        setText('whStagesMeta', fmtMin(total) + ' asleep');
+      } else { $('whStages').style.display = 'none'; }
+
+      // Sleep stat (score % + hours)
+      if (total != null) {
+        const sleepScore = Math.round(clamp(total / 450 * 100, 0, 100));
+        setText('whSleep', sleepScore + '%');
+        const qual = [];
+        if (deep != null && total) qual.push('Deep ' + Math.round(100 * deep / total) + '%');
+        if (rem != null && total)  qual.push('REM ' + Math.round(100 * rem / total) + '%');
+        setText('whSleepSub', qual.length ? qual.join(' · ') : fmtMin(total));
+        zone($('whZoneSleep'), sleepZone(sleepScore));
+      }
+
+      // Load (training load) + active kcal sub
+      const load = latest.training_load;
+      if (load != null) {
+        setText('whStrain', Number(load).toFixed(1));
+        if (latest.active_energy != null) setText('whStrainSub', Math.round(latest.active_energy) + ' kcal');
+        const loadVals = rows.map(r => r.training_load).filter(v => v != null);
+        const avg = loadVals.length ? loadVals.reduce((a, b) => a + b, 0) / loadVals.length : null;
+        let lz = 'norm';
+        if (avg) { if (load > avg * 1.4) lz = 'warn'; else if (load > avg * 0.8) lz = 'good'; else lz = 'norm'; }
+        zone($('whZoneStrain'), lz);
+      }
+
+      // HRV / RHR
+      if (latest.hrv != null) { setText('whHrv', String(Math.round(latest.hrv))); zone($('whZoneHrv'), hrvZone(latest.hrv)); }
+      if (latest.resting_hr != null) { setText('whRhr', String(Math.round(latest.resting_hr))); zone($('whZoneRhr'), rhrZone(latest.resting_hr)); }
+
+      // Biomarkers
+      const hasBio = (latest.wrist_temp_deviation != null) || (latest.spo2 != null) || (latest.respiratory_rate != null);
+      $('whBio').style.display = hasBio ? '' : 'none';
+      if (latest.wrist_temp_deviation != null) {
+        const d = Number(latest.wrist_temp_deviation);
+        setText('whSkin', (d >= 0 ? '+' : '') + d.toFixed(1) + '°C');
+        zone($('whZoneSkin'), tempDevZone(d));
+      }
+      if (latest.spo2 != null) { setText('whSpo2', Number(latest.spo2).toFixed(0) + '%'); zone($('whZoneSpo2'), spo2Zone(latest.spo2)); }
+      if (latest.respiratory_rate != null) { setText('whResp', Number(latest.respiratory_rate).toFixed(1) + ' br/min'); zone($('whZoneResp'), respZone(latest.respiratory_rate)); }
+
+      // Extras grid
+      let anyExtra = false;
+      function ex(cellId, valId, val, fmt) {
+        if (val == null) { showEx(cellId, false); return; }
+        showEx(cellId, true); anyExtra = true; setText(valId, fmt ? fmt(val) : String(val));
+      }
+      ex('exVo2', 'whVo2', latest.vo2max, v => Number(v).toFixed(1));
+      ex('exCardio', 'whCardioRec', latest.cardio_recovery, v => String(Math.round(v)));
+      ex('exSteps', 'whSteps', latest.steps, v => Number(v).toLocaleString());
+      ex('exExercise', 'whExercise', latest.exercise_min, v => String(Math.round(v)));
+      ex('exStand', 'whStand', latest.stand_hours, v => String(Math.round(v)));
+      ex('exActive', 'whActive', latest.active_energy, v => String(Math.round(v)));
+      ex('exWeight', 'whWeight', latest.weight_kg, v => Number(v).toFixed(1));
+      ex('exFat', 'whBodyFat', latest.body_fat_pct, v => Number(v).toFixed(1));
+      if (latest.distance_km != null) setText('whStepsSub', Number(latest.distance_km).toFixed(1) + ' km');
+      $('whExtras').style.display = anyExtra ? '' : 'none';
+
+      // Workouts
+      const wEl = $('whWorkouts');
+      const wk = Array.isArray(latest.workouts) ? latest.workouts : [];
+      if (wk.length) {
+        wEl.style.display = '';
+        wEl.innerHTML = wk.map(w => {
+          const meta = [Math.round(w.minutes) + ' min'];
+          if (w.kcal != null) meta.push(Math.round(w.kcal) + ' kcal');
+          if (w.avgHr != null) meta.push(Math.round(w.avgHr) + ' bpm');
+          return '<div class="wh-wk"><span class="wh-wk-type">' + esc(w.type || 'Workout') + '</span><span class="wh-wk-meta">' + esc(meta.join(' · ')) + '</span></div>';
+        }).join('');
+      } else { wEl.style.display = 'none'; wEl.innerHTML = ''; }
+
+      // Verdict
+      const v = verdict(ready);
+      if (v) {
+        $('whVerdict').style.display = '';
+        const badge = $('whVerdictBadge');
+        badge.textContent = v.badge; badge.className = 'wh-verdict-badge ' + v.cls;
+        setText('whVerdictHead', v.headline);
+        const reasons = [];
+        if (total != null) { const sc = Math.round(clamp(total / 450 * 100, 0, 100)); reasons.push((sc >= 80 ? '✓' : '·') + ' Slept ' + fmtMin(total) + ' — ' + (sc >= 80 ? 'well rested.' : 'a bit short.')); }
+        if (latest.hrv != null) reasons.push((base.hrv && latest.hrv >= base.hrv ? '✓' : '·') + ' HRV ' + Math.round(latest.hrv) + 'ms' + (base.hrv ? ' vs ' + Math.round(base.hrv) + ' avg.' : '.'));
+        if (latest.resting_hr != null) reasons.push((base.rhr && latest.resting_hr <= base.rhr ? '✓' : '·') + ' RHR ' + Math.round(latest.resting_hr) + 'bpm' + (base.rhr ? ' vs ' + Math.round(base.rhr) + ' avg.' : '.'));
+        if (load != null) reasons.push('· Load ' + Number(load).toFixed(1) + ' logged.');
+        $('whVerdictReasons').innerHTML = reasons.map(esc).join('<br>');
+      }
+
+      // Updated stamp
+      const when = latest.updated_at ? new Date(latest.updated_at) : null;
+      setText('whUpdated', when ? 'Updated ' + when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : latest.day);
+    }
+
+    function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    let supa = null;
+    async function fetchAndRender() {
+      if (!window.supabase || !SUPA_URL || !SUPA_KEY) { showErr('Supabase not configured — set env vars on Vercel.'); $('whDisc').style.display = ''; $('whConn').style.display = 'none'; return; }
       showErr('');
       try {
-        const [rec, sleep, cycle] = await Promise.all([
-          whFetch('/recovery?limit=1', t).catch((e)=>{console.error('[whoop] recovery', e.message); return null;}),
-          whFetch('/activity/sleep?limit=1', t).catch((e)=>{console.error('[whoop] sleep', e.message); return null;}),
-          whFetch('/cycle?limit=1', t).catch((e)=>{console.error('[whoop] cycle', e.message); return null;}),
-        ]);
-
-        let recScore = null, hrv = null, rhr = null, skin = null, spo2 = null;
-        const r0 = rec && rec.records && rec.records[0];
-        if (r0 && r0.score) {
-          recScore = Math.round(r0.score.recovery_score || 0);
-          hrv = r0.score.hrv_rmssd_milli != null ? Math.round(r0.score.hrv_rmssd_milli) : null;
-          rhr = r0.score.resting_heart_rate != null ? Math.round(r0.score.resting_heart_rate) : null;
-          skin = r0.score.skin_temp_celsius != null ? r0.score.skin_temp_celsius : null;
-          spo2 = r0.score.spo2_percentage != null ? r0.score.spo2_percentage : null;
-        }
-
-        // Ring
-        const fill = $('whRingFill');
-        const C = 603.19;
-        if (recScore != null) {
-          fill.style.strokeDashoffset = String(C * (1 - recScore/100));
-          fill.style.stroke = ringStroke(recScore);
-          $('whRecNum').textContent = String(recScore);
-          const labelEl = $('whRecLabel');
-          labelEl.textContent = recoveryLabel(recScore);
-          labelEl.style.color = ringStroke(recScore);
-        }
-
-        // Sleep
-        let sleepPerf = null, sleepDuration = null, resp = null;
-        const s0 = sleep && sleep.records && sleep.records[0];
-        if (s0 && s0.score) {
-          sleepPerf = Math.round(s0.score.sleep_performance_percentage || 0);
-          resp = s0.score.respiratory_rate != null ? Number(s0.score.respiratory_rate).toFixed(1) : null;
-          if (s0.score.stage_summary) {
-            const ss = s0.score.stage_summary;
-            const inBed = ss.total_in_bed_time_milli || 0;
-            const awake = ss.total_awake_time_milli || 0;
-            sleepDuration = inBed - awake;
-            const rem = ss.total_rem_sleep_time_milli || 0;
-            const deep = ss.total_slow_wave_sleep_time_milli || 0;
-            const light = ss.total_light_sleep_time_milli || 0;
-            const total = rem + deep + light + awake;
-            if (total > 0) {
-              $('whStages').style.display = '';
-              $('whBarRem').style.width   = (100*rem/total)   + '%';
-              $('whBarDeep').style.width  = (100*deep/total)  + '%';
-              $('whBarLight').style.width = (100*light/total) + '%';
-              $('whBarAwake').style.width = (100*awake/total) + '%';
-              $('whStagesMeta').textContent = fmtMins(total) + ' total';
-              $('whRem').textContent   = fmtMinsShort(rem);
-              $('whDeep').textContent  = fmtMinsShort(deep);
-              $('whLight').textContent = fmtMinsShort(light);
-              $('whAwake').textContent = fmtMinsShort(awake);
-            }
-          }
-        }
-        if (sleepPerf != null) {
-          $('whSleep').textContent = sleepPerf + '%';
-          const hrs = sleepDuration ? (sleepDuration/3.6e6).toFixed(1) + 'h' : '—';
-          $('whSleepSub').textContent = hrs;
-          zone($('whZoneSleep'), sleepZone(sleepPerf));
-        }
-
-        // Strain
-        let strain = null, kcal = null;
-        const c0 = cycle && cycle.records && cycle.records[0];
-        if (c0 && c0.score && c0.score.strain != null) {
-          strain = Number(c0.score.strain);
-          $('whStrain').textContent = strain.toFixed(1);
-          if (c0.score.kilojoule != null) {
-            kcal = Math.round(c0.score.kilojoule / 4.184);
-            $('whStrainSub').textContent = kcal + ' kcal';
-          }
-          zone($('whZoneStrain'), strainZone(strain));
-        }
-
-        if (hrv != null) { $('whHrv').textContent = String(hrv); zone($('whZoneHrv'), hrvZone(hrv)); }
-        if (rhr != null) { $('whRhr').textContent = String(rhr); zone($('whZoneRhr'), rhrZone(rhr)); }
-
-        // Biomarkers
-        const anyBio = (skin != null) || (spo2 != null) || (resp != null);
-        if (anyBio) {
-          $('whBio').style.display = '';
-          if (skin != null) { $('whSkin').textContent = Number(skin).toFixed(1) + '°C'; zone($('whZoneSkin'), tempZone(skin)); }
-          if (spo2 != null) { $('whSpo2').textContent = Number(spo2).toFixed(1) + '%'; zone($('whZoneSpo2'), spo2Zone(spo2)); }
-          if (resp != null) { $('whResp').textContent = resp + ' br/min'; zone($('whZoneResp'), respZone(Number(resp))); }
-        }
-
-        // Verdict
-        const v = verdict(recScore, strain, sleepPerf);
-        if (v) {
-          $('whVerdict').style.display = '';
-          const badge = $('whVerdictBadge');
-          badge.textContent = v.badge;
-          badge.className = 'wh-verdict-badge ' + v.cls;
-          $('whVerdictHead').textContent = v.headline;
-          const reasons = [];
-          if (sleepPerf != null) reasons.push((sleepPerf >= 80 ? '✓' : '·') + ' Sleep score ' + sleepPerf + '% — ' + (sleepPerf >= 80 ? 'you slept well.' : 'sub-par sleep.'));
-          if (strain != null)   reasons.push((strain < 14 ? '·' : '✓') + ' Strain ' + strain.toFixed(1) + ' yesterday — ' + (strain < 14 ? 'room to push today if recovery allows.' : 'high load logged.'));
-          if (hrv != null)      reasons.push((hrv >= 50 ? '✓' : '·') + ' HRV ' + hrv + 'ms — ' + (hrv >= 50 ? 'strong autonomic state.' : 'autonomic stress.'));
-          if (rhr != null)      reasons.push((rhr <= 60 ? '✓' : '·') + ' RHR ' + rhr + 'bpm — ' + (rhr <= 60 ? 'well-conditioned.' : 'elevated.'));
-          $('whVerdictReasons').innerHTML = reasons.join('<br>');
-        }
-
-        const now = new Date();
-        $('whUpdated').textContent = 'Updated ' + now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        if (!supa) supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+        const { data, error } = await supa.from('health_metrics').select('*').order('day', { ascending: false }).limit(30);
+        if (error) throw error;
+        render(data || []);
       } catch (e) {
-        showErr(e.message || String(e));
+        showErr((e && e.message) ? e.message : String(e));
+        $('whDisc').style.display = ''; $('whConn').style.display = 'none';
       }
     }
 
-    function render() {
-      const t = load();
-      if (t && t.access) { $('whDisc').style.display = 'none'; $('whConn').style.display = ''; loadData(); }
-      else { $('whDisc').style.display = ''; $('whConn').style.display = 'none'; }
-    }
-    render();
+    const refreshBtn = $('whRefresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', async (e) => {
+      const btn = e.currentTarget; btn.classList.add('spin');
+      try { await fetchAndRender(); } finally { setTimeout(() => btn.classList.remove('spin'), 600); }
+    });
+
+    (async function init() {
+      await fetchAndRender();
+      if (supa) {
+        supa.channel('health_metrics_feed')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'health_metrics' }, () => fetchAndRender())
+          .subscribe();
+      }
+    })();
   })();
   </script>
 
