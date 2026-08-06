@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Businesses · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+:root { --gold: #EAB308; }
+.page { position: relative; }
+
+.gm-select {
+  flex: none; width: auto; cursor: pointer;
+  padding: 10px 13px;
+  border: 1px solid var(--hud-line);
+  border-radius: 10px; background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 13.5px; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gm-select:focus { border-color: var(--hud); background: rgba(0,0,0,0.36); }
+.gm-danger-ghost { color: var(--danger); border-color: rgba(255,84,112,0.3); }
+
+/* ---- Business summary header ---- */
+.biz-summary-row { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.biz-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px; }
+.biz-title { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.biz-goal-num { font-size: 26px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+.biz-goal-target { font-size: 13px; color: var(--text-tertiary); font-family: var(--font-mono); }
+.biz-progress-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; margin-bottom: 16px; }
+.biz-progress-fill { height: 100%; background: var(--gold); border-radius: 3px; transition: width 0.4s; }
+.biz-goal-edit-btn { border: 0; background: transparent; color: var(--text-tertiary); font-size: 13px; cursor: pointer; text-decoration: underline; padding: 0; }
+
+/* ---- Commitments (habit-style) ---- */
+.commit-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; margin-bottom: 6px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 11px; }
+.commit-row.commit-done-today { background: rgba(107,227,164,0.05); }
+.commit-check {
+  appearance: none; -webkit-appearance: none; width: 20px; height: 20px; flex-shrink: 0; margin: 0;
+  border: 1.5px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.28); border-radius: 6px; cursor: pointer;
+  position: relative; transition: background 0.2s, border-color 0.2s;
+}
+.commit-check:checked { background: var(--success); border-color: var(--success); }
+.commit-check:checked::after { content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid #0A0A0B; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.commit-body { flex: 1; min-width: 0; }
+.commit-label { font-size: 13.5px; color: var(--text-primary); }
+.commit-dots { display: flex; gap: 3px; margin-top: 5px; }
+.commit-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.09); flex-shrink: 0; }
+.commit-dot.hit { background: var(--success); }
+.commit-streak { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; flex-shrink: 0; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: var(--text-tertiary); font-size: 10.5px; font-weight: 700; }
+.commit-streak.active { background: rgba(242,192,99,0.10); border-color: rgba(242,192,99,0.28); color: var(--warning); }
+.commit-del { border: 0; background: transparent; color: var(--text-tertiary); font-size: 15px; cursor: pointer; opacity: 0.5; flex-shrink: 0; }
+.commit-del:hover { opacity: 1; color: var(--danger); }
+
+/* ---- Revenue log ---- */
+.rev-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 5px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; }
+.rev-amt { font-size: 13.5px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; min-width: 64px; }
+.rev-meta { flex: 1; min-width: 0; font-size: 12px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rev-del { border: 0; background: transparent; color: var(--text-tertiary); font-size: 15px; cursor: pointer; opacity: 0.5; flex-shrink: 0; }
+.rev-del:hover { opacity: 1; color: var(--danger); }
+
+/* ---- Client cards ---- */
+.client-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+.client-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.client-name { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
+.client-contact { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
+.client-meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.client-pill { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,0.06); color: var(--text-secondary); }
+.client-pill.pay-paid { background: rgba(107,227,164,0.14); color: var(--success); }
+.client-pill.pay-unpaid { background: rgba(255,107,107,0.14); color: var(--danger); }
+.client-pill.pay-invoiced { background: rgba(242,192,99,0.14); color: var(--warning); }
+.client-delivery-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.client-delivery-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.client-delivery-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.3s; }
+.client-delivery-num { font-size: 12px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.client-task-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.client-task-row .gm-text { flex: 1; font-size: 12.5px; color: var(--text-secondary); }
+.client-task-row.done .gm-text { text-decoration: line-through; opacity: 0.5; }
+.client-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.client-actions .gm-ghost, .client-actions .gm-add { padding: 7px 12px; font-size: 12px; }
+
+/* ---- Nova business coach ---- */
+main, .page { position: relative; }
+#nvFab {
+  position: absolute; top: 16px; right: 16px; z-index: 30;
+  width: 46px; height: 46px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+  overflow: hidden; -webkit-tap-highlight-color: transparent; transition: transform 0.12s;
+  background: radial-gradient(circle at 50% 58%, #8A6CFF, #4C2EC9 80%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.14), 0 6px 22px rgba(124,92,255,0.55), inset 0 -6px 14px rgba(38,10,86,0.65);
+}
+#nvFab:active { transform: scale(0.93); }
+#nvFab::before { content: ''; position: absolute; inset: -28%; border-radius: 50%; background: conic-gradient(from 0deg, #6D4AE0, #C9B8FF, #7C5CFF, #B98AFF, #8A6CFF, #6D4AE0); filter: blur(2px); opacity: 0.92; animation: nvspin 7s linear infinite; }
+#nvFab::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 34% 26%, rgba(255,255,255,0.92), rgba(255,255,255,0) 40%), radial-gradient(circle at 72% 82%, rgba(18,7,40,0.5), transparent 55%); }
+@keyframes nvspin { to { transform: rotate(360deg); } }
+#nvFab .nv-online { position: absolute; right: 1px; bottom: 1px; z-index: 2; width: 11px; height: 11px; border-radius: 50%; background: #6ee7b7; border: 2px solid #0a0a0b; box-shadow: 0 0 6px rgba(110,231,183,0.7); }
+#nvPanel { position: absolute; top: 72px; right: 16px; z-index: 30; width: min(340px, calc(100vw - 28px)); max-height: 66vh; display: none; flex-direction: column; background: #111016; border: 1px solid rgba(255,255,255,0.10); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,0.65); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
+#nvPanel.open { display: flex; }
+.nv-head { display: flex; align-items: center; gap: 9px; padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.nv-head .nv-av { position: relative; overflow: hidden; width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; background: radial-gradient(circle at 34% 26%, rgba(255,255,255,0.85), rgba(255,255,255,0) 42%), conic-gradient(from 0deg, #6D4AE0, #C9B8FF, #7C5CFF, #B98AFF, #6D4AE0); }
+.nv-head .nv-name { font-size: 14px; font-weight: 700; color: #FAFAFA; }
+.nv-head .nv-sub { font-size: 10.5px; color: #76746E; }
+.nv-head .nv-new { margin-left: auto; border: 0; background: transparent; color: #76746E; font-size: 15px; cursor: pointer; line-height: 1; padding: 4px; }
+.nv-head .nv-new:hover { color: #CBBDFF; }
+.nv-head .nv-x { border: 0; background: transparent; color: #76746E; font-size: 20px; cursor: pointer; line-height: 1; }
+.nv-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.nv-msg { font-size: 13px; line-height: 1.5; max-width: 90%; padding: 9px 12px; border-radius: 13px; }
+.nv-msg.coach { background: rgba(255,255,255,0.05); color: #E9E7E2; align-self: flex-start; border-bottom-left-radius: 4px; }
+.nv-msg.user { background: rgba(124,92,255,0.22); color: #FAFAFA; align-self: flex-end; border-bottom-right-radius: 4px; }
+.nv-msg b { color: #FAFAFA; } .nv-msg ul { margin: 4px 0; padding-left: 18px; } .nv-msg li { margin: 2px 0; } .nv-msg code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.nv-quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+.nv-chip { border: 1px solid rgba(124,92,255,0.35); background: rgba(124,92,255,0.12); color: #CBBDFF; font-size: 11px; font-weight: 600; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.nv-chip:active { transform: scale(0.96); }
+.nv-foot { display: flex; gap: 7px; padding: 11px 12px; border-top: 1px solid rgba(255,255,255,0.07); }
+.nv-input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.32); color: #FAFAFA; font-family: inherit; font-size: 13px; outline: none; }
+.nv-input::placeholder { color: #6c6a64; }
+.nv-send { border: 0; border-radius: 11px; padding: 0 14px; background: linear-gradient(180deg,#C9B8FF,#7C5CFF); color: #14081f; font-weight: 700; font-size: 15px; cursor: pointer; }
+.nv-dots i { display:inline-block; width:5px; height:5px; margin:0 1px; border-radius:50%; background:#9b8aff; animation: nvb 1s infinite; }
+.nv-dots i:nth-child(2){animation-delay:.15s} .nv-dots i:nth-child(3){animation-delay:.3s}
+@keyframes nvb { 0%,100%{opacity:.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">Businesses</h1>
+
+  <!-- ============================================================
+       AFFILIATE MARKETING
+       ============================================================ -->
+  <div class="section">
+    <div class="section-title">Affiliate Marketing</div>
+    <div class="gm-card">
+      <div class="biz-summary-row">
+        <div>
+          <div class="biz-eyebrow">This month</div>
+          <div><span class="biz-goal-num" id="affRevenueNum">$0</span> <span class="biz-goal-target" id="affGoalText">/ set a goal</span></div>
+        </div>
+        <button class="biz-goal-edit-btn" id="affGoalEditBtn" type="button">Edit goal</button>
+      </div>
+      <div class="biz-progress-track"><div class="biz-progress-fill" id="affProgressBar" style="width:0%"></div></div>
+
+      <div class="biz-eyebrow" style="margin-bottom:8px">Daily commitments</div>
+      <div id="affCommitList"></div>
+      <div class="gm-input-wrap" style="margin-top:8px">
+        <input class="gm-input" id="affCommitInput" type="text" placeholder="Add a daily commitment…">
+        <button class="gm-ghost" id="affCommitAddBtn" type="button">+ Add</button>
+      </div>
+
+      <div class="biz-eyebrow" style="margin:18px 0 8px">Revenue log</div>
+      <div class="gm-input-wrap">
+        <input class="gm-input" id="affRevAmount" type="number" placeholder="Amount ($)" style="flex:0 0 110px">
+        <input class="gm-input" id="affRevNote" type="text" placeholder="Note (optional) — e.g. Superbuy payout">
+        <button class="gm-add" id="affRevAddBtn" type="button">+ Log</button>
+      </div>
+      <div id="affRevList" style="margin-top:10px"></div>
+      <div class="empty-state" id="affRevEmpty" style="display:none">No revenue logged yet.</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SHORT-FORM EDITING (CLIENTS)
+       ============================================================ -->
+  <div class="section">
+    <div class="section-title">Short-Form Editing</div>
+    <div class="gm-card">
+      <div class="biz-summary-row">
+        <div>
+          <div class="biz-eyebrow">This month</div>
+          <div><span class="biz-goal-num" id="editRevenueNum">$0</span> <span class="biz-goal-target" id="editGoalText">/ set a goal</span></div>
+        </div>
+        <button class="biz-goal-edit-btn" id="editGoalEditBtn" type="button">Edit goal</button>
+      </div>
+      <div class="biz-progress-track"><div class="biz-progress-fill" id="editProgressBar" style="width:0%"></div></div>
+
+      <div class="biz-eyebrow" style="margin-bottom:8px">Clients</div>
+      <div id="clientList"></div>
+      <div class="empty-state" id="clientEmpty" style="display:none">No clients yet — add one below.</div>
+
+      <button class="gm-add" id="clientAddBtn" type="button" style="margin-top:10px;width:100%">+ Add Client</button>
+    </div>
+  </div>
+
+  <!-- Client editor (shown when adding/editing a client) -->
+  <div class="section" id="clientEditorSection" style="display:none">
+    <div class="section-title">Client</div>
+    <div class="gm-card">
+      <div class="gm-input-wrap" style="margin-bottom:8px">
+        <input class="gm-input" id="clName" type="text" placeholder="Client name" style="flex:1">
+      </div>
+      <div class="gm-input-wrap" style="margin-bottom:8px">
+        <input class="gm-input" id="clContact" type="text" placeholder="Contact (optional) — email, @handle, etc.">
+      </div>
+      <div class="gm-input-wrap" style="margin-bottom:8px">
+        <select class="gm-select" id="clBillingType" style="flex:1">
+          <option value="retainer">Monthly retainer</option>
+          <option value="perVideo">Per-video rate</option>
+        </select>
+      </div>
+      <div id="clRetainerFields">
+        <div class="gm-input-wrap" style="margin-bottom:8px">
+          <input class="gm-input" id="clMonthlyRate" type="number" placeholder="Monthly rate ($)">
+          <input class="gm-input" id="clDailyDeliverables" type="number" placeholder="Deliverables per day (e.g. 2)" min="0">
+        </div>
+        <div class="gm-input-wrap" style="margin-bottom:8px">
+          <input class="gm-input" id="clDeliverablesDesc" type="text" placeholder="What's included — e.g. 2 daily short forms">
+        </div>
+      </div>
+      <div id="clPerVideoFields" style="display:none">
+        <div class="gm-input-wrap" style="margin-bottom:8px">
+          <input class="gm-input" id="clPerVideoRate" type="number" placeholder="Rate per video ($)">
+        </div>
+      </div>
+      <div class="gm-input-wrap" style="margin-bottom:8px">
+        <label style="flex:1;display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:10.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em">Next deadline</span>
+          <input class="gm-input" id="clDeadline" type="date">
+        </label>
+        <label style="flex:1;display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:10.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em">Payment status</span>
+          <select class="gm-select" id="clPaymentStatus" style="width:100%">
+            <option value="unpaid">Unpaid</option>
+            <option value="invoiced">Invoiced</option>
+            <option value="paid">Paid</option>
+          </select>
+        </label>
+      </div>
+      <div class="editor-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+        <button class="gm-ghost gm-danger-ghost" id="clDeleteBtn" type="button">Delete</button>
+        <button class="gm-add" id="clSaveBtn" type="button">Save Client</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ADD ANOTHER BUSINESS (generic template for future ventures)
+       ============================================================ -->
+  <div class="section">
+    <div class="section-title">Other Ventures</div>
+    <div class="gm-card">
+      <div id="customBizList"></div>
+      <div class="empty-state" id="customBizEmpty" style="display:none">Nothing here yet.</div>
+      <div class="gm-input-wrap" style="margin-top:10px">
+        <input class="gm-input" id="customBizInput" type="text" placeholder="Add another business/venture…">
+        <button class="gm-add" id="customBizAddBtn" type="button">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="nvFab" type="button" aria-label="Open Nova business coach"><span class="nv-online"></span></button>
+  <div id="nvPanel" role="dialog" aria-label="Nova business coach">
+    <div class="nv-head">
+      <div class="nv-av"></div>
+      <div><div class="nv-name">Nova</div><div class="nv-sub">your business coach</div></div>
+      <button class="nv-new" id="nvNew" type="button" aria-label="New conversation" title="New conversation">↻</button>
+      <button class="nv-x" id="nvClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="nv-body" id="nvBody"></div>
+    <div class="nv-quick">
+      <button class="nv-chip" data-q="How am I doing this month across both businesses — check my progress against my goals and commitments and call out anything slipping.">📋 Accountability check</button>
+      <button class="nv-chip" data-q="Look at my revenue trends across both businesses — what's working, what's not, and where should I focus?">📈 Revenue trends</button>
+      <button class="nv-chip" data-q="Give me some concrete ideas — affiliate marketing angles and short-form content/editing ideas I could try this week.">💡 Strategy ideas</button>
+    </div>
+    <div class="nv-foot">
+      <input class="nv-input" id="nvInput" type="text" placeholder="Ask Nova…" autocomplete="off">
+      <button class="nv-send" id="nvSend" type="button">↑</button>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<script>
+// ============================================================
+// SHARED HELPERS (dates, storage) used by both business sections
+// ============================================================
+(function () {
+  'use strict';
+  window.__bizShared = {};
+  const S = window.__bizShared;
+
+  S.storeGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  S.storeSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  S.$ = (id) => document.getElementById(id);
+
+  S.pad2 = (n) => String(n).padStart(2, '0');
+  S.dateToKey = (d) => d.getFullYear() + '-' + S.pad2(d.getMonth() + 1) + '-' + S.pad2(d.getDate());
+  // Same forgiving 6 AM boundary used elsewhere in the dashboard.
+  S.activeDate = () => {
+    const now = new Date();
+    const d = new Date(now);
+    if (now.getHours() < 6) d.setDate(d.getDate() - 1);
+    return d;
+  };
+  S.activeDateKey = () => S.dateToKey(S.activeDate());
+  S.monthKey = (dateStr) => dateStr.slice(0, 7); // 'YYYY-MM'
+  S.currentMonthKey = () => S.monthKey(S.activeDateKey());
+
+  S.last14Days = () => {
+    const out = [];
+    const cursor = S.activeDate();
+    cursor.setDate(cursor.getDate() - 13);
+    for (let i = 0; i < 14; i++) { out.push(S.dateToKey(cursor)); cursor.setDate(cursor.getDate() + 1); }
+    return out;
+  };
+
+  S.streakFor = (log, id) => {
+    let streak = 0;
+    const cursor = S.activeDate();
+    const isDone = (dk) => !!(log[id] && log[id][dk]);
+    if (!isDone(S.dateToKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+    while (isDone(S.dateToKey(cursor))) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    return streak;
+  };
+
+  S.fmtMoney = (n) => '$' + (Math.round((Number(n) || 0) * 100) / 100).toLocaleString();
+  S.escapeAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  S.uid = (prefix) => prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+})();
+</script>
+
+<script>
+// ============================================================
+// AFFILIATE MARKETING
+//   biz:affiliate:goal        -> number
+//   biz:affiliate:revenue     -> [{id,date,amount,note,ts}]
+//   biz:affiliate:commitments -> [{id,label}]
+//   biz:affiliate:commitLog   -> { commitId: { 'YYYY-MM-DD': true } }
+// ============================================================
+(function () {
+  'use strict';
+  const S = window.__bizShared;
+  const $ = S.$;
+
+  const GOAL_KEY = 'biz:affiliate:goal';
+  const REV_KEY = 'biz:affiliate:revenue';
+  const COMMIT_KEY = 'biz:affiliate:commitments';
+  const COMMIT_LOG_KEY = 'biz:affiliate:commitLog';
+
+  const DEFAULT_COMMITMENTS = [
+    { id: 'aff_reddit', label: 'Add Reddit links to spreadsheet' },
+    { id: 'aff_tiktok', label: 'Post on TikTok' },
+    { id: 'aff_ig', label: 'Post on Instagram' },
+  ];
+
+  function getGoal() { const g = S.storeGet(GOAL_KEY); return typeof g === 'number' ? g : 0; }
+  function setGoal(g) { S.storeSet(GOAL_KEY, g); }
+  function getRevenue() { const r = S.storeGet(REV_KEY); return Array.isArray(r) ? r : []; }
+  function setRevenue(r) { S.storeSet(REV_KEY, r); }
+  function getCommitments() {
+    const c = S.storeGet(COMMIT_KEY);
+    if (Array.isArray(c) && c.length) return c;
+    S.storeSet(COMMIT_KEY, DEFAULT_COMMITMENTS);
+    return DEFAULT_COMMITMENTS;
+  }
+  function setCommitments(c) { S.storeSet(COMMIT_KEY, c); }
+  function getCommitLog() { const l = S.storeGet(COMMIT_LOG_KEY); return (l && typeof l === 'object') ? l : {}; }
+  function setCommitLog(l) { S.storeSet(COMMIT_LOG_KEY, l); }
+
+  function renderSummary() {
+    const goal = getGoal();
+    const monthKey = S.currentMonthKey();
+    const total = getRevenue().filter(r => S.monthKey(r.date) === monthKey).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    $('affRevenueNum').textContent = S.fmtMoney(total);
+    $('affGoalText').textContent = goal ? ('/ ' + S.fmtMoney(goal) + ' goal') : '/ set a goal';
+    $('affProgressBar').style.width = (goal ? Math.min(100, (total / goal) * 100) : 0) + '%';
+  }
+
+  function renderCommitments() {
+    const commitments = getCommitments();
+    const log = getCommitLog();
+    const todayK = S.activeDateKey();
+    const days = S.last14Days();
+    const wrap = $('affCommitList');
+    wrap.innerHTML = '';
+    commitments.forEach(c => {
+      const done = !!(log[c.id] && log[c.id][todayK]);
+      const row = document.createElement('div');
+      row.className = 'commit-row' + (done ? ' commit-done-today' : '');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.className = 'commit-check'; cb.checked = done;
+      cb.addEventListener('change', () => {
+        const l = getCommitLog();
+        if (!l[c.id]) l[c.id] = {};
+        if (cb.checked) l[c.id][todayK] = true; else delete l[c.id][todayK];
+        setCommitLog(l);
+        renderCommitments();
+      });
+      row.appendChild(cb);
+
+      const body = document.createElement('div');
+      body.className = 'commit-body';
+      const label = document.createElement('div');
+      label.className = 'commit-label';
+      label.textContent = c.label;
+      body.appendChild(label);
+      const dots = document.createElement('div');
+      dots.className = 'commit-dots';
+      days.forEach(dk => {
+        const dot = document.createElement('span');
+        dot.className = 'commit-dot' + ((log[c.id] && log[c.id][dk]) ? ' hit' : '');
+        dots.appendChild(dot);
+      });
+      body.appendChild(dots);
+      row.appendChild(body);
+
+      const streak = S.streakFor(log, c.id);
+      const pill = document.createElement('span');
+      pill.className = 'commit-streak' + (streak > 0 ? ' active' : '');
+      pill.textContent = '🔥 ' + streak;
+      row.appendChild(pill);
+
+      const del = document.createElement('button');
+      del.className = 'commit-del'; del.type = 'button'; del.textContent = '×';
+      del.addEventListener('click', () => {
+        setCommitments(getCommitments().filter(x => x.id !== c.id));
+        const l = getCommitLog(); delete l[c.id]; setCommitLog(l);
+        renderCommitments();
+      });
+      row.appendChild(del);
+
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderRevenue() {
+    const list = getRevenue().slice().sort((a, b) => b.ts - a.ts);
+    const wrap = $('affRevList');
+    wrap.innerHTML = '';
+    $('affRevEmpty').style.display = list.length ? 'none' : 'block';
+    list.slice(0, 20).forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'rev-row';
+      const amt = document.createElement('div');
+      amt.className = 'rev-amt';
+      amt.textContent = S.fmtMoney(r.amount);
+      const meta = document.createElement('div');
+      meta.className = 'rev-meta';
+      meta.textContent = r.date + (r.note ? ' · ' + r.note : '');
+      const del = document.createElement('button');
+      del.className = 'rev-del'; del.type = 'button'; del.textContent = '×';
+      del.addEventListener('click', () => {
+        setRevenue(getRevenue().filter(x => x.id !== r.id));
+        renderAll();
+      });
+      row.append(amt, meta, del);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderAll() { renderSummary(); renderCommitments(); renderRevenue(); }
+
+  $('affGoalEditBtn').addEventListener('click', () => {
+    const current = getGoal();
+    const next = prompt('Monthly revenue goal for Affiliate Marketing ($):', current || '');
+    if (next == null) return;
+    const n = Number(next);
+    if (!isNaN(n) && n >= 0) { setGoal(n); renderAll(); }
+  });
+
+  $('affCommitAddBtn').addEventListener('click', () => {
+    const label = $('affCommitInput').value.trim();
+    if (!label) return;
+    const c = getCommitments();
+    c.push({ id: S.uid('aff'), label });
+    setCommitments(c);
+    $('affCommitInput').value = '';
+    renderCommitments();
+  });
+  $('affCommitInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('affCommitAddBtn').click(); });
+
+  $('affRevAddBtn').addEventListener('click', () => {
+    const amount = Number($('affRevAmount').value);
+    if (!amount) return;
+    const note = $('affRevNote').value.trim();
+    const arr = getRevenue();
+    arr.push({ id: S.uid('rev'), date: S.activeDateKey(), amount, note, ts: Date.now() });
+    setRevenue(arr);
+    $('affRevAmount').value = ''; $('affRevNote').value = '';
+    renderAll();
+  });
+
+  window.__affRenderAll = renderAll;
+  renderAll();
+  setInterval(renderAll, 60 * 1000); // roll over the 6 AM boundary without a reload
+})();
+</script>
+
+<script>
+// ============================================================
+// SHORT-FORM EDITING — client roster with retainer/per-video billing
+//   biz:editing:goal        -> number
+//   biz:editing:clients     -> [{id,name,contact,billingType,monthlyRate,
+//                                 perVideoRate,dailyDeliverables,
+//                                 deliverablesDesc,nextDeadline,
+//                                 paymentStatus,tasks:[{id,text,done}],
+//                                 active}]
+//   biz:editing:deliveryLog -> { clientId: { 'YYYY-MM-DD': count } }
+//   biz:editing:payments    -> [{id,clientId,date,amount,note,ts}]
+// ============================================================
+(function () {
+  'use strict';
+  const S = window.__bizShared;
+  const $ = S.$;
+
+  const GOAL_KEY = 'biz:editing:goal';
+  const CLIENTS_KEY = 'biz:editing:clients';
+  const DELIVERY_KEY = 'biz:editing:deliveryLog';
+  const PAYMENTS_KEY = 'biz:editing:payments';
+
+  function getGoal() { const g = S.storeGet(GOAL_KEY); return typeof g === 'number' ? g : 0; }
+  function setGoal(g) { S.storeSet(GOAL_KEY, g); }
+  function getClients() { const c = S.storeGet(CLIENTS_KEY); return Array.isArray(c) ? c : []; }
+  function setClients(c) { S.storeSet(CLIENTS_KEY, c); }
+  function getDelivery() { const d = S.storeGet(DELIVERY_KEY); return (d && typeof d === 'object') ? d : {}; }
+  function setDelivery(d) { S.storeSet(DELIVERY_KEY, d); }
+  function getPayments() { const p = S.storeGet(PAYMENTS_KEY); return Array.isArray(p) ? p : []; }
+  function setPayments(p) { S.storeSet(PAYMENTS_KEY, p); }
+
+  let openClientId = null; // null = creating a new client
+
+  function renderSummary() {
+    const goal = getGoal();
+    const monthKey = S.currentMonthKey();
+    const total = getPayments().filter(p => S.monthKey(p.date) === monthKey).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    $('editRevenueNum').textContent = S.fmtMoney(total);
+    $('editGoalText').textContent = goal ? ('/ ' + S.fmtMoney(goal) + ' goal') : '/ set a goal';
+    $('editProgressBar').style.width = (goal ? Math.min(100, (total / goal) * 100) : 0) + '%';
+  }
+
+  function renderClients() {
+    const clients = getClients();
+    const delivery = getDelivery();
+    const todayK = S.activeDateKey();
+    const wrap = $('clientList');
+    wrap.innerHTML = '';
+    $('clientEmpty').style.display = clients.length ? 'none' : 'block';
+
+    clients.forEach(client => {
+      const card = document.createElement('div');
+      card.className = 'client-card';
+
+      const head = document.createElement('div');
+      head.className = 'client-head';
+      const nameWrap = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'client-name';
+      name.textContent = client.name || 'Unnamed client';
+      nameWrap.appendChild(name);
+      if (client.contact) {
+        const contact = document.createElement('div');
+        contact.className = 'client-contact';
+        contact.textContent = client.contact;
+        nameWrap.appendChild(contact);
+      }
+      head.appendChild(nameWrap);
+      const editBtn = document.createElement('button');
+      editBtn.className = 'gm-ghost';
+      editBtn.type = 'button';
+      editBtn.textContent = 'Edit';
+      editBtn.style.padding = '6px 12px';
+      editBtn.style.fontSize = '11.5px';
+      editBtn.addEventListener('click', () => openClientEditor(client.id));
+      head.appendChild(editBtn);
+      card.appendChild(head);
+
+      const metaRow = document.createElement('div');
+      metaRow.className = 'client-meta-row';
+      const billingPill = document.createElement('span');
+      billingPill.className = 'client-pill';
+      billingPill.textContent = client.billingType === 'retainer'
+        ? (S.fmtMoney(client.monthlyRate) + '/mo' + (client.deliverablesDesc ? ' · ' + client.deliverablesDesc : ''))
+        : (S.fmtMoney(client.perVideoRate) + '/video');
+      metaRow.appendChild(billingPill);
+      if (client.nextDeadline) {
+        const deadlinePill = document.createElement('span');
+        deadlinePill.className = 'client-pill';
+        deadlinePill.textContent = 'Due ' + client.nextDeadline;
+        metaRow.appendChild(deadlinePill);
+      }
+      const payPill = document.createElement('span');
+      payPill.className = 'client-pill pay-' + (client.paymentStatus || 'unpaid');
+      payPill.textContent = (client.paymentStatus || 'unpaid');
+      metaRow.appendChild(payPill);
+      card.appendChild(metaRow);
+
+      if (client.billingType === 'retainer' && client.dailyDeliverables > 0) {
+        const doneToday = (delivery[client.id] && delivery[client.id][todayK]) || 0;
+        const target = client.dailyDeliverables;
+        const row = document.createElement('div');
+        row.className = 'client-delivery-row';
+        const track = document.createElement('div');
+        track.className = 'client-delivery-track';
+        const fill = document.createElement('div');
+        fill.className = 'client-delivery-fill';
+        fill.style.width = Math.min(100, (doneToday / target) * 100) + '%';
+        track.appendChild(fill);
+        row.appendChild(track);
+        const num = document.createElement('div');
+        num.className = 'client-delivery-num';
+        num.textContent = doneToday + '/' + target + ' today';
+        row.appendChild(num);
+        const streak = S.streakFor(
+          Object.keys(delivery).reduce((acc, cid) => { acc[cid] = {}; Object.keys(delivery[cid] || {}).forEach(dk => { if ((delivery[cid][dk] || 0) >= (client.dailyDeliverables || 1)) acc[cid][dk] = true; }); return acc; }, {}),
+          client.id
+        );
+        const streakPill = document.createElement('span');
+        streakPill.className = 'commit-streak' + (streak > 0 ? ' active' : '');
+        streakPill.textContent = '🔥 ' + streak;
+        row.appendChild(streakPill);
+        card.appendChild(row);
+
+        const btnRow = document.createElement('div');
+        btnRow.className = 'client-actions';
+        const plusBtn = document.createElement('button');
+        plusBtn.className = 'gm-ghost';
+        plusBtn.type = 'button';
+        plusBtn.textContent = '+1 delivered';
+        plusBtn.disabled = doneToday >= target;
+        plusBtn.addEventListener('click', () => {
+          const d = getDelivery();
+          if (!d[client.id]) d[client.id] = {};
+          d[client.id][todayK] = Math.min(target, (d[client.id][todayK] || 0) + 1);
+          setDelivery(d);
+          renderClients();
+        });
+        btnRow.appendChild(plusBtn);
+        if (doneToday > 0) {
+          const minusBtn = document.createElement('button');
+          minusBtn.className = 'gm-ghost';
+          minusBtn.type = 'button';
+          minusBtn.textContent = 'Undo';
+          minusBtn.addEventListener('click', () => {
+            const d = getDelivery();
+            if (d[client.id]) d[client.id][todayK] = Math.max(0, (d[client.id][todayK] || 0) - 1);
+            setDelivery(d);
+            renderClients();
+          });
+          btnRow.appendChild(minusBtn);
+        }
+        card.appendChild(btnRow);
+      }
+
+      // Task list
+      const tasks = Array.isArray(client.tasks) ? client.tasks : [];
+      if (tasks.length) {
+        const taskWrap = document.createElement('div');
+        taskWrap.style.marginTop = '8px';
+        tasks.forEach(t => {
+          const tr = document.createElement('div');
+          tr.className = 'client-task-row' + (t.done ? ' done' : '');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox'; cb.className = 'gm-check'; cb.checked = !!t.done;
+          cb.style.width = '16px'; cb.style.height = '16px';
+          cb.addEventListener('change', () => {
+            const cs = getClients();
+            const cl = cs.find(x => x.id === client.id);
+            const task = cl && cl.tasks.find(x => x.id === t.id);
+            if (task) { task.done = cb.checked; setClients(cs); renderClients(); }
+          });
+          const txt = document.createElement('span');
+          txt.className = 'gm-text';
+          txt.textContent = t.text;
+          const del = document.createElement('button');
+          del.className = 'rev-del'; del.type = 'button'; del.textContent = '×';
+          del.addEventListener('click', () => {
+            const cs = getClients();
+            const cl = cs.find(x => x.id === client.id);
+            if (cl) { cl.tasks = cl.tasks.filter(x => x.id !== t.id); setClients(cs); renderClients(); }
+          });
+          tr.append(cb, txt, del);
+          taskWrap.appendChild(tr);
+        });
+        card.appendChild(taskWrap);
+      }
+
+      const addTaskRow = document.createElement('div');
+      addTaskRow.className = 'gm-input-wrap';
+      addTaskRow.style.marginTop = '8px';
+      const taskInput = document.createElement('input');
+      taskInput.className = 'gm-input'; taskInput.type = 'text'; taskInput.placeholder = 'Add a task for this client…';
+      taskInput.style.fontSize = '12px';
+      const taskAddBtn = document.createElement('button');
+      taskAddBtn.className = 'gm-ghost'; taskAddBtn.type = 'button'; taskAddBtn.textContent = '+';
+      function addTask() {
+        const text = taskInput.value.trim();
+        if (!text) return;
+        const cs = getClients();
+        const cl = cs.find(x => x.id === client.id);
+        if (cl) {
+          if (!Array.isArray(cl.tasks)) cl.tasks = [];
+          cl.tasks.push({ id: S.uid('task'), text, done: false });
+          setClients(cs);
+          renderClients();
+        }
+      }
+      taskAddBtn.addEventListener('click', addTask);
+      taskInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTask(); });
+      addTaskRow.append(taskInput, taskAddBtn);
+      card.appendChild(addTaskRow);
+
+      const actions = document.createElement('div');
+      actions.className = 'client-actions';
+      const payBtn = document.createElement('button');
+      payBtn.className = 'gm-add';
+      payBtn.type = 'button';
+      payBtn.textContent = '💰 Log payment';
+      payBtn.addEventListener('click', () => {
+        const defaultAmt = client.billingType === 'retainer' ? client.monthlyRate : client.perVideoRate;
+        const amt = prompt('Payment amount from ' + (client.name || 'this client') + ' ($):', defaultAmt || '');
+        if (amt == null) return;
+        const n = Number(amt);
+        if (isNaN(n) || n <= 0) return;
+        const payments = getPayments();
+        payments.push({ id: S.uid('pay'), clientId: client.id, date: S.activeDateKey(), amount: n, ts: Date.now() });
+        setPayments(payments);
+        const cs = getClients();
+        const cl = cs.find(x => x.id === client.id);
+        if (cl) { cl.paymentStatus = 'paid'; setClients(cs); }
+        renderAll();
+      });
+      actions.appendChild(payBtn);
+      card.appendChild(actions);
+
+      wrap.appendChild(card);
+    });
+  }
+
+  function renderAll() { renderSummary(); renderClients(); }
+
+  // ---------- Client editor ----------
+  function updateBillingFieldsVisibility() {
+    const isRetainer = $('clBillingType').value === 'retainer';
+    $('clRetainerFields').style.display = isRetainer ? 'block' : 'none';
+    $('clPerVideoFields').style.display = isRetainer ? 'none' : 'block';
+  }
+  $('clBillingType').addEventListener('change', updateBillingFieldsVisibility);
+
+  function openClientEditor(id) {
+    openClientId = id;
+    const client = id ? getClients().find(c => c.id === id) : null;
+    $('clName').value = client ? client.name || '' : '';
+    $('clContact').value = client ? client.contact || '' : '';
+    $('clBillingType').value = client ? client.billingType || 'retainer' : 'retainer';
+    $('clMonthlyRate').value = client && client.monthlyRate != null ? client.monthlyRate : '';
+    $('clDailyDeliverables').value = client && client.dailyDeliverables != null ? client.dailyDeliverables : '';
+    $('clDeliverablesDesc').value = client ? client.deliverablesDesc || '' : '';
+    $('clPerVideoRate').value = client && client.perVideoRate != null ? client.perVideoRate : '';
+    $('clDeadline').value = client ? client.nextDeadline || '' : '';
+    $('clPaymentStatus').value = client ? client.paymentStatus || 'unpaid' : 'unpaid';
+    updateBillingFieldsVisibility();
+    $('clDeleteBtn').style.display = client ? 'inline-block' : 'none';
+    $('clientEditorSection').style.display = 'block';
+    $('clientEditorSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function closeClientEditor() {
+    openClientId = null;
+    $('clientEditorSection').style.display = 'none';
+  }
+
+  $('clientAddBtn').addEventListener('click', () => openClientEditor(null));
+
+  $('clSaveBtn').addEventListener('click', () => {
+    const name = $('clName').value.trim();
+    if (!name) { $('clName').focus(); return; }
+    const data = {
+      name,
+      contact: $('clContact').value.trim(),
+      billingType: $('clBillingType').value,
+      monthlyRate: Number($('clMonthlyRate').value) || 0,
+      dailyDeliverables: Number($('clDailyDeliverables').value) || 0,
+      deliverablesDesc: $('clDeliverablesDesc').value.trim(),
+      perVideoRate: Number($('clPerVideoRate').value) || 0,
+      nextDeadline: $('clDeadline').value,
+      paymentStatus: $('clPaymentStatus').value,
+      active: true,
+    };
+    const clients = getClients();
+    if (openClientId) {
+      const idx = clients.findIndex(c => c.id === openClientId);
+      if (idx !== -1) clients[idx] = Object.assign({}, clients[idx], data);
+    } else {
+      data.id = S.uid('client');
+      data.tasks = [];
+      clients.push(data);
+    }
+    setClients(clients);
+    closeClientEditor();
+    renderAll();
+  });
+
+  $('clDeleteBtn').addEventListener('click', () => {
+    if (!openClientId) return;
+    const client = getClients().find(c => c.id === openClientId);
+    if (!confirm('Delete client "' + (client ? client.name : '') + '"? Payment history stays in the log.')) return;
+    setClients(getClients().filter(c => c.id !== openClientId));
+    closeClientEditor();
+    renderAll();
+  });
+
+  $('editGoalEditBtn').addEventListener('click', () => {
+    const current = getGoal();
+    const next = prompt('Monthly revenue goal for Short-Form Editing ($):', current || '');
+    if (next == null) return;
+    const n = Number(next);
+    if (!isNaN(n) && n >= 0) { setGoal(n); renderAll(); }
+  });
+
+  window.__editRenderAll = renderAll;
+  renderAll();
+  setInterval(renderAll, 60 * 1000);
+})();
+</script>
+
+<script>
+// ============================================================
+// OTHER VENTURES — generic template for future businesses not yet
+// custom-built. Each gets: revenue log, monthly goal, one-off tasks.
+//   biz:custom -> [{id,name,goal,revenue:[{id,date,amount,note,ts}],
+//                    tasks:[{id,text,done}]}]
+// ============================================================
+(function () {
+  'use strict';
+  const S = window.__bizShared;
+  const $ = S.$;
+  const KEY = 'biz:custom';
+
+  function getAll() { const a = S.storeGet(KEY); return Array.isArray(a) ? a : []; }
+  function setAll(a) { S.storeSet(KEY, a); }
+
+  function render() {
+    const all = getAll();
+    const wrap = $('customBizList');
+    wrap.innerHTML = '';
+    $('customBizEmpty').style.display = all.length ? 'none' : 'block';
+
+    all.forEach(biz => {
+      const monthKey = S.currentMonthKey();
+      const total = (biz.revenue || []).filter(r => S.monthKey(r.date) === monthKey).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+      const card = document.createElement('div');
+      card.className = 'client-card';
+
+      const head = document.createElement('div');
+      head.className = 'client-head';
+      const name = document.createElement('div');
+      name.className = 'client-name';
+      name.textContent = biz.name;
+      head.appendChild(name);
+      const del = document.createElement('button');
+      del.className = 'gm-ghost gm-danger-ghost';
+      del.type = 'button'; del.textContent = 'Delete';
+      del.style.padding = '6px 12px'; del.style.fontSize = '11.5px';
+      del.addEventListener('click', () => {
+        if (!confirm('Delete "' + biz.name + '" and all its data?')) return;
+        setAll(getAll().filter(b => b.id !== biz.id));
+        render();
+      });
+      head.appendChild(del);
+      card.appendChild(head);
+
+      const summary = document.createElement('div');
+      summary.className = 'client-pill';
+      summary.style.marginBottom = '10px';
+      summary.textContent = S.fmtMoney(total) + ' this month' + (biz.goal ? ' / ' + S.fmtMoney(biz.goal) + ' goal' : '');
+      card.appendChild(summary);
+
+      const revRow = document.createElement('div');
+      revRow.className = 'gm-input-wrap';
+      const amtInput = document.createElement('input');
+      amtInput.className = 'gm-input'; amtInput.type = 'number'; amtInput.placeholder = 'Amount ($)'; amtInput.style.flex = '0 0 100px';
+      const noteInput = document.createElement('input');
+      noteInput.className = 'gm-input'; noteInput.type = 'text'; noteInput.placeholder = 'Note (optional)';
+      const logBtn = document.createElement('button');
+      logBtn.className = 'gm-ghost'; logBtn.type = 'button'; logBtn.textContent = '+ Log';
+      logBtn.addEventListener('click', () => {
+        const amt = Number(amtInput.value);
+        if (!amt) return;
+        const all2 = getAll();
+        const b = all2.find(x => x.id === biz.id);
+        if (!b) return;
+        if (!Array.isArray(b.revenue)) b.revenue = [];
+        b.revenue.push({ id: S.uid('rev'), date: S.activeDateKey(), amount: amt, note: noteInput.value.trim(), ts: Date.now() });
+        setAll(all2);
+        render();
+      });
+      revRow.append(amtInput, noteInput, logBtn);
+      card.appendChild(revRow);
+
+      wrap.appendChild(card);
+    });
+  }
+
+  $('customBizAddBtn').addEventListener('click', () => {
+    const name = $('customBizInput').value.trim();
+    if (!name) return;
+    const all = getAll();
+    all.push({ id: S.uid('biz'), name, goal: 0, revenue: [], tasks: [] });
+    setAll(all);
+    $('customBizInput').value = '';
+    render();
+  });
+  $('customBizInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('customBizAddBtn').click(); });
+
+  window.__customRenderAll = render;
+  render();
+})();
+</script>
+
+<script>
+// ============================================================
+// NOVA BUSINESS COACH — bring-your-own Anthropic key (same shared key
+// as the other Nova instances), persistent per-page conversation
+// memory, sees across BOTH businesses (not one bot per business) so
+// it can reason about where to focus and compare trends.
+// ============================================================
+(function () {
+  'use strict';
+  const KEY_LS = 'nova_lite_api_key';
+  const HIST_KEY = 'nova:business:history';
+  const $ = (id) => document.getElementById(id);
+  const fab = $('nvFab'), panel = $('nvPanel'), body = $('nvBody'), input = $('nvInput');
+  let busy = false, greeted = false;
+
+  function loadHistory() { try { const h = JSON.parse(localStorage.getItem(HIST_KEY)); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
+  function saveHistory() { try { localStorage.setItem(HIST_KEY, JSON.stringify(history)); } catch (e) {} }
+  let history = loadHistory();
+
+  function savedKey() { try { return localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; } }
+  function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+  function md(t) {
+    let h = esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>');
+    const lines = h.split('\n'); let out = '', inUl = false;
+    for (const ln of lines) {
+      if (/^\s*[-*]\s+/.test(ln)) { if (!inUl) { out += '<ul>'; inUl = true; } out += '<li>' + ln.replace(/^\s*[-*]\s+/, '') + '</li>'; }
+      else { if (inUl) { out += '</ul>'; inUl = false; } out += ln.trim() ? '<div>' + ln + '</div>' : ''; }
+    }
+    if (inUl) out += '</ul>';
+    return out;
+  }
+  function addMsg(who, html) { const d = document.createElement('div'); d.className = 'nv-msg ' + who; d.innerHTML = html; body.appendChild(d); body.scrollTop = body.scrollHeight; return d; }
+  function readLS(k, f) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? f : v; } catch (e) { return f; } }
+
+  function businessContext() {
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const affRevenue = readLS('biz:affiliate:revenue', []) || [];
+    const affGoal = readLS('biz:affiliate:goal', 0);
+    const affCommitments = readLS('biz:affiliate:commitments', []) || [];
+    const affCommitLog = readLS('biz:affiliate:commitLog', {}) || {};
+    const affThisMonth = affRevenue.filter(r => (r.date || '').slice(0, 7) === monthKey).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const affCommitCompletion = affCommitments.map(c => {
+      const days = Object.keys(affCommitLog[c.id] || {});
+      return { label: c.label, daysCompletedTotal: days.length };
+    });
+
+    const editGoal = readLS('biz:editing:goal', 0);
+    const payments = readLS('biz:editing:payments', []) || [];
+    const editThisMonth = payments.filter(p => (p.date || '').slice(0, 7) === monthKey).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const clients = (readLS('biz:editing:clients', []) || []).map(c => ({
+      name: c.name, billingType: c.billingType, monthlyRate: c.monthlyRate, perVideoRate: c.perVideoRate,
+      dailyDeliverables: c.dailyDeliverables, deliverablesDesc: c.deliverablesDesc,
+      nextDeadline: c.nextDeadline, paymentStatus: c.paymentStatus,
+      openTasks: (c.tasks || []).filter(t => !t.done).map(t => t.text)
+    }));
+
+    const customBiz = (readLS('biz:custom', []) || []).map(b => ({
+      name: b.name, goal: b.goal,
+      thisMonthRevenue: (b.revenue || []).filter(r => (r.date || '').slice(0, 7) === monthKey).reduce((s, r) => s + (Number(r.amount) || 0), 0)
+    }));
+
+    return JSON.stringify({
+      today: new Date().toDateString(),
+      affiliateMarketing: { thisMonthRevenue: affThisMonth, monthlyGoal: affGoal, dailyCommitments: affCommitCompletion, recentRevenueLog: affRevenue.slice(-15) },
+      shortFormEditing: { thisMonthRevenue: editThisMonth, monthlyGoal: editGoal, clients: clients, recentPayments: payments.slice(-15) },
+      otherVentures: customBiz
+    });
+  }
+
+  const SYS = "You are Nova, the user's business coach living inside their personal dashboard. They run multiple side hustles/businesses — "
+    + "right now Affiliate Marketing (Superbuy referral kickbacks) and Short-Form Editing (freelance clients, some on monthly retainers with daily "
+    + "video deliverables, some per-video), plus possibly other ventures they've added. You can see revenue logged this month vs their goals, daily "
+    + "commitment completion for affiliate marketing (posting, adding referral links), and their client roster with payment status and deadlines. "
+    + "Your job: (1) accountability — call out specifically what's slipping (missed commitments, unpaid/overdue clients, goals off pace) rather than "
+    + "generic encouragement; (2) revenue analysis — reason about what's actually trending and which stream is worth more attention; (3) concrete "
+    + "strategy and content ideas for affiliate marketing and short-form content, using your own knowledge, not just their data. Be direct and "
+    + "specific, not vague. Short markdown bullets are fine. Keep replies under ~200 words. Their data as JSON: ";
+
+  async function ask(text) {
+    text = (text || '').trim(); if (!text || busy) return;
+    const key = savedKey();
+    addMsg('user', md(text));
+    if (!key) { addMsg('coach', md("Paste your **Anthropic API key** on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and I'll use it here too.")); return; }
+    busy = true;
+    history.push({ role: 'user', content: text });
+    if (history.length > 20) history = history.slice(-20);
+    saveHistory();
+    const loading = addMsg('coach', '<span class="nv-dots"><i></i><i></i><i></i></span>');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-opus-4-8', max_tokens: 1000, system: SYS + businessContext(), messages: history }),
+      });
+      const json = await res.json();
+      if (json.error) { loading.innerHTML = md('- ' + (json.error.message || 'Something went wrong — check your API key.')); busy = false; history.pop(); saveHistory(); return; }
+      const reply = (json.content && json.content[0] && json.content[0].text) || 'Hmm, no reply.';
+      history.push({ role: 'assistant', content: reply });
+      saveHistory();
+      loading.innerHTML = md(reply);
+    } catch (e) { loading.innerHTML = md('- Could not reach Anthropic — check your connection and key.'); history.pop(); saveHistory(); }
+    body.scrollTop = body.scrollHeight; busy = false;
+  }
+
+  function openPanel() {
+    panel.classList.add('open');
+    if (!greeted) {
+      greeted = true;
+      if (history.length) {
+        history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'coach', md(m.content)));
+      } else {
+        addMsg('coach', md("Hey — I'm Nova, your business coach. I can see both your affiliate marketing and editing client work. Ask me how you're doing, or tap a suggestion below."));
+      }
+    }
+    setTimeout(() => input.focus(), 50);
+  }
+  function closePanel() { panel.classList.remove('open'); }
+  function newConversation() { history = []; saveHistory(); body.innerHTML = ''; greeted = false; openPanel(); }
+
+  fab.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
+  $('nvClose').addEventListener('click', closePanel);
+  $('nvNew').addEventListener('click', newConversation);
+  $('nvSend').addEventListener('click', () => { const t = input.value; input.value = ''; ask(t); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const t = input.value; input.value = ''; ask(t); } });
+  document.querySelectorAll('.nv-chip[data-q]').forEach(c => c.addEventListener('click', () => ask(c.getAttribute('data-q'))));
+})();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof initCloudSync !== 'function') return;
+  initCloudSync({
+    appKey: 'business',
+    syncedKeys: [
+      'biz:affiliate:goal', 'biz:affiliate:revenue', 'biz:affiliate:commitments', 'biz:affiliate:commitLog',
+      'biz:editing:goal', 'biz:editing:clients', 'biz:editing:deliveryLog', 'biz:editing:payments',
+      'biz:custom', 'nova:business:history'
+    ],
+    onApplied: function () {
+      if (window.__affRenderAll) window.__affRenderAll();
+      if (window.__editRenderAll) window.__editRenderAll();
+      if (window.__customRenderAll) window.__customRenderAll();
+    }
+  });
+});
+</script>
+</body>
+</html>

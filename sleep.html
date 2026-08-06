@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Sleep · Body</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+:root { --sleep: #818CF8; }
+
+.hidden { display: none !important; }
+
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 12px; }
+.field-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; display: block; }
+.gm-input {
+  width: 100%; padding: 11px 13px; border: 1px solid var(--hud-line); border-radius: 12px;
+  background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gm-input::placeholder { color: var(--text-tertiary); }
+.gm-input:focus { border-color: rgba(129,140,248,0.55); background: rgba(0,0,0,0.36); }
+.star-row { display: flex; gap: 6px; }
+.star-btn {
+  width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--hud-line); background: rgba(0,0,0,0.28);
+  color: var(--text-tertiary); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.star-btn.on { background: rgba(129,140,248,0.18); border-color: rgba(129,140,248,0.45); color: var(--sleep); }
+.gm-add {
+  padding: 12px 20px; border: 0; border-radius: 12px; background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 8px rgba(0,0,0,0.35), 0 8px 22px rgba(0,0,0,0.25);
+  transition: transform 0.1s, filter 0.15s; margin-top: 14px;
+}
+.gm-add:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.gm-add:active { transform: translateY(0); }
+.gm-note { font-size: 11.5px; color: var(--text-tertiary); margin-top: 10px; line-height: 1.5; }
+
+/* ---- Hero: last night ---- */
+.hero-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.hero-num { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+.hero-num.hero-num-empty { color: var(--text-tertiary); opacity: 0.5; }
+.hero-unit { font-size: 14px; color: var(--text-tertiary); margin-left: 4px; }
+.hero-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+.hero-stat { display: flex; flex-direction: column; gap: 2px; }
+.hero-stat-k { font-size: 9.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-tertiary); }
+.hero-stat-v { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.hero-streak { margin-left: auto; font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.source-tag { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 8px; }
+
+/* ---- Big CTA buttons ---- */
+.cta-btn {
+  width: 100%; padding: 16px; border: 1px solid var(--hud-line); border-radius: 14px;
+  background: rgba(129,140,248,0.08); color: var(--text-primary); font-family: inherit;
+  font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: background 0.15s, transform 0.1s;
+}
+.cta-btn:hover { background: rgba(129,140,248,0.14); }
+.cta-btn:active { transform: scale(0.99); }
+.cta-btn.cta-active { background: rgba(129,140,248,0.16); border-color: rgba(129,140,248,0.4); }
+.pending-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12.5px; color: var(--text-secondary); }
+.pending-cancel { border: 0; background: transparent; color: var(--text-tertiary); font-size: 12px; cursor: pointer; text-decoration: underline; }
+
+/* ---- Wind-down / chip selectors ---- */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip {
+  padding: 8px 13px; border-radius: 999px; font-size: 12.5px; cursor: pointer;
+  background: rgba(0,0,0,0.28); border: 1px solid var(--hud-line); color: var(--text-secondary);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip.on { background: rgba(129,140,248,0.16); border-color: rgba(129,140,248,0.45); color: var(--sleep); }
+.grog-row { display: flex; gap: 6px; }
+.grog-btn {
+  flex: 1; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--hud-line); background: rgba(0,0,0,0.28);
+  font-size: 18px; cursor: pointer; text-align: center; transition: background 0.15s, border-color 0.15s;
+}
+.grog-btn.on { background: rgba(129,140,248,0.18); border-color: rgba(129,140,248,0.45); }
+
+/* ---- Recent nights list ---- */
+.night-list { list-style: none; margin: 0; padding: 0; }
+.night-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.night-row:last-child { border-bottom: 0; }
+.night-date { font-size: 12.5px; color: var(--text-secondary); width: 72px; flex-shrink: 0; }
+.night-hours { font-size: 14px; font-weight: 700; color: var(--text-primary); width: 52px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.night-stars { font-size: 11px; color: var(--sleep); width: 60px; flex-shrink: 0; }
+.night-grog { width: 24px; flex-shrink: 0; text-align: center; }
+.night-rhr { font-size: 11.5px; color: var(--text-tertiary); margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="page">
+  <a class="back-link" href="hub-body.html">← Body</a>
+  <h1 class="dash-title">Sleep</h1>
+
+  <div class="section">
+    <div class="section-title">Last Night</div>
+    <div class="gm-card">
+      <div class="hero-row">
+        <div><span class="hero-num" id="heroHours">—</span><span class="hero-unit">hrs</span></div>
+        <div class="hero-stats">
+          <div class="hero-stat"><span class="hero-stat-k">Quality</span><span class="hero-stat-v" id="heroQuality">—</span></div>
+          <div class="hero-stat"><span class="hero-stat-k">Wake feel</span><span class="hero-stat-v" id="heroGrog">—</span></div>
+          <div class="hero-stat"><span class="hero-stat-k">RHR</span><span class="hero-stat-v" id="heroRhr">—</span></div>
+        </div>
+        <div class="hero-streak" id="heroStreak"></div>
+      </div>
+      <div class="empty-state" id="heroEmpty" style="display:none">Nothing logged yet — go to bed or log this morning's wake-up below.</div>
+      <div class="source-tag" id="heroSource"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Wind-Down</div>
+    <div class="gm-card">
+      <button type="button" class="cta-btn" id="bedBtn">🛌 Going to bed</button>
+      <div class="pending-row hidden" id="pendingRow">
+        <span id="pendingText"></span>
+        <button type="button" class="pending-cancel" id="pendingCancelBtn">cancel</button>
+      </div>
+      <div class="field-label" style="margin-top:14px">Wind-down checklist (optional)</div>
+      <div class="chip-row" id="preSleepChips">
+        <span class="chip" data-k="screensOff">Screens off</span>
+        <span class="chip" data-k="roomCool">Room cool</span>
+        <span class="chip" data-k="noLateCaffeine">No late caffeine</span>
+        <span class="chip" data-k="woundDown">Wound down / read</span>
+      </div>
+      <input class="gm-input" id="preSleepNote" type="text" placeholder="Anything on your mind before sleep? (optional)" style="margin-top:10px">
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Wake Up</div>
+    <div class="gm-card">
+      <button type="button" class="cta-btn" id="wakeBtn">☀️ I'm up</button>
+      <div class="gm-note" id="wakeAutoNote"></div>
+
+      <div class="field-grid" style="margin-top:14px">
+        <div>
+          <label class="field-label">Bedtime</label>
+          <input class="gm-input" id="inBedClock" type="time">
+        </div>
+        <div>
+          <label class="field-label">Wake time</label>
+          <input class="gm-input" id="inWakeClock" type="time">
+        </div>
+        <div>
+          <label class="field-label">Or just hours slept</label>
+          <input class="gm-input" id="inManualHours" type="number" min="0" step="0.25" inputmode="decimal" placeholder="e.g. 7.5">
+        </div>
+        <div>
+          <label class="field-label">Resting HR (bpm)</label>
+          <input class="gm-input" id="inRhr" type="number" min="0" inputmode="numeric" placeholder="e.g. 58">
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <label class="field-label">Sleep quality</label>
+        <div class="star-row" id="qualityRow">
+          <button class="star-btn" data-v="1" type="button">1</button>
+          <button class="star-btn" data-v="2" type="button">2</button>
+          <button class="star-btn" data-v="3" type="button">3</button>
+          <button class="star-btn" data-v="4" type="button">4</button>
+          <button class="star-btn" data-v="5" type="button">5</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <label class="field-label">How groggy on waking?</label>
+        <div class="grog-row" id="grogRow">
+          <button class="grog-btn" data-v="1" type="button" title="Very groggy">😴</button>
+          <button class="grog-btn" data-v="2" type="button" title="Groggy">😪</button>
+          <button class="grog-btn" data-v="3" type="button" title="OK">😐</button>
+          <button class="grog-btn" data-v="4" type="button" title="Good">🙂</button>
+          <button class="grog-btn" data-v="5" type="button" title="Sharp">😃</button>
+        </div>
+      </div>
+
+      <input class="gm-input" id="wakeNote" type="text" placeholder="Any notes on how you woke up? (optional)" style="margin-top:14px">
+
+      <button class="gm-add" id="saveNightBtn" type="button">Save</button>
+      <div class="gm-note" id="saveStatus"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Recent Nights</div>
+    <div class="gm-card">
+      <ul class="night-list" id="nightList"></ul>
+      <div class="empty-state" id="nightEmpty" style="display:none">No nights logged yet.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <a class="link-out-card" href="insights-recovery.html">
+      <span class="link-out-icon">🌙</span>
+      <span class="link-out-text">
+        <span class="link-out-title">Sleep trends &amp; burnout risk</span>
+        <span class="link-out-sub">Night Score, sleep debt, and recovery — in Recovery</span>
+      </span>
+      <span class="link-out-chevron">→</span>
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const NIGHTS_KEY = 'sleep:nights';
+  const PENDING_KEY = 'sleep:pendingBedtime';
+  const MAX_TRACKED_SLEEP_HOURS = 16; // beyond this a pending bedtime is stale — same guard the Telegram bot uses
+  const RECENT_NIGHTS_SHOWN = 10;
+  const GROG_LABELS = { 1: 'Very groggy', 2: 'Groggy', 3: 'OK', 4: 'Good', 5: 'Sharp' };
+  const GROG_EMOJI = { 1: '😴', 2: '😪', 3: '😐', 4: '🙂', 5: '😃' };
+
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function storeDelete(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateKeyFromDate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function todayKey(nowMs) { return dateKeyFromDate(new Date(nowMs != null ? nowMs : Date.now())); }
+  function lastNDateKeys(n, nowMs) {
+    const out = [];
+    const d = new Date(nowMs != null ? nowMs : Date.now());
+    for (let i = 0; i < n; i++) { out.push(dateKeyFromDate(d)); d.setDate(d.getDate() - 1); }
+    return out;
+  }
+
+  function parseClockHours(hhmm) {
+    if (!hhmm) return null;
+    const parts = hhmm.split(':').map(Number);
+    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
+    return parts[0] + parts[1] / 60;
+  }
+
+  // Bedtime is virtually always the evening before a morning wake time —
+  // if the raw subtraction comes out zero or negative, the night crossed
+  // midnight, so add a full day back in rather than reporting nonsense.
+  function durationFromClocks(bedClock, wakeClock) {
+    const bed = parseClockHours(bedClock), wake = parseClockHours(wakeClock);
+    if (bed == null || wake == null) return null;
+    let dur = wake - bed;
+    if (dur <= 0) dur += 24;
+    return Math.round(dur * 10) / 10;
+  }
+
+  // Elapsed time since a "going to bed" tap, capped so a forgotten
+  // wake-up (or a nap that never got closed out) doesn't get logged as a
+  // bogus multi-day "sleep" — mirrors MAX_TRACKED_SLEEP_HOURS in the
+  // Telegram bot's log_morning_checkin handler.
+  function durationFromPending(bedTs, nowMs) {
+    if (bedTs == null) return null;
+    const hours = (nowMs - bedTs) / 3600000;
+    if (hours <= 0 || hours > MAX_TRACKED_SLEEP_HOURS) return null;
+    return Math.round(hours * 10) / 10;
+  }
+
+  // Consecutive days with a logged night (a real sleepHours value),
+  // ending today or yesterday — same "streak ending today-or-yesterday"
+  // convention as skills.html's practice streak and mistakes.html's clean
+  // streak, so a night not logged YET today doesn't look like a broken
+  // streak until the day is actually over.
+  function sleepStreak(nights, nowMs) {
+    const days = new Set(Object.keys(nights || {}).filter(k => nights[k] && nights[k].sleepHours != null));
+    let streak = 0;
+    const cursor = new Date(nowMs != null ? nowMs : Date.now());
+    if (!days.has(dateKeyFromDate(cursor))) cursor.setDate(cursor.getDate() - 1);
+    while (days.has(dateKeyFromDate(cursor))) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    return streak;
+  }
+
+  function avgField(nights, dateKeys, field) {
+    const vals = dateKeys.map(k => nights[k] && nights[k][field]).filter(v => typeof v === 'number');
+    if (!vals.length) return null;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+
+  window.__sleepLogic = {
+    parseClockHours, durationFromClocks, durationFromPending, sleepStreak, avgField,
+    dateKeyFromDate, todayKey, lastNDateKeys, MAX_TRACKED_SLEEP_HOURS,
+  };
+
+  // ---------- Rendering ----------
+  const $ = (id) => document.getElementById(id);
+
+  function getNights() { return storeGet(NIGHTS_KEY) || {}; }
+  function setNights(n) { storeSet(NIGHTS_KEY, n); }
+  function getPending() { return storeGet(PENDING_KEY); }
+
+  function renderHero() {
+    const nights = getNights();
+    const entry = nights[todayKey()];
+    const emptyEl = $('heroEmpty'), sourceEl = $('heroSource');
+    if (!entry) {
+      $('heroHours').textContent = '—';
+      $('heroHours').classList.add('hero-num-empty');
+      $('heroQuality').textContent = '—';
+      $('heroGrog').textContent = '—';
+      $('heroRhr').textContent = '—';
+      emptyEl.style.display = 'block';
+      sourceEl.textContent = '';
+    } else {
+      emptyEl.style.display = 'none';
+      $('heroHours').classList.toggle('hero-num-empty', entry.sleepHours == null);
+      $('heroHours').textContent = entry.sleepHours != null ? entry.sleepHours : '—';
+      $('heroQuality').textContent = entry.sleepQuality != null ? entry.sleepQuality + '/5' : '—';
+      $('heroGrog').textContent = entry.grogginess != null ? (GROG_EMOJI[entry.grogginess] + ' ' + GROG_LABELS[entry.grogginess]) : '—';
+      $('heroRhr').textContent = entry.rhr != null ? entry.rhr + ' bpm' : '—';
+      const srcLabel = { tracked: 'tracked from bedtime', clocks: 'from bed/wake times', manual: 'manually entered' }[entry.durationSource];
+      sourceEl.textContent = srcLabel || '';
+    }
+    const streak = sleepStreak(nights);
+    $('heroStreak').textContent = streak > 0 ? ('🔥 ' + streak + '-night streak') : '';
+  }
+
+  function renderPending() {
+    const pending = getPending();
+    const row = $('pendingRow');
+    if (!pending) {
+      row.classList.add('hidden');
+      $('bedBtn').textContent = '🛌 Going to bed';
+      $('bedBtn').classList.remove('cta-active');
+      $('wakeAutoNote').textContent = '';
+      return;
+    }
+    row.classList.remove('hidden');
+    $('bedBtn').textContent = '🛌 In bed';
+    $('bedBtn').classList.add('cta-active');
+    const bedDate = new Date(pending.ts);
+    const clock = pad2(bedDate.getHours()) + ':' + pad2(bedDate.getMinutes());
+    $('pendingText').textContent = 'In bed since ' + clock;
+    const tracked = durationFromPending(pending.ts, Date.now());
+    $('wakeAutoNote').textContent = tracked != null
+      ? ("Tap \"I'm up\" to log ~" + tracked + 'h automatically.')
+      : "It's been a while — you can still log manually below.";
+  }
+
+  function renderNightList() {
+    const nights = getNights();
+    const keys = lastNDateKeys(RECENT_NIGHTS_SHOWN).filter(k => nights[k]);
+    const listEl = $('nightList'), emptyEl = $('nightEmpty');
+    listEl.innerHTML = '';
+    if (!keys.length) { emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+    keys.forEach(k => {
+      const n = nights[k];
+      const li = document.createElement('li');
+      li.className = 'night-row';
+      const d = new Date(k + 'T00:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      li.innerHTML =
+        '<span class="night-date">' + label + '</span>' +
+        '<span class="night-hours">' + (n.sleepHours != null ? n.sleepHours + 'h' : '—') + '</span>' +
+        '<span class="night-stars">' + (n.sleepQuality != null ? '★'.repeat(n.sleepQuality) + '☆'.repeat(5 - n.sleepQuality) : '') + '</span>' +
+        '<span class="night-grog">' + (n.grogginess != null ? GROG_EMOJI[n.grogginess] : '') + '</span>' +
+        '<span class="night-rhr">' + (n.rhr != null ? n.rhr + ' bpm' : '') + '</span>';
+      listEl.appendChild(li);
+    });
+  }
+
+  function render() { renderHero(); renderPending(); renderNightList(); }
+
+  // ---- Bedtime button ----
+  $('bedBtn').addEventListener('click', () => {
+    if (getPending()) {
+      storeDelete(PENDING_KEY);
+    } else {
+      storeSet(PENDING_KEY, { ts: Date.now() });
+    }
+    render();
+  });
+  $('pendingCancelBtn').addEventListener('click', () => { storeDelete(PENDING_KEY); render(); });
+
+  // ---- Wind-down chips ----
+  const preSleepState = {};
+  $('preSleepChips').querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const k = chip.dataset.k;
+      preSleepState[k] = !preSleepState[k];
+      chip.classList.toggle('on', !!preSleepState[k]);
+    });
+  });
+
+  // ---- Wake-up button: pre-fills from a pending bedtime if there is one ----
+  $('wakeBtn').addEventListener('click', () => {
+    const pending = getPending();
+    const now = new Date();
+    $('inWakeClock').value = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    if (pending) {
+      const bedDate = new Date(pending.ts);
+      $('inBedClock').value = pad2(bedDate.getHours()) + ':' + pad2(bedDate.getMinutes());
+      const tracked = durationFromPending(pending.ts, Date.now());
+      if (tracked != null) $('inManualHours').value = '';
+    }
+  });
+
+  // ---- Quality stars ----
+  let qualitySel = 0;
+  $('qualityRow').querySelectorAll('.star-btn').forEach(b => b.addEventListener('click', () => {
+    qualitySel = Number(b.dataset.v);
+    $('qualityRow').querySelectorAll('.star-btn').forEach(x => x.classList.toggle('on', Number(x.dataset.v) <= qualitySel));
+  }));
+
+  // ---- Grogginess ----
+  let grogSel = 0;
+  $('grogRow').querySelectorAll('.grog-btn').forEach(b => b.addEventListener('click', () => {
+    grogSel = Number(b.dataset.v);
+    $('grogRow').querySelectorAll('.grog-btn').forEach(x => x.classList.toggle('on', Number(x.dataset.v) === grogSel));
+  }));
+
+  // ---- Save ----
+  function computeFinalDuration(bedClock, wakeClock, manualHours, pending) {
+    if (pending) {
+      const tracked = durationFromPending(pending.ts, Date.now());
+      if (tracked != null) return { hours: tracked, source: 'tracked' };
+    }
+    const fromClocks = durationFromClocks(bedClock, wakeClock);
+    if (fromClocks != null) return { hours: fromClocks, source: 'clocks' };
+    if (manualHours != null && !isNaN(manualHours)) return { hours: manualHours, source: 'manual' };
+    return { hours: null, source: null };
+  }
+
+  $('saveNightBtn').addEventListener('click', () => {
+    const bedClock = $('inBedClock').value || null;
+    const wakeClock = $('inWakeClock').value || null;
+    const manualHours = $('inManualHours').value !== '' ? parseFloat($('inManualHours').value) : null;
+    const rhr = $('inRhr').value !== '' ? Number($('inRhr').value) : null;
+    const wakeNote = $('wakeNote').value.trim();
+    const pending = getPending();
+
+    const { hours, source } = computeFinalDuration(bedClock, wakeClock, manualHours, pending);
+
+    const nights = getNights();
+    const key = todayKey();
+    const hasPreSleep = Object.keys(preSleepState).some(k => preSleepState[k]);
+    nights[key] = {
+      bedTime: bedClock,
+      wakeTime: wakeClock,
+      sleepHours: hours,
+      durationSource: source,
+      sleepQuality: qualitySel || null,
+      grogginess: grogSel || null,
+      rhr,
+      wakeNote,
+      preSleep: hasPreSleep ? Object.assign({}, preSleepState) : null,
+      preSleepNote: $('preSleepNote').value.trim(),
+      ts: Date.now(),
+    };
+    setNights(nights);
+    if (pending) storeDelete(PENDING_KEY);
+
+    $('saveStatus').textContent = 'Logged ✓';
+    setTimeout(() => { $('saveStatus').textContent = ''; }, 2200);
+    render();
+  });
+
+  render();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'sleep',
+      syncedKeys: [NIGHTS_KEY, PENDING_KEY],
+      onApplied: () => render(),
+    });
+  });
+})();
+</script>
+</body>
+</html>

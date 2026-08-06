@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Weekly Schedule · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.page { max-width: 1180px; }
+
+.sched-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.sched-week-nav { display: flex; align-items: center; gap: 8px; }
+.sched-week-btn {
+  width: 32px; height: 32px; flex-shrink: 0; border: 1px solid var(--hud-line); border-radius: 10px;
+  background: rgba(var(--hud-rgb), 0.04); color: var(--text-primary); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.sched-week-btn:hover { background: rgba(var(--hud-rgb), 0.09); }
+.sched-week-label { font-size: 13px; font-weight: 700; color: var(--text-secondary); min-width: 150px; text-align: center; }
+.sched-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sched-btn {
+  padding: 9px 14px; border-radius: 12px; border: 1px solid var(--hud-line); background: rgba(var(--hud-rgb), 0.06);
+  color: var(--text-primary); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.sched-btn:hover { background: rgba(var(--hud-rgb), 0.12); border-color: var(--hud-line-strong); }
+.sched-btn.primary { background: linear-gradient(180deg,#FFFFFF,#E8E5DD); color: #0A0A0B; border-color: transparent; }
+
+.sched-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.sched-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-tertiary); font-weight: 600; }
+.sched-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+.sched-google-panel {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--hud-line-soft); background: rgba(66,133,244,0.05); margin-bottom: 14px;
+}
+.sched-google-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+.sched-google-status b { color: var(--text-primary); }
+.sched-google-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-quaternary); flex-shrink: 0; }
+.sched-google-dot.connected { background: #4285F4; }
+.sched-google-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sched-block.is-external-google { border-left-color: #4285F4; border-style: dotted; opacity: 0.85; background: rgba(66,133,244,0.08); }
+
+.sched-preview-list { max-height: 44vh; overflow-y: auto; border: 1px solid var(--hud-line-soft); border-radius: 10px; margin: 12px 0; }
+.sched-preview-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; border-bottom: 1px solid var(--hud-line-soft); }
+.sched-preview-item:last-child { border-bottom: none; }
+.sched-preview-kind { flex-shrink: 0; font: 700 9px var(--font-mono); text-transform: uppercase; padding: 2px 6px; border-radius: 6px; }
+.sched-preview-kind.create { background: rgba(63,224,168,0.14); color: var(--success); }
+.sched-preview-kind.update { background: rgba(255,184,77,0.14); color: var(--warning); }
+.sched-preview-kind.delete { background: rgba(255,84,112,0.14); color: var(--danger); }
+.sched-preview-kind.cancel-instance, .sched-preview-kind.move-instance { background: rgba(34,211,245,0.14); color: var(--hud); }
+.sched-preview-title { flex: 1; min-width: 0; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sched-banner {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; margin-bottom: 14px;
+  font-size: 12.5px; font-weight: 600; border: 1px solid;
+}
+.sched-banner[hidden] { display: none; }
+.sched-banner.offline { background: rgba(255,184,77,0.08); border-color: rgba(255,184,77,0.28); color: #FFB84D; }
+.sched-banner.error { background: rgba(255,84,112,0.08); border-color: rgba(255,84,112,0.28); color: #FF5470; }
+.sched-banner.conflict { background: rgba(34,211,245,0.08); border-color: var(--hud-line); color: var(--hud); }
+.sched-banner button { margin-left: auto; flex-shrink: 0; background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 8px; padding: 4px 10px; font: inherit; font-weight: 700; cursor: pointer; }
+
+.sched-daytabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; }
+.sched-daytab {
+  flex: 1; min-width: 74px; padding: 9px 6px; border-radius: 12px; border: 1px solid var(--hud-line-soft);
+  background: rgba(var(--hud-rgb), 0.03); color: var(--text-secondary); font-family: inherit; cursor: pointer; text-align: center;
+}
+.sched-daytab .dow { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.sched-daytab .dnum { display: block; font-size: 15px; font-weight: 700; color: var(--text-primary); margin-top: 2px; }
+.sched-daytab.is-selected { background: rgba(var(--hud-rgb), 0.14); border-color: var(--hud-line-strong); }
+.sched-daytab.is-selected .dow { color: var(--hud); }
+.sched-daytab.is-today .dnum::after { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--hud); margin-left: 4px; vertical-align: middle; }
+
+.sched-grid-wrap { display: grid; grid-template-columns: 52px 1fr; gap: 0; border: 1px solid var(--hud-line-soft); border-radius: var(--radius-lg); overflow: hidden; background: rgba(6,14,20,0.5); }
+.sched-axis { position: relative; border-right: 1px solid var(--hud-line-soft); }
+.sched-axis-label {
+  position: absolute; left: 0; right: 6px; transform: translateY(-50%); text-align: right;
+  font: 700 10px var(--font-mono); color: var(--text-quaternary);
+}
+.sched-columns { position: relative; display: grid; grid-template-columns: repeat(var(--sched-col-count, 1), minmax(0,1fr)); }
+.sched-col { position: relative; border-left: 1px solid var(--hud-line-soft); min-height: var(--sched-axis-height, 900px); }
+.sched-col:first-child { border-left: none; }
+.sched-col-head { position: sticky; top: 0; z-index: 2; padding: 8px 6px; text-align: center; background: rgba(6,14,20,0.92); border-bottom: 1px solid var(--hud-line-soft); font-size: 11px; font-weight: 700; color: var(--text-tertiary); }
+.sched-col.is-today .sched-col-head { color: var(--hud); }
+.sched-hourline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--hud-line-soft); }
+.sched-now-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 3; }
+.sched-now-line::before { content: ''; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+.sched-block {
+  position: absolute; left: 3px; right: 3px; min-height: 20px; border-radius: 8px; padding: 4px 7px; overflow: hidden;
+  border-left: 3px solid var(--cat-color, var(--hud)); background: color-mix(in srgb, var(--cat-color, var(--hud)) 14%, rgba(8,16,22,0.7));
+  cursor: pointer; text-align: left; font-family: inherit; color: var(--text-primary); display: flex; flex-direction: column; gap: 1px;
+}
+.sched-block:hover { background: color-mix(in srgb, var(--cat-color, var(--hud)) 24%, rgba(8,16,22,0.7)); }
+.sched-block.is-appointment { border-style: dashed; border-left-style: solid; background: color-mix(in srgb, #4285F4 16%, rgba(8,16,22,0.7)); border-left-color: #4285F4; }
+.sched-block.is-current { box-shadow: 0 0 0 2px var(--hud); }
+.sched-block.is-disabled-preview { opacity: 0.4; }
+.sched-block-title { font-size: 11px; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sched-block-time { font-size: 9.5px; color: var(--text-tertiary); font-family: var(--font-mono); }
+.sched-block-milestone { min-height: 0; height: 22px; display: flex; align-items: center; }
+
+.sched-empty { padding: 40px 16px; text-align: center; color: var(--text-tertiary); }
+.sched-empty-icon { font-size: 32px; margin-bottom: 10px; }
+.sched-empty-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
+.sched-empty-sub { font-size: 12.5px; max-width: 340px; margin: 0 auto; }
+
+/* ---------- Modal ---------- */
+.sched-modal-bg { position: fixed; inset: 0; z-index: var(--z-modal); display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(1,5,9,0.78); backdrop-filter: blur(10px); }
+.sched-modal-bg.show { display: flex; }
+.sched-modal { width: min(440px, 100%); max-height: 86vh; overflow-y: auto; border: 1px solid var(--hud-line); border-radius: var(--radius-lg); background: rgba(6,14,20,0.98); box-shadow: var(--shadow-md); padding: 20px; animation: schedModalIn 0.18s ease-out; }
+@keyframes schedModalIn { from { opacity: 0; transform: translateY(-8px) scale(0.99); } to { opacity: 1; transform: none; } }
+.sched-modal h2 { margin: 0 0 4px; font-size: 17px; color: var(--text-primary); }
+.sched-modal .sched-modal-sub { font-size: 12px; color: var(--text-tertiary); margin-bottom: 16px; }
+.sched-field { margin-bottom: 12px; }
+.sched-field label { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 5px; }
+.sched-field input[type="text"], .sched-field input[type="time"], .sched-field input[type="date"], .sched-field select, .sched-field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--hud-line); border-radius: 10px; background: rgba(0,0,0,0.3); color: var(--text-primary);
+  font-family: inherit; font-size: 13.5px; color-scheme: dark;
+}
+.sched-field textarea { resize: vertical; min-height: 56px; }
+.sched-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sched-daypicker { display: flex; flex-wrap: wrap; gap: 6px; }
+.sched-daypicker button { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--hud-line-soft); background: transparent; color: var(--text-secondary); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.sched-daypicker button[aria-pressed="true"] { background: rgba(var(--hud-rgb),0.16); border-color: var(--hud-line-strong); color: var(--hud); }
+.sched-modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.sched-modal-actions[hidden] { display: none; }
+.sched-modal-actions .sched-btn { flex: 1; }
+.sched-modal-danger { color: var(--danger) !important; border-color: rgba(255,84,112,0.3) !important; }
+
+@media (max-width: 760px) {
+  .sched-grid-wrap { grid-template-columns: 44px 1fr; }
+  .sched-col-head { display: none; }
+  .sched-columns[data-mode="mobile"] { grid-template-columns: 1fr !important; }
+  .sched-columns[data-mode="mobile"] .sched-col { display: none; }
+  .sched-columns[data-mode="mobile"] .sched-col.is-selected { display: block; }
+  .sched-daytabs { margin-bottom: 10px; }
+  .sched-block-title { font-size: 11.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sched-modal { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-today.html">← Today</a>
+  <h1 class="dash-title">Weekly Schedule</h1>
+
+  <div id="schedOfflineBanner" class="sched-banner offline" hidden role="status">
+    <span>📴 You're offline — changes save locally and sync once you're back online.</span>
+  </div>
+  <div id="schedErrorBanner" class="sched-banner error" hidden role="alert">
+    <span id="schedErrorText">Couldn't reach the sync server. Your changes are safe locally.</span>
+    <button type="button" id="schedRetryBtn">Retry</button>
+  </div>
+  <div id="schedConflictBanner" class="sched-banner conflict" hidden role="status">
+    <span>This schedule just changed on another device.</span>
+    <button type="button" id="schedReloadBtn">Reload</button>
+  </div>
+
+  <div class="sched-toolbar">
+    <div class="sched-week-nav">
+      <button type="button" class="sched-week-btn" id="schedPrevWeek" aria-label="Previous week">‹</button>
+      <div class="sched-week-label" id="schedWeekLabel">This week</div>
+      <button type="button" class="sched-week-btn" id="schedNextWeek" aria-label="Next week">›</button>
+      <button type="button" class="sched-btn" id="schedTodayBtn">Today</button>
+    </div>
+    <div class="sched-actions">
+      <button type="button" class="sched-btn" id="schedAddAppt">+ Appointment</button>
+      <button type="button" class="sched-btn primary" id="schedAddBlock">+ Block</button>
+    </div>
+  </div>
+
+  <div class="sched-google-panel">
+    <div class="sched-google-status" id="schedGoogleStatus" role="status">
+      <span class="sched-google-dot" id="schedGoogleDot"></span>
+      <span id="schedGoogleStatusText">Checking Google Calendar connection…</span>
+    </div>
+    <div class="sched-google-actions">
+      <a class="sched-btn" href="google.html" id="schedGoogleConnectLink" hidden>Connect Google</a>
+      <button type="button" class="sched-btn" id="schedGoogleSyncBtn" hidden>Preview &amp; push</button>
+    </div>
+  </div>
+
+  <div class="sched-legend" id="schedLegend" aria-label="Category color legend"></div>
+
+  <div class="sched-daytabs" id="schedDayTabs" role="group" aria-label="Choose a day"></div>
+
+  <div class="sched-grid-wrap">
+    <div class="sched-axis" id="schedAxis"></div>
+    <div class="sched-columns" id="schedColumns"></div>
+  </div>
+
+</div>
+
+<!-- Block editor modal -->
+<div class="sched-modal-bg" id="schedBlockModalBg">
+  <section class="sched-modal" role="dialog" aria-modal="true" aria-labelledby="schedBlockModalTitle">
+    <h2 id="schedBlockModalTitle">Add a block</h2>
+    <div class="sched-modal-sub" id="schedBlockModalSub">Recurring routine block — applies every week on the days you pick.</div>
+    <div class="sched-field">
+      <label for="schedBlockTitle">Title</label>
+      <input type="text" id="schedBlockTitle" autocomplete="off">
+    </div>
+    <div class="sched-row2">
+      <div class="sched-field">
+        <label for="schedBlockStart">Start</label>
+        <input type="time" id="schedBlockStart">
+      </div>
+      <div class="sched-field">
+        <label for="schedBlockEnd">End</label>
+        <input type="time" id="schedBlockEnd">
+      </div>
+    </div>
+    <div class="sched-field">
+      <label for="schedBlockCategory">Category</label>
+      <select id="schedBlockCategory"></select>
+    </div>
+    <div class="sched-field">
+      <label id="schedBlockDaysLabel">Repeats on</label>
+      <div class="sched-daypicker" id="schedBlockDays" role="group" aria-labelledby="schedBlockDaysLabel"></div>
+    </div>
+    <div class="sched-field">
+      <label for="schedBlockLocation">Location <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <input type="text" id="schedBlockLocation" autocomplete="off">
+    </div>
+    <div class="sched-field">
+      <label for="schedBlockNotes">Notes <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <textarea id="schedBlockNotes"></textarea>
+    </div>
+    <div class="sched-modal-actions">
+      <button type="button" class="sched-btn" id="schedBlockCancel">Cancel</button>
+      <button type="button" class="sched-btn" id="schedBlockDisable" hidden>Disable</button>
+      <button type="button" class="sched-btn primary" id="schedBlockSave">Save</button>
+    </div>
+    <div class="sched-modal-actions" id="schedOverrideRow" hidden>
+      <button type="button" class="sched-btn" id="schedOverrideThisDay">Just change this one day…</button>
+    </div>
+  </section>
+</div>
+
+<!-- One-day override modal -->
+<div class="sched-modal-bg" id="schedOverrideModalBg">
+  <section class="sched-modal" role="dialog" aria-modal="true" aria-labelledby="schedOverrideModalTitle">
+    <h2 id="schedOverrideModalTitle">Change just this day</h2>
+    <div class="sched-modal-sub" id="schedOverrideModalSub">This won't touch the recurring block on any other date.</div>
+    <div class="sched-row2">
+      <div class="sched-field">
+        <label for="schedOverrideStart">Start</label>
+        <input type="time" id="schedOverrideStart">
+      </div>
+      <div class="sched-field">
+        <label for="schedOverrideEnd">End</label>
+        <input type="time" id="schedOverrideEnd">
+      </div>
+    </div>
+    <div class="sched-modal-actions">
+      <button type="button" class="sched-btn" id="schedOverrideCancel">Cancel</button>
+      <button type="button" class="sched-btn sched-modal-danger" id="schedOverrideSkip">Skip this day</button>
+      <button type="button" class="sched-btn primary" id="schedOverrideSave">Save for this day</button>
+    </div>
+  </section>
+</div>
+
+<!-- Google Calendar preview/confirm modal -->
+<div class="sched-modal-bg" id="schedGoogleModalBg">
+  <section class="sched-modal" role="dialog" aria-modal="true" aria-labelledby="schedGoogleModalTitle">
+    <h2 id="schedGoogleModalTitle">Push to Google Calendar</h2>
+    <div class="sched-modal-sub" id="schedGoogleModalSub">Nothing will be sent until you confirm.</div>
+    <div class="sched-preview-list" id="schedGooglePreviewList"></div>
+    <div class="sched-modal-actions">
+      <button type="button" class="sched-btn" id="schedGoogleCancel">Cancel</button>
+      <button type="button" class="sched-btn primary" id="schedGoogleConfirm">Push changes</button>
+    </div>
+  </section>
+</div>
+
+<!-- Appointment modal -->
+<div class="sched-modal-bg" id="schedApptModalBg">
+  <section class="sched-modal" role="dialog" aria-modal="true" aria-labelledby="schedApptModalTitle">
+    <h2 id="schedApptModalTitle">Add an appointment</h2>
+    <div class="sched-modal-sub">Appointments overlay your routine — they never hide or replace a recurring block.</div>
+    <div class="sched-field">
+      <label for="schedApptTitle">Title</label>
+      <input type="text" id="schedApptTitle" autocomplete="off">
+    </div>
+    <div class="sched-field">
+      <label for="schedApptDate">Date</label>
+      <input type="date" id="schedApptDate">
+    </div>
+    <div class="sched-row2">
+      <div class="sched-field">
+        <label for="schedApptStart">Start</label>
+        <input type="time" id="schedApptStart">
+      </div>
+      <div class="sched-field">
+        <label for="schedApptEnd">End</label>
+        <input type="time" id="schedApptEnd">
+      </div>
+    </div>
+    <div class="sched-field">
+      <label for="schedApptLocation">Location <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <input type="text" id="schedApptLocation" autocomplete="off">
+    </div>
+    <div class="sched-modal-actions">
+      <button type="button" class="sched-btn" id="schedApptCancel">Cancel</button>
+      <button type="button" class="sched-btn sched-modal-danger" id="schedApptDelete" hidden>Delete</button>
+      <button type="button" class="sched-btn primary" id="schedApptSave">Save</button>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import {
+  CATEGORIES, CATEGORY_COLORS, CATEGORY_LABELS,
+  normalizeScheduleModel, buildDefaultScheduleModel, resolveScheduleForDate,
+  currentAndNextForDate, dayOfWeekFor, addDaysToKey, parseTimeToMinutes,
+  SCHEDULE_TIMEZONE,
+} from './schedule-model.js';
+import { planSyncActions, planAllOverrideActions, applySyncResults } from './schedule-google.js';
+
+const STORAGE_KEY = 'schedule:model_v1';
+const AXIS_START_MIN = 6 * 60 + 30; // 06:30
+const AXIS_END_MIN = 24 * 60;       // 24:00 (midnight)
+const AXIS_SPAN = AXIS_END_MIN - AXIS_START_MIN;
+const DOW_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const $ = id => document.getElementById(id);
+
+// Declared up front (even though only used by the Google Calendar section
+// below) so the very first synchronous render() call at script load can
+// safely reference them regardless of definition order in this file —
+// function declarations hoist their bodies AND bindings, but const/let
+// only hoist the binding, not its initializer; referencing one before its
+// own line has executed throws (caught silently by a try/catch around it,
+// which is exactly the bug this ordering fixes).
+let externalGoogleByDate = {};
+let pendingSyncPlan = [];
+const GOOGLE_KEY = 'google_tokens_v1';
+const CALENDAR_EVENTS_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+
+function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+function loadModel() {
+  const raw = storeGet(STORAGE_KEY);
+  if (raw == null) {
+    const seeded = buildDefaultScheduleModel();
+    storeSet(STORAGE_KEY, seeded);
+    return seeded;
+  }
+  return normalizeScheduleModel(raw);
+}
+function saveModel(newModel) {
+  // Normalize BEFORE persisting/rendering, and reassign the shared outer
+  // `model` (not a shadowed local) — every caller does `model = next;
+  // saveModel(model)`, so without this reassignment the in-memory model
+  // powering render() could silently drift from its own normalized/
+  // persisted form for the rest of the session (e.g. a hand-constructed
+  // override object missing a field normalizeScheduleModel would default).
+  model = normalizeScheduleModel(newModel);
+  const ok = storeSet(STORAGE_KEY, model);
+  if (!ok) showError('Could not save locally — your device storage may be full.');
+  render();
+  return ok;
+}
+
+let model = loadModel();
+
+// ==================== date helpers (America/New_York-aware) ====================
+function nowParts() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SCHEDULE_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const get = t => Number(parts.find(p => p.type === t).value);
+  return { dateKey: get('year') + '-' + String(get('month')).padStart(2, '0') + '-' + String(get('day')).padStart(2, '0'), minutes: (get('hour') % 24) * 60 + get('minute') };
+}
+function todayKey() { return nowParts().dateKey; }
+function mondayOnOrBefore(dateKey) {
+  const dow = dayOfWeekFor(dateKey);
+  if (dow === 0) return addDaysToKey(dateKey, 1); // Sunday previews the week ahead
+  return addDaysToKey(dateKey, -(dow - 1));
+}
+function formatDayLabel(dateKey) {
+  const d = new Date(dateKey + 'T00:00:00Z');
+  return (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
+}
+
+let weekStart = mondayOnOrBefore(todayKey());
+let selectedDate = (() => {
+  const t = todayKey();
+  const dow = dayOfWeekFor(t);
+  return dow >= 1 && dow <= 6 ? t : weekStart;
+})();
+
+function weekDates() { return Array.from({ length: 6 }, (_, i) => addDaysToKey(weekStart, i)); }
+
+// ==================== rendering ====================
+function renderLegend() {
+  const el = $('schedLegend');
+  el.innerHTML = CATEGORIES.map(cat =>
+    '<span class="sched-legend-item"><span class="sched-legend-dot" style="background:' + CATEGORY_COLORS[cat] + '"></span>' + CATEGORY_LABELS[cat] + '</span>'
+  ).join('') + '<span class="sched-legend-item"><span class="sched-legend-dot" style="background:#4285F4"></span>Appointment</span>';
+}
+
+function renderDayTabs() {
+  const el = $('schedDayTabs');
+  const dates = weekDates();
+  const today = todayKey();
+  el.innerHTML = '';
+  dates.forEach((dateKey, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sched-daytab' + (dateKey === selectedDate ? ' is-selected' : '') + (dateKey === today ? ' is-today' : '');
+    btn.setAttribute('aria-pressed', dateKey === selectedDate ? 'true' : 'false');
+    btn.setAttribute('aria-label', DOW_ABBR[i + 1] + ' ' + formatDayLabel(dateKey) + (dateKey === today ? ' (today)' : ''));
+    btn.innerHTML = '<span class="dow">' + DOW_ABBR[i + 1] + '</span><span class="dnum">' + formatDayLabel(dateKey) + '</span>';
+    btn.addEventListener('click', () => { selectedDate = dateKey; render(); });
+    btn.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const next = el.children[i + (e.key === 'ArrowRight' ? 1 : -1)];
+        if (next) next.focus();
+      }
+    });
+    el.appendChild(btn);
+  });
+}
+
+function renderAxis() {
+  const el = $('schedAxis');
+  el.innerHTML = '';
+  const firstHour = Math.ceil(AXIS_START_MIN / 60) * 60;
+  for (let m = firstHour; m <= AXIS_END_MIN; m += 60) {
+    const label = document.createElement('div');
+    label.className = 'sched-axis-label';
+    label.style.top = ((m - AXIS_START_MIN) / AXIS_SPAN * 100) + '%';
+    const h = Math.floor(m / 60) % 24;
+    label.textContent = (h === 0 ? 12 : h > 12 ? h - 12 : h) + (h < 12 ? 'a' : 'p');
+    el.appendChild(label);
+  }
+}
+
+function makeHourlines(container) {
+  const firstHour = Math.ceil(AXIS_START_MIN / 60) * 60;
+  for (let m = firstHour; m < AXIS_END_MIN; m += 60) {
+    const line = document.createElement('div');
+    line.className = 'sched-hourline';
+    line.style.top = ((m - AXIS_START_MIN) / AXIS_SPAN * 100) + '%';
+    container.appendChild(line);
+  }
+}
+
+function renderColumns() {
+  const columnsEl = $('schedColumns');
+  const dates = weekDates();
+  const isMobile = window.matchMedia('(max-width: 760px)').matches;
+  columnsEl.dataset.mode = isMobile ? 'mobile' : 'desktop';
+  columnsEl.style.setProperty('--sched-col-count', String(dates.length));
+  columnsEl.innerHTML = '';
+  const today = todayKey();
+  const now = nowParts();
+
+  dates.forEach(dateKey => {
+    const col = document.createElement('div');
+    col.className = 'sched-col' + (dateKey === today ? ' is-today' : '') + (dateKey === selectedDate ? ' is-selected' : '');
+    col.dataset.date = dateKey;
+
+    const head = document.createElement('div');
+    head.className = 'sched-col-head';
+    const dow = dayOfWeekFor(dateKey);
+    head.textContent = DOW_ABBR[dow] + ' ' + formatDayLabel(dateKey);
+    col.appendChild(head);
+
+    makeHourlines(col);
+
+    const resolved = resolveScheduleForDate(model, dateKey);
+    if (!resolved.length) {
+      const empty = document.createElement('div');
+      empty.className = 'sched-empty';
+      empty.innerHTML = '<div class="sched-empty-icon">🌤️</div><div class="sched-empty-title">Nothing scheduled</div>'
+        + '<div class="sched-empty-sub">' + (dow === 0
+          ? 'Sunday is intentionally outside the routine schedule.'
+          : 'No active profile covers this date yet — add a block to get started.') + '</div>';
+      col.appendChild(empty);
+    }
+
+    const { current } = currentAndNextForDate(resolved, dateKey === today ? now.minutes : -1);
+    resolved.forEach(item => {
+      const startClamped = Math.max(AXIS_START_MIN, item.startMinutes);
+      const endClamped = Math.min(AXIS_END_MIN, Math.max(item.endMinutes, item.startMinutes));
+      const isInstant = item.endMinutes === item.startMinutes;
+      const top = (startClamped - AXIS_START_MIN) / AXIS_SPAN * 100;
+      const height = isInstant ? 0 : (endClamped - startClamped) / AXIS_SPAN * 100;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sched-block' + (item.kind === 'appointment' ? ' is-appointment' : '') + (isInstant ? ' sched-block-milestone' : '')
+        + (current && current.id === item.id ? ' is-current' : '');
+      btn.style.setProperty('--cat-color', CATEGORY_COLORS[item.category] || '#94A3B8');
+      btn.style.top = top + '%';
+      if (!isInstant) btn.style.height = 'max(20px, ' + height + '%)';
+      btn.innerHTML = '<span class="sched-block-title">' + escapeHtml(item.title) + '</span>'
+        + '<span class="sched-block-time">' + escapeHtml(item.start) + (isInstant ? '' : '–' + escapeHtml(item.end)) + '</span>';
+      btn.setAttribute('aria-label', item.title + ', ' + item.start + (isInstant ? '' : ' to ' + item.end) + (item.kind === 'appointment' ? ', appointment' : ', ' + CATEGORY_LABELS[item.category] + ' block'));
+      btn.addEventListener('click', () => openItemEditor(item, dateKey));
+      col.appendChild(btn);
+    });
+
+    if (dateKey === today) {
+      const nowLine = document.createElement('div');
+      nowLine.className = 'sched-now-line';
+      nowLine.style.top = Math.min(100, Math.max(0, (now.minutes - AXIS_START_MIN) / AXIS_SPAN * 100)) + '%';
+      col.appendChild(nowLine);
+    }
+
+    columnsEl.appendChild(col);
+  });
+  applyExternalGoogleOverlay();
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function render() {
+  const dates = weekDates();
+  $('schedWeekLabel').textContent = formatDayLabel(dates[0]) + ' – ' + formatDayLabel(dates[5]);
+  renderLegend();
+  renderDayTabs();
+  renderAxis();
+  renderColumns();
+  renderGoogleStatus();
+}
+
+// ==================== week/day navigation ====================
+$('schedPrevWeek').addEventListener('click', () => { weekStart = addDaysToKey(weekStart, -7); selectedDate = weekStart; render(); refreshExternalGoogleEvents(); });
+$('schedNextWeek').addEventListener('click', () => { weekStart = addDaysToKey(weekStart, 7); selectedDate = weekStart; render(); refreshExternalGoogleEvents(); });
+$('schedTodayBtn').addEventListener('click', () => { weekStart = mondayOnOrBefore(todayKey()); selectedDate = ((dow) => dow >= 1 && dow <= 6 ? todayKey() : weekStart)(dayOfWeekFor(todayKey())); render(); refreshExternalGoogleEvents(); });
+window.addEventListener('resize', () => renderColumns());
+
+// ==================== block add/edit ====================
+let editingBlockId = null; // null = creating a new block
+let editingOverrideContext = null; // { blockId, dateKey } while the override modal is open
+
+function populateCategorySelect() {
+  const sel = $('schedBlockCategory');
+  sel.innerHTML = CATEGORIES.map(c => '<option value="' + c + '">' + CATEGORY_LABELS[c] + '</option>').join('');
+}
+function populateDayPicker(selectedDays) {
+  const el = $('schedBlockDays');
+  el.innerHTML = '';
+  DOW_ABBR.forEach((abbr, dow) => {
+    if (dow === 0) return; // Sunday is intentionally outside the routine schedule
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = abbr;
+    btn.setAttribute('aria-pressed', selectedDays.includes(dow) ? 'true' : 'false');
+    btn.addEventListener('click', () => btn.setAttribute('aria-pressed', btn.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'));
+    el.appendChild(btn);
+  });
+}
+function selectedDaysFromPicker() {
+  return Array.from($('schedBlockDays').children)
+    .map((btn, i) => ({ btn, dow: i + 1 }))
+    .filter(x => x.btn.getAttribute('aria-pressed') === 'true')
+    .map(x => x.dow);
+}
+
+function openItemEditor(item, dateKey) {
+  if (item.kind === 'appointment') { openApptEditor(item); return; }
+  const profile = model.profiles.find(p => p.id === item.profileId);
+  const block = profile && profile.blocks.find(b => b.id === item.id);
+  if (!block) return;
+  editingBlockId = block.id;
+  populateCategorySelect();
+  $('schedBlockModalTitle').textContent = 'Edit block';
+  $('schedBlockModalSub').textContent = 'Recurring — changes apply to every ' + block.days.map(d => DOW_ABBR[d]).join('/') + '.';
+  $('schedBlockTitle').value = block.title;
+  $('schedBlockStart').value = block.start.length === 5 ? block.start : '00:00';
+  $('schedBlockEnd').value = block.end.length === 5 ? block.end : '00:00';
+  $('schedBlockCategory').value = block.category;
+  populateDayPicker(block.days);
+  $('schedBlockLocation').value = block.location || '';
+  $('schedBlockNotes').value = block.notes || '';
+  $('schedBlockDisable').hidden = false;
+  $('schedBlockDisable').textContent = block.enabled ? 'Disable' : 'Enable';
+  $('schedOverrideRow').hidden = false;
+  editingOverrideContext = { blockId: block.id, dateKey };
+  showModal('schedBlockModalBg');
+}
+function openNewBlockEditor() {
+  editingBlockId = null;
+  editingOverrideContext = null;
+  populateCategorySelect();
+  $('schedBlockModalTitle').textContent = 'Add a block';
+  $('schedBlockModalSub').textContent = 'Recurring routine block — applies every week on the days you pick.';
+  $('schedBlockTitle').value = '';
+  $('schedBlockStart').value = '09:00';
+  $('schedBlockEnd').value = '10:00';
+  $('schedBlockCategory').value = 'free';
+  populateDayPicker([dayOfWeekFor(selectedDate) || 1]);
+  $('schedBlockLocation').value = '';
+  $('schedBlockNotes').value = '';
+  $('schedBlockDisable').hidden = true;
+  $('schedOverrideRow').hidden = true;
+  showModal('schedBlockModalBg');
+}
+$('schedAddBlock').addEventListener('click', openNewBlockEditor);
+$('schedBlockCancel').addEventListener('click', () => hideModal('schedBlockModalBg'));
+
+$('schedBlockSave').addEventListener('click', () => {
+  const title = $('schedBlockTitle').value.trim();
+  const days = selectedDaysFromPicker();
+  if (!title) { $('schedBlockTitle').focus(); return; }
+  if (!days.length) return;
+  const draft = {
+    id: editingBlockId || ('custom:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    title, days,
+    start: $('schedBlockStart').value || '00:00',
+    end: $('schedBlockEnd').value || '00:00',
+    category: $('schedBlockCategory').value,
+    location: $('schedBlockLocation').value.trim(),
+    notes: $('schedBlockNotes').value.trim(),
+    enabled: true,
+  };
+  const next = JSON.parse(JSON.stringify(model));
+  let profile = next.profiles.find(p => p.id === 'summer-2026') || next.profiles[0];
+  if (!profile) { next.profiles.push({ id: 'summer-2026', name: 'Summer 2026', effectiveStart: '2026-07-29', effectiveEnd: '2026-08-31', enabled: true, blocks: [] }); profile = next.profiles[0]; }
+  const idx = profile.blocks.findIndex(b => b.id === draft.id);
+  if (idx >= 0) draft.enabled = profile.blocks[idx].enabled;
+  if (idx >= 0) profile.blocks[idx] = draft; else profile.blocks.push(draft);
+  model = next;
+  saveModel(model);
+  hideModal('schedBlockModalBg');
+});
+$('schedBlockDisable').addEventListener('click', () => {
+  if (!editingBlockId) return;
+  const next = JSON.parse(JSON.stringify(model));
+  next.profiles.forEach(p => { const b = p.blocks.find(b => b.id === editingBlockId); if (b) b.enabled = !b.enabled; });
+  model = next;
+  saveModel(model);
+  hideModal('schedBlockModalBg');
+});
+$('schedOverrideThisDay').addEventListener('click', () => {
+  if (!editingOverrideContext) return;
+  hideModal('schedBlockModalBg');
+  const { blockId, dateKey } = editingOverrideContext;
+  let start = '09:00', end = '10:00';
+  for (const p of model.profiles) {
+    const b = p.blocks.find(b => b.id === blockId);
+    if (b) { start = b.start; end = b.end; }
+  }
+  $('schedOverrideStart').value = start.length === 5 ? start : '00:00';
+  $('schedOverrideEnd').value = end.length === 5 ? end : '00:00';
+  $('schedOverrideModalBg').dataset.blockId = blockId;
+  $('schedOverrideModalBg').dataset.dateKey = dateKey;
+  showModal('schedOverrideModalBg');
+});
+$('schedOverrideCancel').addEventListener('click', () => hideModal('schedOverrideModalBg'));
+$('schedOverrideSave').addEventListener('click', () => {
+  const bg = $('schedOverrideModalBg');
+  const { blockId, dateKey } = bg.dataset;
+  const start = $('schedOverrideStart').value, end = $('schedOverrideEnd').value;
+  if (parseTimeToMinutes(start) == null || parseTimeToMinutes(end) == null) return;
+  const next = JSON.parse(JSON.stringify(model));
+  next.overrides[dateKey] = next.overrides[dateKey] || { disabledBlockIds: [], modifiedBlocks: {} };
+  next.overrides[dateKey].modifiedBlocks[blockId] = { start, end };
+  model = next;
+  saveModel(model);
+  hideModal('schedOverrideModalBg');
+});
+$('schedOverrideSkip').addEventListener('click', () => {
+  const bg = $('schedOverrideModalBg');
+  const { blockId, dateKey } = bg.dataset;
+  const next = JSON.parse(JSON.stringify(model));
+  next.overrides[dateKey] = next.overrides[dateKey] || { disabledBlockIds: [], modifiedBlocks: {} };
+  if (!next.overrides[dateKey].disabledBlockIds.includes(blockId)) next.overrides[dateKey].disabledBlockIds.push(blockId);
+  model = next;
+  saveModel(model);
+  hideModal('schedOverrideModalBg');
+});
+
+// ==================== appointments ====================
+let editingApptId = null;
+function openApptEditor(item) {
+  editingApptId = item ? item.id : null;
+  if (item) {
+    const appt = model.appointments.find(a => a.id === item.id);
+    if (!appt) return;
+    $('schedApptTitle').value = appt.title;
+    $('schedApptDate').value = appt.date;
+    $('schedApptStart').value = appt.start;
+    $('schedApptEnd').value = appt.end;
+    $('schedApptLocation').value = appt.location || '';
+    $('schedApptDelete').hidden = false;
+  } else {
+    $('schedApptTitle').value = '';
+    $('schedApptDate').value = selectedDate;
+    $('schedApptStart').value = '12:00';
+    $('schedApptEnd').value = '12:30';
+    $('schedApptLocation').value = '';
+    $('schedApptDelete').hidden = true;
+  }
+  showModal('schedApptModalBg');
+}
+$('schedAddAppt').addEventListener('click', () => openApptEditor(null));
+$('schedApptCancel').addEventListener('click', () => hideModal('schedApptModalBg'));
+$('schedApptSave').addEventListener('click', () => {
+  const title = $('schedApptTitle').value.trim();
+  const date = $('schedApptDate').value;
+  const start = $('schedApptStart').value;
+  if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date) || parseTimeToMinutes(start) == null) return;
+  const existing = editingApptId ? model.appointments.find(a => a.id === editingApptId) : null;
+  const draft = {
+    id: editingApptId || ('appt:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    title, date, start,
+    end: $('schedApptEnd').value || start,
+    location: $('schedApptLocation').value.trim(),
+    notes: existing ? existing.notes : '',
+    // Preserve any existing Google linkage — editing an appointment should
+    // PATCH its linked event on the next sync (signature will no longer
+    // match), never orphan it by silently resetting these to null.
+    googleEventId: existing ? existing.googleEventId : null,
+    syncStatus: existing ? existing.syncStatus : 'local',
+    syncError: existing ? existing.syncError : null,
+    googleContentSignature: existing ? existing.googleContentSignature : null,
+  };
+  const next = JSON.parse(JSON.stringify(model));
+  const idx = next.appointments.findIndex(a => a.id === draft.id);
+  if (idx >= 0) next.appointments[idx] = draft; else next.appointments.push(draft);
+  model = next;
+  saveModel(model);
+  hideModal('schedApptModalBg');
+});
+$('schedApptDelete').addEventListener('click', async () => {
+  if (!editingApptId) return;
+  const appt = model.appointments.find(a => a.id === editingApptId);
+  hideModal('schedApptModalBg');
+  if (appt && appt.googleEventId) {
+    // Best-effort — if this fails (offline, expired token), the
+    // appointment is still removed locally; a stray Google event left
+    // behind is a much smaller problem than blocking the user's delete on
+    // a network call, and nothing here re-links to it afterward.
+    try { await googleDeleteEvent(appt.googleEventId); } catch (e) {}
+  }
+  const next = JSON.parse(JSON.stringify(model));
+  next.appointments = next.appointments.filter(a => a.id !== editingApptId);
+  model = next;
+  saveModel(model);
+});
+
+// ==================== modal plumbing (shared focus-trap/escape handling) ====================
+let lastFocused = null;
+function showModal(id) {
+  lastFocused = document.activeElement;
+  const bg = $(id);
+  bg.classList.add('show');
+  const firstInput = bg.querySelector('input, select, textarea, button');
+  if (firstInput) requestAnimationFrame(() => firstInput.focus());
+}
+function hideModal(id) {
+  $(id).classList.remove('show');
+  if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+}
+document.querySelectorAll('.sched-modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) hideModal(bg.id); });
+  bg.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); hideModal(bg.id); return; }
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(bg.querySelectorAll('input, select, textarea, button')).filter(el => !el.hidden && el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+});
+
+// ==================== empty/offline/error/conflict states ====================
+function showError(message) {
+  $('schedErrorText').textContent = message;
+  $('schedErrorBanner').hidden = false;
+}
+function hideError() { $('schedErrorBanner').hidden = true; }
+$('schedRetryBtn').addEventListener('click', () => { hideError(); render(); });
+
+function updateOfflineBanner() { $('schedOfflineBanner').hidden = navigator.onLine; }
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+updateOfflineBanner();
+
+document.addEventListener('dashboard:sync-error', e => {
+  if (e.detail && e.detail.appKey === 'schedule') showError('Couldn\'t sync your last change — check your connection. Your changes are safe locally.');
+});
+document.addEventListener('dashboard:sync-ok', e => {
+  if (e.detail && e.detail.appKey === 'schedule') hideError();
+});
+
+let anyModalOpen = () => Array.from(document.querySelectorAll('.sched-modal-bg')).some(bg => bg.classList.contains('show'));
+$('schedReloadBtn').addEventListener('click', () => { $('schedConflictBanner').hidden = true; model = loadModel(); render(); });
+
+// ==================== live tick for the current-time indicator ====================
+setInterval(() => renderColumns(), 60000);
+
+render();
+
+// Cloud sync — reuses the existing race-safe merge-on-push path (sync.js);
+// this page never does a naive full-row overwrite of its own.
+window.initCloudSync && window.initCloudSync({
+  appKey: 'schedule',
+  syncedKeys: [STORAGE_KEY],
+  onApplied: () => {
+    if (anyModalOpen()) { $('schedConflictBanner').hidden = false; return; }
+    model = loadModel();
+    render();
+  },
+});
+
+// ==================== Google Calendar — reuses the browser's own already-
+// connected token (same google_tokens_v1 calendar.html reads), never a
+// server-side credential. calendar.events scope (not just readonly) was
+// granted the moment google.html's Connect flow ran. GOOGLE_KEY and
+// CALENDAR_EVENTS_URL are declared near the top of this script (see
+// above) for the same early-reference-safety reason. ====================
+function loadGoogleTokens() { try { return JSON.parse(localStorage.getItem(GOOGLE_KEY)); } catch (e) { return null; } }
+function saveGoogleTokens(t) {
+  try { localStorage.setItem(GOOGLE_KEY, JSON.stringify(t)); } catch (e) {}
+  try {
+    const secret = window.DASH_GOOGLE_SYNC_SECRET;
+    if (secret) fetch('/api/google-token-sync', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secret }, body: JSON.stringify({ access: t.access, refresh: t.refresh, expires: t.expires }) }).catch(() => {});
+  } catch (e) {}
+}
+async function refreshGoogleTok(t) {
+  if (!t.refresh) return null;
+  try {
+    const r = await fetch('/api/google-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: t.refresh }) });
+    const j = await r.json();
+    if (j.access_token) {
+      const next = { access: j.access_token, refresh: t.refresh, expires: Date.now() + (j.expires_in || 3500) * 1000 };
+      saveGoogleTokens(next);
+      return next;
+    }
+  } catch (e) {}
+  return null;
+}
+async function withValidGoogleToken() {
+  let t = loadGoogleTokens();
+  if (!t || !t.access) return null;
+  if (t.expires && Date.now() > t.expires - 60000) {
+    const refreshed = await refreshGoogleTok(t);
+    if (!refreshed) return null;
+    t = refreshed;
+  }
+  return t;
+}
+async function gFetch(url, t) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + t.access, Accept: 'application/json' } });
+  if (r.status === 401) { const n = await refreshGoogleTok(t); if (n) return gFetch(url, n); throw new Error('unauthorized — reconnect Google'); }
+  if (!r.ok) throw new Error('Google ' + r.status + ': ' + (await r.text()));
+  return r.json();
+}
+async function gWrite(url, t, method, body) {
+  const r = await fetch(url, {
+    method,
+    headers: Object.assign({ Authorization: 'Bearer ' + t.access, Accept: 'application/json' }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) { const n = await refreshGoogleTok(t); if (n) return gWrite(url, n, method, body); throw new Error('unauthorized — reconnect Google'); }
+  if (!r.ok) throw new Error('Google ' + r.status + ': ' + (await r.text()));
+  if (r.status === 204) return null;
+  return r.json();
+}
+async function googleDeleteEvent(eventId) {
+  const t = await withValidGoogleToken();
+  if (!t) throw new Error('Google not connected');
+  await gWrite(CALENDAR_EVENTS_URL + '/' + encodeURIComponent(eventId), t, 'DELETE');
+}
+
+// Executes one planned action (from schedule-google.js's planSyncActions /
+// planAllOverrideActions) against the real Calendar API, returning a
+// result shaped for applySyncResults. Never throws — a failure becomes an
+// { ok:false, error } result so one bad action can't abort the whole batch.
+async function executeSyncAction(t, action) {
+  try {
+    if (action.kind === 'create') {
+      const ev = await gWrite(CALENDAR_EVENTS_URL, t, 'POST', action.payload);
+      return { target: action.target, blockId: action.blockId, appointmentId: action.appointmentId, ok: true, kind: 'create', googleEventId: ev.id, signature: action.signature };
+    }
+    if (action.kind === 'update') {
+      await gWrite(CALENDAR_EVENTS_URL + '/' + encodeURIComponent(action.googleEventId), t, 'PATCH', action.payload);
+      return { target: action.target, blockId: action.blockId, appointmentId: action.appointmentId, ok: true, kind: 'update', googleEventId: action.googleEventId, signature: action.signature };
+    }
+    if (action.kind === 'delete') {
+      await gWrite(CALENDAR_EVENTS_URL + '/' + encodeURIComponent(action.googleEventId), t, 'DELETE');
+      return { target: action.target, blockId: action.blockId, appointmentId: action.appointmentId, ok: true, kind: 'delete' };
+    }
+    if (action.kind === 'cancel-instance' || action.kind === 'move-instance') {
+      // Resolve the real per-date instance id via events.instances rather
+      // than hand-constructing one — the only approach guaranteed correct
+      // regardless of how Google internally formats instance ids.
+      const dayStart = new Date(action.dateKey + 'T00:00:00Z');
+      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const instancesUrl = CALENDAR_EVENTS_URL + '/' + encodeURIComponent(action.googleEventId) + '/instances'
+        + '?timeMin=' + encodeURIComponent(dayStart.toISOString()) + '&timeMax=' + encodeURIComponent(dayEnd.toISOString());
+      const data = await gFetch(instancesUrl, t);
+      const instance = (data && data.items && data.items[0]) || null;
+      if (!instance) return { target: 'block', blockId: action.blockId, ok: false, error: 'No Google occurrence found for ' + action.dateKey };
+      if (action.kind === 'cancel-instance') {
+        await gWrite(CALENDAR_EVENTS_URL + '/' + encodeURIComponent(instance.id), t, 'PATCH', { status: 'cancelled' });
+      } else {
+        await gWrite(CALENDAR_EVENTS_URL + '/' + encodeURIComponent(instance.id), t, 'PATCH', {
+          start: { dateTime: action.dateKey + 'T' + action.start + ':00', timeZone: action.timezone },
+          end: { dateTime: action.dateKey + 'T' + action.end + ':00', timeZone: action.timezone },
+        });
+      }
+      // Overrides don't change the recurring block's own googleEventId/
+      // signature — only record that this date+block's exception has
+      // landed, so it stops being re-planned as "pending" forever.
+      return { target: 'override', ok: true, dateKey: action.dateKey, blockId: action.blockId };
+    }
+    return { target: action.target, blockId: action.blockId, ok: false, error: 'Unknown action kind: ' + action.kind };
+  } catch (e) {
+    return { target: action.target, blockId: action.blockId, appointmentId: action.appointmentId, ok: false, error: e && e.message ? e.message : String(e) };
+  }
+}
+
+function hasEverSyncedToGoogle() { return model.profiles.some(p => p.blocks.some(b => b.googleEventId)) || model.appointments.some(a => a.googleEventId); }
+
+function renderGoogleStatus() {
+  const tokens = loadGoogleTokens();
+  const dot = $('schedGoogleDot');
+  const text = $('schedGoogleStatusText');
+  const connectLink = $('schedGoogleConnectLink');
+  const syncBtn = $('schedGoogleSyncBtn');
+  if (!tokens || !tokens.access) {
+    dot.classList.remove('connected');
+    text.textContent = 'Google Calendar is not connected.';
+    connectLink.hidden = false;
+    syncBtn.hidden = true;
+    return;
+  }
+  dot.classList.add('connected');
+  connectLink.hidden = true;
+  syncBtn.hidden = false;
+  const pending = planSyncActions(model).length + planAllOverrideActions(model).length;
+  const errorCount = model.profiles.reduce((n, p) => n + p.blocks.filter(b => b.googleSyncStatus === 'error').length, 0)
+    + model.appointments.filter(a => a.syncStatus === 'error').length;
+  syncBtn.textContent = hasEverSyncedToGoogle() ? 'Sync now' : 'Preview & push';
+  text.innerHTML = 'Connected to Google Calendar. <b>' + pending + '</b> change' + (pending === 1 ? '' : 's') + ' pending'
+    + (errorCount ? ', <b style="color:var(--danger)">' + errorCount + '</b> need retry' : '.');
+}
+
+$('schedGoogleSyncBtn').addEventListener('click', () => {
+  pendingSyncPlan = planSyncActions(model).concat(planAllOverrideActions(model));
+  if (!pendingSyncPlan.length) { renderGoogleStatus(); return; }
+  const list = $('schedGooglePreviewList');
+  list.innerHTML = pendingSyncPlan.map(a => {
+    const label = a.kind === 'cancel-instance' ? 'Skip ' + a.dateKey
+      : a.kind === 'move-instance' ? 'Move ' + a.dateKey + ' to ' + a.start
+      : a.label;
+    return '<div class="sched-preview-item"><span class="sched-preview-kind ' + a.kind + '">' + a.kind.replace('-instance', '') + '</span>'
+      + '<span class="sched-preview-title">' + escapeHtml(label) + '</span></div>';
+  }).join('');
+  $('schedGoogleModalSub').textContent = hasEverSyncedToGoogle()
+    ? 'Reviewing ' + pendingSyncPlan.length + ' change' + (pendingSyncPlan.length === 1 ? '' : 's') + ' before they go to Google Calendar.'
+    : 'This is the FIRST push — nothing exists on Google Calendar for this schedule yet. Review every event below before confirming.';
+  showModal('schedGoogleModalBg');
+});
+$('schedGoogleCancel').addEventListener('click', () => hideModal('schedGoogleModalBg'));
+$('schedGoogleConfirm').addEventListener('click', async () => {
+  hideModal('schedGoogleModalBg');
+  const t = await withValidGoogleToken();
+  if (!t) { showError('Google Calendar isn\'t connected (or the connection expired) — reconnect from the Google tab.'); return; }
+  const results = [];
+  // Sequential, not Promise.all — a burst of concurrent writes against the
+  // same calendar risks Google's per-user rate limit; one at a time is
+  // slower but never fails a whole batch over a transient 429.
+  for (const action of pendingSyncPlan) results.push(await executeSyncAction(t, action));
+  model = applySyncResults(model, results);
+  saveModel(model);
+  const failed = results.filter(r => !r.ok).length;
+  if (failed) showError(failed + ' of ' + results.length + ' Google Calendar changes failed — safe to retry with "Sync now".');
+  else hideError();
+  renderGoogleStatus();
+});
+
+// ---------- Read-only overlay of events already on Google Calendar
+// (manually created ones included) — never touched or deleted by this
+// page; only events whose id we ourselves recorded are ever written to. ----------
+async function loadExternalGoogleEvents(startDate, endDateExclusive) {
+  const t = await withValidGoogleToken();
+  if (!t) return {};
+  const ownIds = new Set(
+    model.profiles.flatMap(p => p.blocks.map(b => b.googleEventId)).concat(model.appointments.map(a => a.googleEventId)).filter(Boolean)
+  );
+  try {
+    const url = CALENDAR_EVENTS_URL + '?timeMin=' + encodeURIComponent(startDate.toISOString()) + '&timeMax=' + encodeURIComponent(endDateExclusive.toISOString())
+      + '&singleEvents=true&orderBy=startTime&maxResults=250';
+    const data = await gFetch(url, t);
+    const byDate = {};
+    ((data && data.items) || []).forEach(ev => {
+      if (ownIds.has(ev.id) || (ev.recurringEventId && ownIds.has(ev.recurringEventId))) return;
+      const startVal = ev.start && (ev.start.dateTime || ev.start.date);
+      if (!startVal) return;
+      const dateKey = startVal.slice(0, 10);
+      if (!byDate[dateKey]) byDate[dateKey] = [];
+      byDate[dateKey].push({
+        title: ev.summary || '(no title)',
+        start: ev.start && ev.start.dateTime ? startVal.slice(11, 16) : null,
+        link: ev.htmlLink || null,
+      });
+    });
+    return byDate;
+  } catch (e) { return {}; }
+}
+
+// externalGoogleByDate is declared near the top of the script (with
+// pendingSyncPlan) so the once-a-minute current-time tick — which only
+// calls renderColumns(), rebuilding every column's DOM — can cheaply
+// re-apply the last-fetched events with zero extra network calls; only
+// refreshExternalGoogleEvents() actually re-fetches, on real navigation.
+function applyExternalGoogleOverlay() {
+  Object.keys(externalGoogleByDate).forEach(dateKey => {
+    const col = document.querySelector('.sched-col[data-date="' + dateKey + '"]');
+    if (!col) return;
+    externalGoogleByDate[dateKey].forEach(ev => {
+      if (!ev.start) return;
+      const [h, m] = ev.start.split(':').map(Number);
+      const minutes = h * 60 + m;
+      const top = (Math.max(AXIS_START_MIN, minutes) - AXIS_START_MIN) / AXIS_SPAN * 100;
+      const el = document.createElement(ev.link ? 'a' : 'div');
+      el.className = 'sched-block is-external-google';
+      el.style.top = top + '%';
+      el.style.height = 'max(20px, 4%)';
+      el.innerHTML = '<span class="sched-block-title">' + escapeHtml(ev.title) + '</span><span class="sched-block-time">' + escapeHtml(ev.start) + '</span>';
+      if (ev.link) { el.href = ev.link; el.target = '_blank'; el.rel = 'noopener'; }
+      col.appendChild(el);
+    });
+  });
+}
+async function refreshExternalGoogleEvents() {
+  const dates = weekDates();
+  externalGoogleByDate = await loadExternalGoogleEvents(new Date(dates[0] + 'T00:00:00Z'), new Date(addDaysToKey(dates[5], 1) + 'T00:00:00Z'));
+  applyExternalGoogleOverlay();
+}
+
+// Initial external-events fetch (render() already ran once above and
+// called renderGoogleStatus(), so only the network-fetching overlay needs
+// its own explicit kick here).
+refreshExternalGoogleEvents();
+
+// Exported for tests / debugging only.
+window.__schedule = { loadModel, saveModel, weekDates, mondayOnOrBefore, formatDayLabel };
+window.__scheduleGoogle = { renderGoogleStatus, executeSyncAction, loadExternalGoogleEvents };
+</script>
+</body>
+</html>

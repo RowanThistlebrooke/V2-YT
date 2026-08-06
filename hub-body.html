@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Body · Dashboard</title>
+
+<link rel="stylesheet" href="design-system.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="index.html">← Dashboard</a>
+  <h1 class="dash-title">Body</h1>
+
+  <div class="bento">
+    <!-- Small tile -->
+    <a class="tile" href="health.html" style="--accent:#A7F3D0">
+      <div class="tile-top">
+        <span class="tile-num">·01</span>
+        <span class="tile-emoji">💊</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Health</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Supplements & vitals</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="po-water.html" style="--accent:#60A5FA">
+      <div class="tile-top">
+        <span class="tile-num">·02</span>
+        <span class="tile-emoji">💧</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Water</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Hydration</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="caffeine.html" style="--accent:#C9A36B">
+      <div class="tile-top">
+        <span class="tile-num">·03</span>
+        <span class="tile-emoji">☕</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Caffeine</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Intake & timing</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="peak.html" style="--accent:#C4B5FD">
+      <div class="tile-top">
+        <span class="tile-num">·04</span>
+        <span class="tile-emoji">⚡</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Peak</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Energy & recovery</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="sleep.html" style="--accent:#818CF8">
+      <div class="tile-top">
+        <span class="tile-num">·05</span>
+        <span class="tile-emoji">😴</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Sleep</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Bedtime, wake-up, quality &amp; RHR</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="insights-recovery.html" style="--accent:#5EEAD4">
+      <div class="tile-top">
+        <span class="tile-num">·06</span>
+        <span class="tile-emoji">🌙</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Recovery</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Night Score, sleep debt, burnout risk</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function activeDate6am() { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); return d; }
+  function activeDateKey6am() { return dateToKey(activeDate6am()); }
+  function plainTodayKey() { return dateToKey(new Date()); }
+
+  function setTileSub(href, text) {
+    const el = document.querySelector('.tile[href="' + href + '"] .tile-sub');
+    if (el && text) el.textContent = text;
+  }
+
+  function renderHealthTile() {
+    const items = storeGet('stack:items');
+    if (!Array.isArray(items) || !items.length) return;
+    const taken = storeGet('stack:taken:' + activeDateKey6am()) || {};
+    const doneCount = items.filter(it => taken[it.id]).length;
+    setTileSub('health.html', doneCount + '/' + items.length + ' supplements taken');
+  }
+
+  function renderWaterTile() {
+    const state = storeGet('po_water_v1');
+    if (!state || !state.profile) return;
+    const p = state.profile;
+    const wKg = state.weightUnit === 'lb' ? (p.weightKg || 0) / 2.20462 : (p.weightKg || 0);
+    if (!wKg) return;
+    const base = wKg * 35;
+    const exercise = (p.activityHrsPerWeek || 0) / 7 * 500;
+    const caffeine = Math.max(0, (state.caffeineMgPerDay || 0) - 200) * 1.5;
+    let adjust = 0; if (p.sex === 'm') adjust += 200; if ((p.age || 0) >= 50) adjust += 100;
+    const total = base + exercise + caffeine + adjust;
+    let unitMl = 1, label = 'ml';
+    if (state.unit === 'bottle') { unitMl = state.bottleMl || 500; label = 'bottles'; }
+    else if (state.unit === 'glass') { unitMl = state.glassMl || 250; label = 'glasses'; }
+    else if (state.unit === 'oz') { unitMl = 30; label = 'oz'; }
+    const targetUnits = Math.ceil(total / unitMl);
+    const count = (state.logs && state.logs[plainTodayKey()]) || 0;
+    setTileSub('po-water.html', count + ' / ' + targetUnits + ' ' + label);
+  }
+
+  function renderCaffeineTile() {
+    const logs = storeGet('caf:logs') || [];
+    const nicLogs = storeGet('nic:logs') || [];
+    if (!logs.length && !nicLogs.length) return;
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0); const mt = midnight.getTime();
+    const cafToday = Math.round(logs.filter(l => l.ts >= mt).reduce((a, l) => a + l.mg, 0));
+    const nicToday = Math.round(nicLogs.filter(l => l.ts >= mt).reduce((a, l) => a + l.mg, 0) * 10) / 10;
+    const parts = [cafToday + 'mg caffeine'];
+    if (nicToday > 0) parts.push(nicToday + 'mg nicotine');
+    setTileSub('caffeine.html', parts.join(' · '));
+  }
+
+  function renderPeakTile() {
+    const daily = storeGet('peak:daily');
+    if (!daily) return;
+    const today = daily[plainTodayKey()];
+    if (today) { setTileSub('peak.html', today.avgScore + ' · ' + today.tier + ' today'); return; }
+    const keys = Object.keys(daily).sort();
+    if (keys.length) { const last = daily[keys[keys.length - 1]]; setTileSub('peak.html', 'Last: ' + last.avgScore + ' · ' + last.tier); }
+  }
+
+  function renderSnapshot() { renderHealthTile(); renderWaterTile(); renderCaffeineTile(); renderPeakTile(); }
+
+  // These captions only pull fresh data from Supabase when
+  // health.html/caffeine.html/peak.html themselves load — this page has no
+  // cloud sync of its own, so it was reading whatever already happened to
+  // be in this browser's localStorage. Pull each domain's row directly
+  // (same plain REST call api/send-reminders.js already makes server-side)
+  // before rendering, so it's correct on the very first visit.
+  const SNAP_SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SNAP_SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+  const SNAP_SOURCE_APP_KEYS = ['health', 'caffeine', 'peak'];
+  async function pullFreshSnapshotSources() {
+    if (SNAP_SUPABASE_URL.indexOf('PASTE-') === 0 || SNAP_SUPABASE_KEY.indexOf('PASTE-') === 0) return;
+    try {
+      const rows = await Promise.all(SNAP_SOURCE_APP_KEYS.map(k =>
+        fetch(SNAP_SUPABASE_URL + '/rest/v1/app_state?key=eq.' + encodeURIComponent(k) + '&select=data', {
+          headers: { apikey: SNAP_SUPABASE_KEY, Authorization: 'Bearer ' + SNAP_SUPABASE_KEY },
+        }).then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      rows.forEach(r => {
+        const data = r && r[0] && r[0].data;
+        if (!data) return;
+        Object.keys(data).forEach(k => { try { localStorage.setItem(k, JSON.stringify(data[k])); } catch (e) {} });
+      });
+    } catch (e) {}
+  }
+
+  renderSnapshot();
+  pullFreshSnapshotSources().then(renderSnapshot);
+  window.addEventListener('pageshow', function () { pullFreshSnapshotSources().then(renderSnapshot); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') pullFreshSnapshotSources().then(renderSnapshot);
+  });
+  window.addEventListener('storage', renderSnapshot);
+})();
+</script>
+</body>
+</html>

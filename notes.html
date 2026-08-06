@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Notes · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+
+/* ---- Notes-specific ---- */
+.notes-search-row { margin-bottom: 14px; }
+
+.notes-list { list-style: none; margin: 0; padding: 0; }
+.note-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; margin-bottom: 8px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.note-row:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.note-row-body { flex: 1; min-width: 0; }
+.note-row-title {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.note-row-preview {
+  font-size: 12.5px; color: var(--text-tertiary); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.note-row-time {
+  font-size: 10.5px; color: var(--text-tertiary);
+  white-space: nowrap; margin-top: 4px;
+}
+.note-delete {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 18px; cursor: pointer; padding: 0 4px; flex-shrink: 0;
+  opacity: 0.5; transition: opacity 0.2s, color 0.2s;
+}
+.note-row:hover .note-delete { opacity: 1; }
+.note-delete:hover { color: var(--danger); }
+
+.editor-title {
+  width: 100%;
+  padding: 11px 14px; margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 16px; font-weight: 700; outline: none;
+}
+.editor-title:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
+.editor-body {
+  width: 100%; min-height: 260px; resize: vertical;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; background: rgba(0,0,0,0.28);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 14px; line-height: 1.6; outline: none;
+}
+.editor-body:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
+.editor-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 14px; gap: 8px; flex-wrap: wrap;
+}
+.editor-meta { font-size: 11px; color: var(--text-tertiary); }
+
+.editor-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.editor-toolbar .gm-ghost.recording { border-color: var(--danger); color: var(--danger); }
+.reflect-box {
+  position: relative; margin-top: 12px; padding: 14px 30px 14px 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px; background: rgba(255,255,255,0.03);
+  font-size: 13px; line-height: 1.6; color: var(--text-primary);
+}
+.reflect-box-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 6px;
+}
+.reflect-box-close {
+  position: absolute; top: 8px; right: 10px; border: 0; background: transparent;
+  color: var(--text-tertiary); font-size: 16px; line-height: 1; cursor: pointer; padding: 4px;
+}
+.reflect-box-close:hover { color: var(--text-primary); }
+
+.mood-chart-wrap { margin-bottom: 18px; display: none; }
+.mood-chart-svg { width: 100%; height: 70px; display: block; }
+.mood-chart-line { fill: none; stroke: #F472B6; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mood-chart-fill { fill: rgba(244,114,182,0.12); stroke: none; }
+.mood-chart-caption { font-size: 11.5px; color: var(--text-tertiary); margin-top: 6px; }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">Notes</h1>
+
+  <!-- List view -->
+  <div class="section" id="listView">
+    <div class="section-title">Mood Trend</div>
+    <div class="gm-card mood-chart-wrap" id="moodChartWrap">
+      <svg class="mood-chart-svg" id="moodChartSvg" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      <div class="mood-chart-caption" id="moodChartCaption"></div>
+    </div>
+
+    <div class="section-title">All Notes</div>
+    <div class="gm-card">
+      <div class="notes-search-row gm-input-wrap">
+        <input class="gm-input" id="notesSearch" type="text" placeholder="Search notes…" autocomplete="off">
+        <button class="gm-ghost" id="notesSemanticBtn" type="button" title="Search by meaning, not just exact words">🧠 Semantic</button>
+        <button class="gm-add" id="notesNewBtn" type="button">+ New Note</button>
+      </div>
+      <div class="editor-meta" id="notesSemanticStatus" style="display:none;margin-bottom:10px"></div>
+      <ul class="notes-list" id="notesList"></ul>
+      <div class="empty-state" id="notesEmpty" style="display:none">No notes yet — start one above.</div>
+    </div>
+  </div>
+
+  <!-- Editor view -->
+  <div class="section" id="editorView" style="display:none">
+    <div class="section-title">Edit Note</div>
+    <div class="gm-card">
+      <input class="editor-title" id="editorTitle" type="text" placeholder="Title" autocomplete="off">
+      <div class="editor-toolbar" id="editorToolbar" style="display:none">
+        <button class="gm-ghost" id="voiceNoteBtn" type="button" title="Speak a note — transcribed and cleaned up automatically">🎙️ Voice</button>
+        <button class="gm-ghost" id="reflectBtn" type="button" title="Get a short, on-demand reflection on this note">💭 Reflect</button>
+        <span class="editor-meta" id="voiceNoteStatus"></span>
+      </div>
+      <textarea class="editor-body" id="editorBody" placeholder="Write something…"></textarea>
+      <div class="reflect-box" id="reflectBox" style="display:none"></div>
+      <div class="editor-actions">
+        <span class="editor-meta" id="editorMeta"></span>
+        <div style="display:flex;gap:8px">
+          <button class="gm-ghost" id="editorDeleteBtn" type="button">Delete</button>
+          <button class="gm-add" id="editorBackBtn" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<script>
+(function () {
+  'use strict';
+
+  const STORE_KEY = 'notes:items';
+
+  const listView   = document.getElementById('listView');
+  const editorView = document.getElementById('editorView');
+  const listEl      = document.getElementById('notesList');
+  const emptyEl     = document.getElementById('notesEmpty');
+  const searchEl    = document.getElementById('notesSearch');
+  const newBtn      = document.getElementById('notesNewBtn');
+  const titleEl     = document.getElementById('editorTitle');
+  const bodyEl      = document.getElementById('editorBody');
+  const metaEl      = document.getElementById('editorMeta');
+  const deleteBtn   = document.getElementById('editorDeleteBtn');
+  const backBtn     = document.getElementById('editorBackBtn');
+  const semanticBtn    = document.getElementById('notesSemanticBtn');
+  const semanticStatus = document.getElementById('notesSemanticStatus');
+  const editorToolbar  = document.getElementById('editorToolbar');
+  const voiceNoteBtn   = document.getElementById('voiceNoteBtn');
+  const voiceNoteStatus = document.getElementById('voiceNoteStatus');
+  const reflectBtn     = document.getElementById('reflectBtn');
+  const reflectBox     = document.getElementById('reflectBox');
+
+  // ---- Semantic search (optional — degrades silently if not configured) ----
+  // Note CONTENT never leaves localStorage/the normal sync row for this;
+  // /api/notes-embed only ever sees text transiently to turn it into a
+  // vector, and only stores the vector itself (see api/notes-embed.js).
+  let semanticRankedIds = null; // null = not in semantic mode, use the normal keyword filter instead
+  function notesEmbedConfigured() {
+    return !!(window.DASH_NOTES_EMBED_SECRET);
+  }
+  async function notesEmbedCall(action, payload) {
+    if (!notesEmbedConfigured()) return null;
+    try {
+      const res = await fetch('/api/notes-embed', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + window.DASH_NOTES_EMBED_SECRET },
+        body: JSON.stringify(Object.assign({ action: action }, payload)),
+      });
+      const json = await res.json();
+      return json && json.ok ? json : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  // Fire-and-forget — a note must always save locally regardless of whether
+  // embedding succeeds, fails, or isn't configured at all.
+  function scheduleEmbed(note) {
+    if (!notesEmbedConfigured()) return;
+    const text = ((note.title || '') + '\n' + (note.body || '')).trim();
+    if (!text) return;
+    notesEmbedCall('upsert', { noteId: note.id, text: text }).catch(() => {});
+  }
+  function scheduleEmbedDelete(noteId) {
+    if (!notesEmbedConfigured()) return;
+    notesEmbedCall('delete', { noteId: noteId }).catch(() => {});
+  }
+
+  // ---- Voice journaling + on-demand reflection (optional — same secret/config
+  // gate as semantic search, since api/notes-ai.js shares NOTES_EMBED_SECRET
+  // rather than needing its own) ----
+  async function notesAiCall(action, payload) {
+    if (!notesEmbedConfigured()) return null;
+    try {
+      const res = await fetch('/api/notes-ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + window.DASH_NOTES_EMBED_SECRET },
+        body: JSON.stringify(Object.assign({ action: action }, payload)),
+      });
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function micSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  }
+
+  // Recording happens in a continuous loop of short (~55s) chunks, each
+  // transcribed as soon as it finishes, rather than one long recording sent
+  // as a single request. Two real limits forced this: Vercel rejects
+  // request bodies over ~4.5MB (a single 10-minute recording as base64
+  // blows past that easily), and restarting a fresh MediaRecorder per chunk
+  // (rather than one recorder's `timeslice` option) is what actually
+  // produces independently-decodable audio files — a single recorder's
+  // incremental timeslice chunks share one WebM container header that only
+  // lives in the first chunk, so the rest aren't valid audio on their own.
+  // Net effect: total recording length is no longer bounded by anything but
+  // how long you want to talk, and each chunk's transcript is appended into
+  // the note as it arrives — so if something fails partway through, whatever
+  // was already captured is already saved, not lost.
+  const CHUNK_MS = 55000;
+
+  let micStream = null;
+  let chunkRecorder = null;
+  let stopRequested = false;
+  let isRecording = false;
+  let voiceSessionStartLength = 0;
+  let chunkCount = 0;
+  let stopResolve = null;
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result || '';
+        const comma = result.indexOf(',');
+        resolve(comma === -1 ? '' : result.slice(comma + 1));
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function appendToBody(text) {
+    if (!text) return;
+    bodyEl.value = bodyEl.value.trim() ? bodyEl.value.replace(/\s+$/, '') + '\n\n' + text : text;
+    scheduleAutosave();
+  }
+
+  async function transcribeChunk(blob, mimeType) {
+    const audioBase64 = await blobToBase64(blob);
+    if (!audioBase64) return '';
+    const result = await notesAiCall('transcribe-chunk', { audioBase64: audioBase64, mimeType: mimeType });
+    if (!result || !result.ok) throw new Error((result && result.error) || "couldn't transcribe that segment");
+    return (result.transcript || '').trim();
+  }
+
+  // One MediaRecorder instance covers exactly one chunk; when it stops
+  // (either the CHUNK_MS timer or the user hitting Stop), its own blob is
+  // transcribed and appended, and — unless this was the final chunk — a
+  // brand-new recorder immediately starts the next one on the same stream.
+  function recordOneChunk() {
+    const chunkBlobs = [];
+    chunkRecorder = new MediaRecorder(micStream, recorderOptions());
+    chunkRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunkBlobs.push(e.data); };
+    chunkRecorder.onstop = async () => {
+      const mimeType = chunkRecorder.mimeType || 'audio/webm';
+      const isFinal = stopRequested;
+      if (!isFinal) recordOneChunk(); // keep talking uninterrupted while this chunk transcribes
+      if (chunkBlobs.length) {
+        chunkCount++;
+        voiceNoteStatus.textContent = isFinal ? 'Transcribing last part…' : ('Recording… (' + chunkCount + ' segment' + (chunkCount === 1 ? '' : 's') + ' captured)');
+        try {
+          const transcript = await transcribeChunk(new Blob(chunkBlobs, { type: mimeType }), mimeType);
+          appendToBody(transcript);
+        } catch (e) {
+          appendToBody(''); // no-op, but keeps the shape consistent if extended later
+          voiceNoteStatus.textContent = "Couldn't transcribe one segment (" + (e && e.message ? e.message : 'unknown error') + ') — the rest kept recording.';
+        }
+      }
+      if (isFinal) await finishRecording();
+    };
+    chunkRecorder.start();
+    chunkTimer = setTimeout(() => { if (chunkRecorder && chunkRecorder.state === 'recording') chunkRecorder.stop(); }, CHUNK_MS);
+  }
+
+  function recorderOptions() {
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+      : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+    return mimeType ? { mimeType: mimeType } : {};
+  }
+
+  let chunkTimer = null;
+
+  // Once every chunk's raw transcript is in the note, do ONE polish pass
+  // over the whole thing the recording session added (not the note's
+  // pre-existing content), rewriting it into clean prose — run once at the
+  // end rather than per-chunk so the rewrite has full context and isn't
+  // stitched together from independently-polished fragments.
+  async function finishRecording() {
+    micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+    isRecording = false;
+    voiceNoteBtn.textContent = '🎙️ Voice';
+    voiceNoteBtn.classList.remove('recording');
+    voiceNoteBtn.disabled = true;
+
+    const rawSession = bodyEl.value.slice(voiceSessionStartLength).trim();
+    if (!rawSession) {
+      voiceNoteStatus.textContent = "Didn't catch anything — try again.";
+      voiceNoteBtn.disabled = false;
+      if (stopResolve) { const r = stopResolve; stopResolve = null; r(); }
+      return;
+    }
+    voiceNoteStatus.textContent = 'Cleaning up the writing…';
+    try {
+      const result = await notesAiCall('polish', { text: rawSession });
+      if (result && result.ok && result.polished) {
+        bodyEl.value = bodyEl.value.slice(0, voiceSessionStartLength) + result.polished;
+        scheduleAutosave();
+      }
+      // A failed/empty polish just leaves the raw transcript in place —
+      // still useful, better than losing it.
+      voiceNoteStatus.textContent = '';
+    } catch (e) {
+      voiceNoteStatus.textContent = '';
+    } finally {
+      voiceNoteBtn.disabled = false;
+      if (stopResolve) { const r = stopResolve; stopResolve = null; r(); }
+    }
+  }
+
+  async function startRecording() {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stopRequested = false;
+    chunkCount = 0;
+    chunkRecorder = null;
+    voiceSessionStartLength = bodyEl.value.length;
+    isRecording = true;
+    voiceNoteBtn.textContent = '⏹ Stop';
+    voiceNoteBtn.classList.add('recording');
+    voiceNoteStatus.textContent = 'Recording…';
+    recordOneChunk();
+  }
+
+  // Returns a promise that resolves once the whole stop→transcribe-last-
+  // chunk→polish pipeline finishes, so callers that need the note's final
+  // content (closing the editor) can wait for it instead of racing it —
+  // see closeEditor(), which would otherwise persist the note BEFORE the
+  // last chunk's text ever lands, then silently drop it once it does
+  // arrive (persistOpen() no-ops once openId has already been cleared).
+  function stopRecording() {
+    stopRequested = true;
+    clearTimeout(chunkTimer);
+    return new Promise((resolve) => {
+      stopResolve = resolve;
+      try { if (chunkRecorder && chunkRecorder.state === 'recording') chunkRecorder.stop(); }
+      catch (e) { stopResolve = null; resolve(); }
+    });
+  }
+
+  if (voiceNoteBtn) {
+    voiceNoteBtn.addEventListener('click', async () => {
+      if (isRecording) { await stopRecording(); return; }
+      if (!micSupported()) { voiceNoteStatus.textContent = 'Voice recording not supported in this browser.'; return; }
+      try { await startRecording(); }
+      catch (e) { voiceNoteStatus.textContent = 'Microphone permission denied or unavailable.'; }
+    });
+  }
+
+  function renderReflection(text) {
+    reflectBox.innerHTML = '';
+    const close = document.createElement('button');
+    close.className = 'reflect-box-close';
+    close.type = 'button';
+    close.textContent = '×';
+    close.addEventListener('click', () => { reflectBox.style.display = 'none'; });
+    const label = document.createElement('div');
+    label.className = 'reflect-box-label';
+    label.textContent = '💭 Reflection';
+    const body = document.createElement('div');
+    body.textContent = text;
+    reflectBox.append(close, label, body);
+    reflectBox.style.display = 'block';
+  }
+
+  if (reflectBtn) {
+    reflectBtn.addEventListener('click', async () => {
+      const text = bodyEl.value.trim();
+      if (!text) { bodyEl.focus(); return; }
+      reflectBtn.disabled = true;
+      const origLabel = reflectBtn.textContent;
+      reflectBtn.textContent = 'Reflecting…';
+      reflectBox.style.display = 'none';
+      const result = await notesAiCall('reflect', { text: text });
+      reflectBtn.disabled = false;
+      reflectBtn.textContent = origLabel;
+      if (!result || !result.ok) {
+        renderReflection((result && result.error) ? result.error : "Couldn't get a reflection just now — check your connection.");
+        return;
+      }
+      renderReflection(result.reflection);
+    });
+  }
+
+  let openId = null;
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function save(notes) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(notes));
+  }
+
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (sameDay) return 'Today · ' + time;
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + time;
+  }
+
+  // ---- Mood trend (local word-list heuristic, no API calls — deliberately
+  // not clinical/precise, just enough signal to see whether journaling has
+  // trended up or down over time; a note with no sentiment-bearing words at
+  // all, e.g. a pure to-do list dumped into Notes, contributes no signal
+  // rather than getting misread as "neutral") ----
+  const MOOD_POSITIVE_WORDS = ['happy', 'grateful', 'thankful', 'excited', 'proud', 'calm', 'relieved', 'hopeful',
+    'love', 'loved', 'great', 'good', 'amazing', 'wonderful', 'accomplished', 'energized', 'motivated', 'peaceful',
+    'joy', 'joyful', 'confident', 'optimistic', 'content', 'blessed', 'excellent', 'fantastic', 'fun', 'glad',
+    'relaxed', 'strong'];
+  const MOOD_NEGATIVE_WORDS = ['sad', 'anxious', 'anxiety', 'stressed', 'stress', 'angry', 'mad', 'frustrated',
+    'frustrating', 'tired', 'exhausted', 'worried', 'worry', 'overwhelmed', 'lonely', 'alone', 'hopeless', 'awful',
+    'bad', 'terrible', 'hate', 'hurt', 'scared', 'afraid', 'guilty', 'ashamed', 'depressed', 'upset', 'annoyed',
+    'miserable', 'crying', 'cried', 'fear', 'panic', 'disappointed'];
+
+  // Returns a score in [-1, 1], or null if the text has no sentiment-bearing
+  // words at all (nothing to average in, rather than treating silence as "0").
+  function scoreNoteText(text) {
+    const words = (text || '').toLowerCase().match(/[a-z']+/g) || [];
+    let pos = 0, neg = 0;
+    words.forEach(w => {
+      if (MOOD_POSITIVE_WORDS.indexOf(w) !== -1) pos++;
+      else if (MOOD_NEGATIVE_WORDS.indexOf(w) !== -1) neg++;
+    });
+    if (pos + neg === 0) return null;
+    return (pos - neg) / (pos + neg);
+  }
+
+  function moodDateKey(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // One averaged score per calendar day (a day can have several notes),
+  // sorted chronologically, using each note's last-edited date as a stand-in
+  // for "when this entry is about" — true for the common case of a journal
+  // entry written and left, less so for a note edited long after the fact.
+  function computeMoodByDay() {
+    const byDay = {};
+    load().forEach(n => {
+      const score = scoreNoteText((n.title || '') + ' ' + (n.body || ''));
+      if (score == null) return;
+      const key = moodDateKey(n.updatedAt);
+      (byDay[key] = byDay[key] || []).push(score);
+    });
+    return Object.keys(byDay).sort().map(date => ({
+      date, score: byDay[date].reduce((a, b) => a + b, 0) / byDay[date].length,
+    }));
+  }
+
+  const MOOD_MIN_DAYS = 3;
+  const MOOD_MAX_POINTS = 60; // last ~2 months of days-with-signal, not raw calendar days
+  function renderMoodChart() {
+    const wrap = document.getElementById('moodChartWrap');
+    if (!wrap) return;
+    const all = computeMoodByDay();
+    if (all.length < MOOD_MIN_DAYS) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    const points = all.slice(-MOOD_MAX_POINTS);
+
+    const W = 300, H = 70, PAD = 6, midY = H / 2;
+    const xStep = points.length > 1 ? (W - PAD * 2) / (points.length - 1) : 0;
+    const yFor = (score) => midY - score * (midY - PAD);
+    const pts = points.map((p, i) => [PAD + i * xStep, yFor(p.score)]);
+    const linePath = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const fillPath = linePath + ' L ' + pts[pts.length - 1][0].toFixed(1) + ' ' + midY.toFixed(1)
+      + ' L ' + pts[0][0].toFixed(1) + ' ' + midY.toFixed(1) + ' Z';
+    const dots = pts.map((p, i) => {
+      const s = points[i].score;
+      const color = s > 0.15 ? 'var(--success)' : s < -0.15 ? 'var(--danger)' : 'var(--text-tertiary)';
+      return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="2.5" fill="' + color + '"/>';
+    }).join('');
+
+    const svg = document.getElementById('moodChartSvg');
+    svg.innerHTML = '<line x1="' + PAD + '" y1="' + midY + '" x2="' + (W - PAD) + '" y2="' + midY
+      + '" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>'
+      + '<path class="mood-chart-fill" d="' + fillPath + '"/>'
+      + '<path class="mood-chart-line" d="' + linePath + '"/>' + dots;
+
+    const latest = points[points.length - 1].score;
+    const tone = latest > 0.15 ? 'upbeat' : latest < -0.15 ? 'heavy' : 'even';
+    document.getElementById('moodChartCaption').textContent =
+      points.length + ' day' + (points.length === 1 ? '' : 's') + ' with signal · most recent entry reads ' + tone;
+  }
+
+  function render() {
+    renderMoodChart();
+    const q = searchEl.value.trim().toLowerCase();
+    let notes = load().slice().sort((a, b) => b.updatedAt - a.updatedAt);
+    if (semanticRankedIds) {
+      // Semantic mode: order by the ranked ids the server returned, dropping
+      // anything without a match (e.g. a note that predates this feature or
+      // hasn't finished embedding yet) rather than padding with unrelated
+      // notes — a shorter, genuinely-relevant list beats a complete but
+      // misleading one.
+      const byId = new Map(notes.map(n => [n.id, n]));
+      notes = semanticRankedIds.map(id => byId.get(id)).filter(Boolean);
+    } else if (q) {
+      notes = notes.filter(n =>
+        (n.title || '').toLowerCase().includes(q) ||
+        (n.body || '').toLowerCase().includes(q)
+      );
+    }
+
+    listEl.innerHTML = '';
+    emptyEl.style.display = notes.length ? 'none' : 'block';
+
+    notes.forEach(note => {
+      const li = document.createElement('li');
+      li.className = 'note-row';
+
+      const body = document.createElement('div');
+      body.className = 'note-row-body';
+
+      const title = document.createElement('div');
+      title.className = 'note-row-title';
+      title.textContent = note.title || 'Untitled';
+
+      const preview = document.createElement('div');
+      preview.className = 'note-row-preview';
+      preview.textContent = (note.body || '').replace(/\s+/g, ' ').trim() || 'No content';
+
+      const time = document.createElement('div');
+      time.className = 'note-row-time';
+      time.textContent = fmtTime(note.updatedAt);
+
+      body.append(title, preview, time);
+
+      const del = document.createElement('button');
+      del.className = 'note-delete';
+      del.type = 'button';
+      del.textContent = '×';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete "' + (note.title || 'Untitled') + '"?')) return;
+        save(load().filter(n => n.id !== note.id));
+        scheduleEmbedDelete(note.id);
+        render();
+      });
+
+      li.addEventListener('click', () => openEditor(note.id));
+      li.append(body, del);
+      listEl.appendChild(li);
+    });
+  }
+
+  function openEditor(id) {
+    openId = id;
+    const note = load().find(n => n.id === id);
+    if (!note) return;
+    titleEl.value = note.title || '';
+    bodyEl.value = note.body || '';
+    metaEl.textContent = 'Last edited ' + fmtTime(note.updatedAt);
+    voiceNoteStatus.textContent = '';
+    reflectBox.style.display = 'none';
+    listView.style.display = 'none';
+    editorView.style.display = 'block';
+    titleEl.focus();
+  }
+
+  function persistOpen() {
+    if (openId == null) return;
+    const notes = load();
+    const idx = notes.findIndex(n => n.id === openId);
+    if (idx === -1) {
+      // The note vanished from storage out from under an open editor (e.g. a
+      // sync race with a delete on another device). Re-add it instead of
+      // silently discarding whatever the user has typed here.
+      const note = { id: openId, title: titleEl.value.trim(), body: bodyEl.value, updatedAt: Date.now() };
+      notes.push(note);
+      save(notes);
+      scheduleEmbed(note);
+      return;
+    }
+    notes[idx].title = titleEl.value.trim();
+    notes[idx].body = bodyEl.value;
+    notes[idx].updatedAt = Date.now();
+    save(notes);
+    scheduleEmbed(notes[idx]);
+  }
+
+  async function closeEditor() {
+    if (isRecording) {
+      voiceNoteStatus.textContent = 'Finishing up the recording…';
+      await stopRecording();
+    }
+    persistOpen();
+    openId = null;
+    editorView.style.display = 'none';
+    listView.style.display = 'block';
+    render();
+  }
+
+  newBtn.addEventListener('click', () => {
+    const notes = load();
+    const note = { id: 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: '', body: '', updatedAt: Date.now() };
+    notes.push(note);
+    save(notes);
+    openEditor(note.id);
+  });
+
+  titleEl.addEventListener('blur', persistOpen);
+  bodyEl.addEventListener('blur', persistOpen);
+
+  // Autosave while typing, not just on blur — otherwise typed content that
+  // never blurs (switching apps, the tab getting closed, the phone locking
+  // mid-thought) is silently lost, since nothing else ever wrote it to
+  // localStorage. Debounced so it's not literally every keystroke.
+  let autosaveTimer = null;
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(persistOpen, 400);
+  }
+  titleEl.addEventListener('input', scheduleAutosave);
+  bodyEl.addEventListener('input', scheduleAutosave);
+
+  // Belt-and-suspenders: flush immediately (no debounce wait) the moment the
+  // tab is hidden or about to unload, so a debounce timer in flight can't
+  // get cut off mid-wait.
+  function flushNow() { clearTimeout(autosaveTimer); persistOpen(); }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+  window.addEventListener('pagehide', flushNow);
+  window.addEventListener('beforeunload', flushNow);
+  backBtn.addEventListener('click', closeEditor);
+
+  deleteBtn.addEventListener('click', () => {
+    if (openId == null) return;
+    const note = load().find(n => n.id === openId);
+    if (!confirm('Delete "' + (note && note.title ? note.title : 'Untitled') + '"?')) return;
+    // Discard rather than wait for any in-progress recording — the note is
+    // being deleted outright, so there's nothing left to append it to.
+    if (isRecording) stopRecording();
+    save(load().filter(n => n.id !== openId));
+    scheduleEmbedDelete(openId);
+    openId = null;
+    editorView.style.display = 'none';
+    listView.style.display = 'block';
+    render();
+  });
+
+  searchEl.addEventListener('input', () => {
+    // Typing anything new invalidates the last semantic result set — back to
+    // the normal live keyword filter until Semantic is explicitly hit again.
+    semanticRankedIds = null;
+    semanticStatus.style.display = 'none';
+    render();
+  });
+
+  if (editorToolbar && notesEmbedConfigured()) editorToolbar.style.display = 'flex';
+  if (voiceNoteBtn && !micSupported()) voiceNoteBtn.style.display = 'none';
+
+  if (semanticBtn) {
+    if (!notesEmbedConfigured()) {
+      // Not set up (no NOTES_EMBED_SECRET) — hide rather than show a button
+      // that would just fail every time.
+      semanticBtn.style.display = 'none';
+    } else {
+      semanticBtn.addEventListener('click', async () => {
+        const query = searchEl.value.trim();
+        if (!query) { searchEl.focus(); return; }
+        semanticBtn.disabled = true;
+        const origLabel = semanticBtn.textContent;
+        semanticBtn.textContent = 'Searching…';
+        semanticStatus.style.display = 'block';
+        semanticStatus.textContent = '';
+        const result = await notesEmbedCall('search', { query: query });
+        semanticBtn.disabled = false;
+        semanticBtn.textContent = origLabel;
+        if (!result) {
+          semanticStatus.textContent = "Couldn't search just now — check the server config or your connection.";
+          return;
+        }
+        semanticRankedIds = result.results.map(r => r.noteId);
+        semanticStatus.textContent = semanticRankedIds.length
+          ? 'Showing ' + semanticRankedIds.length + ' result' + (semanticRankedIds.length === 1 ? '' : 's') + ' ranked by meaning, not exact words.'
+          : 'No semantically similar notes found.';
+        render();
+      });
+    }
+  }
+
+  render();
+
+  // Deferred until DOMContentLoaded: sync.js is loaded with `defer`, so it
+  // hasn't run yet at the point this inline script executes during parsing
+  // — checking window.initCloudSync synchronously here would always find
+  // it undefined and silently skip sync setup entirely.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'notes',
+      syncedKeys: [STORE_KEY],
+      onApplied: () => { if (openId == null) render(); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

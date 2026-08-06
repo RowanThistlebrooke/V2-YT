@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Reflect · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+.lc-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 8px;
+}
+.lc-hint { font-size: 12.5px; color: var(--text-tertiary); margin-bottom: 12px; line-height: 1.5; }
+.lc-textarea {
+  width: 100%; min-height: 110px; padding: 12px 14px;
+  border: 1px solid var(--hud-line); border-radius: 10px;
+  background: rgba(0,0,0,0.28); color: var(--text-primary);
+  font-family: inherit; font-size: 14px; line-height: 1.6; outline: none; resize: vertical;
+  transition: border-color 0.2s, background 0.2s;
+}
+.lc-textarea::placeholder { color: var(--text-tertiary); }
+.lc-textarea:focus { border-color: var(--hud); background: rgba(0,0,0,0.36); }
+.lc-status { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; min-height: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="index.html">← Dashboard</a>
+  <h1 class="dash-title">Reflect</h1>
+
+  <div class="gm-card">
+    <div class="lc-label">🧠 Life Context</div>
+    <div class="lc-hint">
+      Anything ongoing you want the assistant (Telegram, Notes' 💭 Reflect) to just already know —
+      relationships, current situations, goals, preferences — instead of explaining it every time.
+      It also already reads your recent notes on its own; this is for things worth stating directly.
+    </div>
+    <textarea class="lc-textarea" id="lifeContextInput"
+      placeholder="e.g. Training for a marathon in October. My sister just had a baby. Trying to spend less on takeout this quarter…"></textarea>
+    <div class="lc-status" id="lifeContextStatus"></div>
+  </div>
+
+  <div class="bento">
+    <!-- Wide tile -->
+    <a class="tile wide" href="player.html" style="--accent:#E8C87A">
+      <div class="tile-top">
+        <span class="tile-num">·01</span>
+        <span class="tile-emoji">🎖️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Player Card</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Your overall rating &amp; level</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Wide tile -->
+    <a class="tile wide" href="nova-lite.html" style="--accent:#A78BFA">
+      <div class="tile-top">
+        <span class="tile-num">·02</span>
+        <span class="tile-emoji">🧠</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Nova</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Your AI mentor</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="notes.html" style="--accent:#F472B6">
+      <div class="tile-top">
+        <span class="tile-num">·03</span>
+        <span class="tile-emoji">📝</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Notes</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Freeform notes</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Wide tile -->
+    <a class="tile wide" href="review.html" style="--accent:#5EEAD4">
+      <div class="tile-top">
+        <span class="tile-num">·04</span>
+        <span class="tile-emoji">🪞</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Review</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Weekly & monthly recap</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="year-review.html" style="--accent:#FBBF24">
+      <div class="tile-top">
+        <span class="tile-num">·05</span>
+        <span class="tile-emoji">🎞️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Your Year</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Last 365 days</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="mistakes.html" style="--accent:#FF5470">
+      <div class="tile-top">
+        <span class="tile-num">·06</span>
+        <span class="tile-emoji">⚠️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Mistake Log</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">What happened, what you learned</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="skills.html" style="--accent:#5EEAD4">
+      <div class="tile-top">
+        <span class="tile-num">·07</span>
+        <span class="tile-emoji">🏗️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Skill Stack</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Track skills you're building</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const STORE_KEY = 'life_context:text';
+  const inputEl = document.getElementById('lifeContextInput');
+  const statusEl = document.getElementById('lifeContextStatus');
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || ''; }
+    catch (e) { return ''; }
+  }
+  function save(text) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(text));
+  }
+
+  inputEl.value = load();
+
+  let saveTimer = null;
+  inputEl.addEventListener('input', () => {
+    statusEl.textContent = '';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      save(inputEl.value);
+      statusEl.textContent = 'Saved ✓';
+      setTimeout(() => { statusEl.textContent = ''; }, 1800);
+    }, 600);
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'life_context',
+      syncedKeys: [STORE_KEY],
+      onApplied: () => { inputEl.value = load(); },
+    });
+  });
+})();
+</script>
+</body>
+</html>

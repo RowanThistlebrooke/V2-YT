@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Life Timeline · Insights</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.lt-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.lt-search-row { display: flex; gap: 8px; }
+.lt-search-row .gm-input { flex: 1; }
+.lt-range-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.lt-range-btn {
+  padding: 7px 13px; border-radius: var(--radius-full, 999px);
+  border: 1px solid var(--hud-line); background: rgba(255,255,255,0.03);
+  color: var(--text-tertiary); font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.lt-range-btn.is-active { background: rgba(var(--hud-rgb),0.14); border-color: var(--hud); color: var(--hud); }
+.lt-domain-row { display: flex; gap: 7px; flex-wrap: wrap; }
+.lt-domain-chip {
+  padding: 6px 11px; border-radius: var(--radius-full, 999px);
+  border: 1px solid var(--hud-line); background: transparent;
+  color: var(--text-tertiary); font-size: 11.5px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+}
+.lt-domain-chip.is-active { background: rgba(var(--hud-rgb),0.14); border-color: var(--hud); color: var(--text-primary); }
+.lt-domain-chip .lt-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+.lt-status { font-size: 13px; color: var(--text-tertiary); padding: 30px 4px; text-align: center; }
+.lt-status.is-error { color: var(--danger, #FF5470); }
+
+.lt-day { margin-top: 18px; }
+.lt-day-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.lt-day-date { font-size: 13.5px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.02em; }
+.lt-day-summary { font-size: 11.5px; color: var(--text-tertiary); }
+
+.lt-entry {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 12px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; text-decoration: none; color: inherit;
+}
+.lt-entry[href]:hover { background: rgba(255,255,255,0.06); border-color: var(--hud-line); }
+.lt-entry-time {
+  flex-shrink: 0; width: 52px; padding-top: 1px;
+  font-size: 11px; font-family: var(--font-mono, monospace); color: var(--text-tertiary);
+}
+.lt-entry-body { min-width: 0; flex: 1; }
+.lt-entry-title { font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+.lt-entry-title .lt-pr-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.03em;
+  background: rgba(251,191,36,0.16); color: #FBBF24;
+}
+.lt-entry-summary { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.lt-entry-source { flex-shrink: 0; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); padding-top: 2px; white-space: nowrap; }
+
+.lt-empty { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; padding: 30px 4px; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) { .lt-entry { transition: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-insights.html">← Insights</a>
+  <h1 class="dash-title">Life Timeline</h1>
+
+  <div class="section">
+    <div class="gm-card">
+      <div class="lt-toolbar">
+        <div class="lt-search-row">
+          <input class="gm-input" id="ltSearch" type="text" placeholder="Search the timeline…" autocomplete="off" aria-label="Search the timeline">
+        </div>
+        <div class="lt-range-row" id="ltRangeRow" role="group" aria-label="Time range">
+          <button type="button" class="lt-range-btn" data-range="7">Week</button>
+          <button type="button" class="lt-range-btn" data-range="30">Month</button>
+          <button type="button" class="lt-range-btn" data-range="90">3 Months</button>
+          <button type="button" class="lt-range-btn" data-range="all">All time</button>
+        </div>
+        <div class="lt-domain-row" id="ltDomainRow" role="group" aria-label="Filter by category"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="ltResults">
+    <div class="lt-status" id="ltStatus">Loading your timeline…</div>
+  </div>
+
+</div><!-- /.page -->
+
+<script type="module">
+import {
+  adaptWorkouts, adaptBodyWeight, adaptMeals, adaptPurchases, adaptNetWorthActivity,
+  adaptBusinessRevenue, adaptLeverageHistory, adaptHabitCheckins, adaptPeakCheckins,
+  adaptNotes, adaptAppointments, adaptTelegramActions,
+  mergeAndSort, filterByRange, filterByDomains, searchEntries, buildDaySummary,
+} from './life-timeline.js';
+
+const DOMAIN_META = {
+  workout: { label: 'Workouts', color: '#FF5470' },
+  bodyweight: { label: 'Weigh-ins', color: '#FF5470' },
+  meal: { label: 'Meals', color: '#3FE0A8' },
+  purchase: { label: 'Purchases', color: '#FBBF24' },
+  networth: { label: 'Net worth', color: '#FBBF24' },
+  business: { label: 'Business', color: '#FBBF24' },
+  task: { label: 'Tasks', color: '#22D3F5' },
+  habit: { label: 'Habits', color: '#22D3F5' },
+  checkin: { label: 'Check-ins', color: '#A78BFA' },
+  note: { label: 'Notes', color: '#A78BFA' },
+  appointment: { label: 'Appointments', color: '#22D3F5' },
+  telegram: { label: 'Assistant', color: '#7DD3FC' },
+};
+const ALL_DOMAINS = Object.keys(DOMAIN_META);
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function dateKeysBack(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function formatDayHeading(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const today = todayKey();
+  const yesterday = dateKeysBack(1);
+  if (dateKey === today) return 'Today · ' + dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (dateKey === yesterday) return 'Yesterday · ' + dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: dt.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+}
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+let allEntries = [];
+let activeRange = '30';
+let activeDomains = new Set(ALL_DOMAINS);
+
+const searchEl = document.getElementById('ltSearch');
+const rangeRow = document.getElementById('ltRangeRow');
+const domainRow = document.getElementById('ltDomainRow');
+const resultsEl = document.getElementById('ltResults');
+const statusEl = document.getElementById('ltStatus');
+
+ALL_DOMAINS.forEach(domain => {
+  const meta = DOMAIN_META[domain];
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lt-domain-chip is-active';
+  btn.dataset.domain = domain;
+  btn.style.color = meta.color;
+  btn.innerHTML = '<span class="lt-dot"></span>' + escapeHtml(meta.label);
+  btn.addEventListener('click', () => {
+    if (activeDomains.has(domain)) activeDomains.delete(domain); else activeDomains.add(domain);
+    btn.classList.toggle('is-active');
+    render();
+  });
+  domainRow.appendChild(btn);
+});
+
+rangeRow.querySelectorAll('.lt-range-btn').forEach(btn => {
+  if (btn.dataset.range === activeRange) btn.classList.add('is-active');
+  btn.addEventListener('click', () => {
+    activeRange = btn.dataset.range;
+    rangeRow.querySelectorAll('.lt-range-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+    render();
+  });
+});
+searchEl.addEventListener('input', render);
+
+function render() {
+  let entries = allEntries;
+  if (activeRange !== 'all') {
+    entries = filterByRange(entries, dateKeysBack(Number(activeRange)), todayKey());
+  }
+  entries = filterByDomains(entries, Array.from(activeDomains));
+  entries = searchEntries(entries, searchEl.value);
+
+  resultsEl.innerHTML = '';
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'lt-empty';
+    empty.textContent = allEntries.length
+      ? 'Nothing matches this filter — try widening the range or clearing a category.'
+      : 'Nothing logged yet. As you use the dashboard and the Telegram assistant, everything shows up here.';
+    resultsEl.appendChild(empty);
+    return;
+  }
+
+  let currentDay = null, dayBody = null;
+  entries.forEach(entry => {
+    if (entry.dateKey !== currentDay) {
+      currentDay = entry.dateKey;
+      const dayEntries = entries.filter(e => e.dateKey === currentDay);
+      const dayEl = document.createElement('div');
+      dayEl.className = 'lt-day';
+      const head = document.createElement('div');
+      head.className = 'lt-day-head';
+      const dateEl = document.createElement('span');
+      dateEl.className = 'lt-day-date';
+      dateEl.textContent = formatDayHeading(currentDay);
+      const summaryEl = document.createElement('span');
+      summaryEl.className = 'lt-day-summary';
+      summaryEl.textContent = buildDaySummary(dayEntries);
+      head.append(dateEl, summaryEl);
+      dayBody = document.createElement('div');
+      dayEl.append(head, dayBody);
+      resultsEl.appendChild(dayEl);
+    }
+    const meta = DOMAIN_META[entry.domain] || { label: entry.domain, color: '#8AA' };
+    const row = document.createElement(entry.deepLink ? 'a' : 'div');
+    row.className = 'lt-entry';
+    if (entry.deepLink) row.href = entry.deepLink;
+    const time = document.createElement('span');
+    time.className = 'lt-entry-time';
+    time.style.color = meta.color;
+    time.textContent = entry.precision === 'exact' && entry.ts ? formatTime(entry.ts) : '·';
+    const body = document.createElement('span');
+    body.className = 'lt-entry-body';
+    const title = document.createElement('div');
+    title.className = 'lt-entry-title';
+    title.textContent = entry.title || '';
+    if (entry.isPR) {
+      const badge = document.createElement('span');
+      badge.className = 'lt-pr-badge';
+      badge.textContent = 'PR';
+      title.appendChild(badge);
+    }
+    body.appendChild(title);
+    if (entry.summary) {
+      const summary = document.createElement('div');
+      summary.className = 'lt-entry-summary';
+      summary.textContent = entry.summary;
+      body.appendChild(summary);
+    }
+    const source = document.createElement('span');
+    source.className = 'lt-entry-source';
+    source.textContent = meta.label;
+    row.append(time, body, source);
+    dayBody.appendChild(row);
+  });
+}
+
+// ---- Loading ----
+// Life Timeline reads across nine domains that already sync independently
+// via sync.js. Rather than depend on every one of those pages' individual
+// cloud-sync wiring being loaded on this page, it fetches every app_state
+// row directly (same one-shot pattern insights-recovery.html already uses)
+// so the timeline works standalone and always reflects the latest synced
+// data, not just whatever happens to be cached in this browser's localStorage.
+const SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+const SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+async function load() {
+  if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+    statusEl.textContent = "Cloud sync isn't configured on this device.";
+    statusEl.classList.add('is-error');
+    return;
+  }
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+    });
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    const rows = await res.json();
+    const rowsByKey = {};
+    const telegramActionRows = [];
+    (Array.isArray(rows) ? rows : []).forEach(r => {
+      if (!r || !r.key) return;
+      if (r.key.indexOf('telegram-action:') === 0) { telegramActionRows.push(r.data); return; }
+      rowsByKey[r.key] = r.data;
+    });
+
+    allEntries = mergeAndSort([
+      adaptWorkouts(rowsByKey['po-coach'] || {}),
+      adaptBodyWeight(rowsByKey['po-coach'] || {}),
+      adaptMeals(rowsByKey.health || {}),
+      adaptPurchases(rowsByKey.finance || {}),
+      adaptNetWorthActivity(rowsByKey.finance || {}),
+      adaptBusinessRevenue(rowsByKey.business || {}),
+      adaptLeverageHistory(rowsByKey.goals || {}),
+      adaptHabitCheckins(rowsByKey.goals || {}),
+      adaptPeakCheckins(rowsByKey.peak || {}),
+      adaptNotes(rowsByKey.notes || {}),
+      adaptAppointments(rowsByKey.schedule || {}),
+      adaptTelegramActions(telegramActionRows),
+    ]);
+
+    statusEl.remove();
+    render();
+  } catch (e) {
+    statusEl.textContent = "Couldn't load your timeline — check your connection and try again.";
+    statusEl.classList.add('is-error');
+  }
+}
+
+load();
+</script>
+</body>
+</html>

@@ -6,80 +6,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
-<title>Rowans Dashboard</title>
+<title>Fernandos Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
+<script src="gamify.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
 <style>
-:root {
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --success: #6BE3A4;
-  --warning: #F2C063;
-  --danger: #FF6B6B;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  background: #050506;
-  color: var(--text-secondary);
-  font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-body {
-  min-height: 100vh;
-  position: relative;
-  overflow-x: hidden;
-  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
-}
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(224, 118, 88, 0.16), transparent 45%),
-    radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 50%);
-  filter: blur(40px);
-  pointer-events: none;
-  z-index: -2;
-  animation: drift 36s ease-in-out infinite alternate;
-}
-body::after {
-  content: '';
-  position: fixed; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px;
-  pointer-events: none;
-  z-index: -1;
-}
-@keyframes drift {
-  0%   { transform: translate3d(0,0,0); }
-  100% { transform: translate3d(-22px, 14px, 0); }
-}
-
-.page {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-/* ===== Component 1: page title ===== */
-.dash-title {
-  margin: 0 0 14px;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+/* Page-specific only — shared tokens/components now live in design-system.css. */
 
 /* ===== Component 2: Goal Ticker ===== */
 .ticker-row {
@@ -481,6 +415,58 @@ body::after {
 }
 .gm-queue-btn:disabled { cursor: not-allowed; opacity: 0.3; }
 
+.gm-leverage-btn {
+  border: 0; background: transparent;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  opacity: 0.55;
+  transition: opacity 0.2s, color 0.2s, transform 0.1s;
+}
+.gm-leverage-btn:hover { opacity: 1; }
+.gm-leverage-btn.gm-leverage-active {
+  color: var(--hud);
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(var(--hud-rgb),0.65));
+}
+.gm-leverage-btn:disabled { cursor: not-allowed; opacity: 0.3; }
+
+.leverage-callout {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: rgba(var(--hud-rgb), 0.08);
+  border: 1px solid var(--hud-line);
+  transition: background-color 0.3s, border-color 0.3s;
+}
+.leverage-callout.show { display: flex; }
+.leverage-callout-row { display: flex; align-items: center; gap: 10px; }
+.leverage-callout .leverage-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--hud); flex-shrink: 0;
+}
+.leverage-callout .leverage-text { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+.leverage-callout.leverage-done .leverage-text { text-decoration: line-through; color: var(--text-tertiary); }
+/* Urgency escalates the callout's tint as the day wears on with the task
+   still undone (or never picked) — same "risk band" idea used elsewhere
+   in the app (burnout risk, clean-streak badges), just time-of-day driven. */
+.leverage-callout.leverage-building { background: rgba(251,191,36,0.09); border-color: rgba(251,191,36,0.3); }
+.leverage-callout.leverage-building .leverage-label { color: #FBBF24; }
+.leverage-callout.leverage-urgent { background: rgba(255,84,112,0.1); border-color: rgba(255,84,112,0.35); }
+.leverage-callout.leverage-urgent .leverage-label { color: #FF5470; }
+.leverage-footer { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-tertiary); }
+.leverage-streak { color: var(--text-secondary); }
+.leverage-streak b { color: var(--hud); font-weight: 700; }
+.leverage-dots { display: flex; gap: 3px; margin-left: auto; }
+.leverage-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.12); }
+.leverage-dot.ld-done { background: var(--success); }
+.leverage-dot.ld-missed { background: var(--danger); opacity: 0.55; }
+
 .goal-delete {
   border: 0; background: transparent;
   color: var(--text-tertiary);
@@ -566,6 +552,28 @@ body::after {
 .gm-add:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .gm-add:active { transform: translateY(0); }
 
+.gm-time-input {
+  padding: 9px 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 12.5px;
+  outline: none;
+  color-scheme: dark;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gm-time-input:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
+.gm-time-input:disabled { opacity: 0.5; }
+
+.recur-time-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.recur-time-label .gm-time-input { display: block; margin-top: 6px; width: 100%; }
+
 .gm-polish {
   padding: 11px 18px;
   border: 1px solid rgba(255,255,255,0.10);
@@ -590,17 +598,94 @@ body::after {
 }
 .gm-status.gm-status-error { color: var(--danger); }
 
+/* ---- Daily Habits ---- */
+.habit-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+.habit-row:hover { background: rgba(255,255,255,0.06); }
+.habit-row.habit-done-today { background: rgba(107,227,164,0.05); }
+.habit-body { flex: 1; min-width: 0; }
+.habit-name {
+  font-size: 14px; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: 4px; padding: 2px 4px; margin: -2px -4px;
+  outline: none;
+}
+.habit-name[contenteditable="true"] { outline: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.28); }
+.habit-dots { display: flex; gap: 3px; margin-top: 6px; }
+.habit-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(255,255,255,0.09); flex-shrink: 0;
+}
+.habit-dot.hit { background: var(--success); box-shadow: 0 0 5px rgba(107,227,164,0.35); }
+.habit-dot.is-today { outline: 1px solid rgba(255,255,255,0.28); outline-offset: 1px; }
+.habit-streak {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border-radius: 999px; flex-shrink: 0;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text-tertiary);
+  font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.habit-streak.habit-streak-active {
+  background: rgba(242,192,99,0.10);
+  border-color: rgba(242,192,99,0.28);
+  color: var(--warning);
+}
+
+/* ---- Recurring Items ---- */
+.recur-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.recur-row:first-child { border-top: 0; }
+.recur-row-main { flex: 1; min-width: 0; }
+.recur-row-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.recur-row-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; font-family: var(--font-mono); }
+.recur-badge {
+  display: inline-block; font-size: 8.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 5px; margin-left: 6px; vertical-align: middle;
+  background: rgba(107,227,164,0.15); color: var(--success);
+}
+.recur-row-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.recur-row-actions button { border: 0; background: transparent; color: var(--text-tertiary); font-size: 14px; cursor: pointer; padding: 4px 6px; opacity: 0.6; transition: opacity 0.2s, color 0.2s; }
+.recur-row-actions button:hover { opacity: 1; }
+.recur-row-actions button.recur-del-btn:hover { color: var(--danger); }
+.recur-add-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 10px; }
+.recur-seg { display: inline-flex; border: 1px solid rgba(255,255,255,0.10); border-radius: 999px; overflow: hidden; }
+.recur-seg button {
+  border: 0; background: transparent; color: var(--text-tertiary); font-family: inherit; font-size: 11px; font-weight: 700;
+  padding: 7px 13px; cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.recur-seg button.on { background: rgba(107,227,164,0.15); color: var(--success); }
+.recur-days-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.recur-day-btn {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.28);
+  color: var(--text-tertiary); font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.recur-day-btn.on { background: rgba(107,227,164,0.18); border-color: rgba(107,227,164,0.4); color: var(--success); }
+.recur-form-actions { display: flex; gap: 8px; }
+.recur-form-actions .gm-add { flex: 1; }
+.recur-cancel-btn {
+  padding: 11px 18px; border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.04);
+  color: var(--text-primary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: none;
+}
+
 @media (max-width: 480px) {
   body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
   .gm-card { padding: 16px; }
   .gm-progress-num { font-size: 36px; }
+  .habit-dots .habit-dot:nth-child(-n+7) { display: none; } /* show last 7 days on small screens */
 }
 </style>
 </head>
 <body>
 <div class="page">
 
-  <h1 class="dash-title">Rowans Dashboard</h1>
+  <h1 class="dash-title">Fernandos Dashboard</h1>
 
   <div class="ticker-row">
     <div class="goal-ticker" id="goalTicker" aria-live="polite" aria-atomic="true">
@@ -662,6 +747,16 @@ body::after {
         </div>
       </div>
       <div class="gm-bar" id="gmBar"></div>
+      <div class="leverage-callout" id="leverageCallout">
+        <div class="leverage-callout-row">
+          <span class="leverage-label" id="leverageLabel">🎯 Leverage Task</span>
+          <span class="leverage-text" id="leverageText"></span>
+        </div>
+        <div class="leverage-footer" id="leverageFooter">
+          <span class="leverage-streak" id="leverageStreakText"></span>
+          <div class="leverage-dots" id="leverageDots"></div>
+        </div>
+      </div>
       <ul id="goalList" class="goal-list gm-list"></ul>
       <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
       <button type="button" id="gmPushBtn" class="gm-push-btn" style="display:none;">Push remaining to tomorrow</button>
@@ -689,6 +784,82 @@ body::after {
         <button type="button" id="tomorrowAddBtn"    class="gm-add">+ Add</button>
         <button type="button" id="tomorrowPolishBtn" class="gm-polish">✨ Polish</button>
         <div class="gm-status" id="tomorrowStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECURRING ITEMS — auto-added to today's To Do List on their
+       scheduled days, so you don't retype the same items every day.
+       Items with an auto-check source mark themselves done once the
+       real activity is logged on the page that actually owns it. -->
+  <div class="section">
+    <div class="section-title">Recurring Items</div>
+    <div class="gm-card" id="gmCardRecur">
+      <div class="gm-eyebrow" style="margin-bottom:10px">Auto-added to today's To Do List on their scheduled days</div>
+      <ul id="recurList" class="goal-list gm-list"></ul>
+      <div id="recurEmpty" class="empty-state">No recurring items yet — add one below.</div>
+      <div class="recur-add-form">
+        <input id="recurName" class="gm-input" type="text" placeholder="Item name (e.g. Gym)">
+        <div>
+          <div class="recur-seg" id="recurFreqSeg">
+            <button type="button" data-f="daily" class="on">Daily</button>
+            <button type="button" data-f="days">Specific days</button>
+          </div>
+          <div class="recur-days-row" id="recurDaysRow" style="display:none">
+            <button type="button" class="recur-day-btn" data-d="0">Su</button>
+            <button type="button" class="recur-day-btn" data-d="1">Mo</button>
+            <button type="button" class="recur-day-btn" data-d="2">Tu</button>
+            <button type="button" class="recur-day-btn" data-d="3">We</button>
+            <button type="button" class="recur-day-btn" data-d="4">Th</button>
+            <button type="button" class="recur-day-btn" data-d="5">Fr</button>
+            <button type="button" class="recur-day-btn" data-d="6">Sa</button>
+          </div>
+        </div>
+        <select id="recurSource" class="gm-input">
+          <option value="">Auto-check: nothing — manual checkbox</option>
+          <option value="gym">Auto-check: a workout is logged (gym.html)</option>
+          <option value="reading">Auto-check: a reading session is logged (reading.html)</option>
+          <option value="stretch_am">Auto-check: AM stretch routine completed</option>
+          <option value="stretch_pm">Auto-check: PM stretch routine completed</option>
+          <option value="business">Auto-check: any side-hustle activity logged today</option>
+          <option value="water">Auto-check: hit today's water target</option>
+          <option value="supplements">Auto-check: all supplements taken today</option>
+          <option value="peak_morning">Auto-check: last night's sleep is logged (sleep.html)</option>
+          <option value="food">Auto-check: a meal is logged today (Health)</option>
+          <option value="weight">Auto-check: a weigh-in is logged today (Gym)</option>
+        </select>
+        <input id="recurNote" class="gm-input" type="text" placeholder="Optional note (e.g. 3–6pm)">
+        <label class="recur-time-label">Schedule time (optional, shows on the Schedule view)
+          <input id="recurTime" class="gm-time-input" type="time">
+        </label>
+        <div class="recur-form-actions">
+          <button type="button" id="recurAddBtn" class="gm-add">+ Add Recurring Item</button>
+          <button type="button" id="recurCancelBtn" class="recur-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAILY HABITS — recurring, unlike the to-do list these never roll
+       over or clear; each habit keeps its own independent streak. -->
+  <div class="section">
+    <div class="section-title">Daily Habits</div>
+    <div class="gm-card" id="gmCardHabits">
+      <div class="gm-header">
+        <div class="gm-header-left">
+          <div class="gm-eyebrow">Every day</div>
+          <div class="gm-progress-row">
+            <span class="gm-progress-num"   id="habitsDoneNum">0</span>
+            <span class="gm-progress-total" id="habitsTotalNum">/ 0</span>
+            <span class="gm-progress-label" id="habitsLabel">done today</span>
+          </div>
+        </div>
+      </div>
+      <ul id="habitList" class="goal-list gm-list"></ul>
+      <div id="habitsEmpty" class="empty-state">No habits yet — add one below, e.g. "🧘 Meditate" or "📖 Read 10 min".</div>
+      <div class="goal-input-wrap gm-input-wrap">
+        <input id="habitInput" class="gm-input" type="text" placeholder="Add a daily habit… (emoji optional)" autocomplete="off">
+        <button type="button" id="habitAddBtn" class="gm-add">+ Add</button>
       </div>
     </div>
   </div>
@@ -760,6 +931,80 @@ body::after {
   }
   function setGoals(key, list) { storeSet(key, list); }
 
+  // Exactly one leverage task allowed per day's list — mutates in place,
+  // clearing any previous pick before setting (or toggling off if the
+  // same item is clicked again). Out-of-range idx is a no-op.
+  function toggleLeverageTask(list, idx) {
+    if (!list[idx]) return list;
+    const turningOn = !list[idx].leverage;
+    list.forEach(g => { delete g.leverage; });
+    if (turningOn) list[idx].leverage = true;
+    return list;
+  }
+
+  // ---------- Leverage Task history/streak ----------
+  // rollover() deletes each past day's 'goals:*' key right after reading it
+  // (undone items get folded into today, then the old key is gone for
+  // good) — so this is the ONLY point where a day's leverage pick is still
+  // available to look back on. The stats are folded into rollover's own
+  // loop below rather than recomputed from scratch on every load.
+  const LEVERAGE_HISTORY_MAX = 14;
+
+  function loadLeverageStats() {
+    const s = storeGet('leverage_stats_v1');
+    if (s && typeof s.streak === 'number') return s;
+    return { streak: 0, completedCount: 0, setCount: 0, history: [], lastProcessedDate: '' };
+  }
+  function saveLeverageStats(s) { storeSet('leverage_stats_v1', s); }
+
+  // Pure — takes one past day's goal list and folds it into the running
+  // stats. A day with no goals logged at all doesn't penalize the streak
+  // (nothing to judge), but a day that had goals and simply never got a
+  // leverage task designated DOES break it — the point is building the
+  // daily habit of picking the one thing that matters most.
+  function processLeverageHistoryDay(stats, dateStr, dayGoals) {
+    const s = {
+      streak: stats.streak || 0,
+      completedCount: stats.completedCount || 0,
+      setCount: stats.setCount || 0,
+      history: (stats.history || []).slice(),
+      lastProcessedDate: stats.lastProcessedDate || '',
+    };
+    if (!dayGoals.length) { s.lastProcessedDate = dateStr; return s; }
+
+    const leverageGoal = dayGoals.find(g => g.leverage);
+    if (!leverageGoal) {
+      s.streak = 0;
+      s.history.push({ date: dateStr, text: null, done: false });
+    } else {
+      s.setCount += 1;
+      if (leverageGoal.done) { s.streak += 1; s.completedCount += 1; }
+      else { s.streak = 0; }
+      s.history.push({ date: dateStr, text: leverageGoal.text, done: !!leverageGoal.done });
+    }
+    if (s.history.length > LEVERAGE_HISTORY_MAX) s.history = s.history.slice(-LEVERAGE_HISTORY_MAX);
+    s.lastProcessedDate = dateStr;
+    return s;
+  }
+
+  function leverageFollowThroughRate(stats) {
+    if (!stats || !stats.setCount) return null;
+    return stats.completedCount / stats.setCount;
+  }
+
+  // How insistent the "pick/finish your leverage task" callout should look,
+  // based on how much of the waking day is already behind you — same
+  // elapsed-fraction-of-day math as updateDayRing() below, just bucketed
+  // into three bands instead of a continuous percent.
+  function leverageUrgency(nowHour, wakeHour, sleepHour) {
+    const span = sleepHour - wakeHour;
+    const elapsed = Math.max(0, Math.min(span, nowHour - wakeHour));
+    const frac = span > 0 ? elapsed / span : 0;
+    if (frac < 0.4) return 'calm';
+    if (frac < 0.75) return 'building';
+    return 'urgent';
+  }
+
   // ---------- rollover: pull undone older goals into today ----------
   function rollover() {
     const todayDateStr = getActiveDateString();
@@ -767,10 +1012,14 @@ body::after {
     let today = getGoals(todayK);
     const texts = new Set(today.map(g => g.text));
 
+    let leverageStats = loadLeverageStats();
     storeListKeys('goals:').forEach(k => {
       const dateStr = k.slice('goals:'.length);
       if (dateStr >= todayDateStr) return;
       const old = getGoals(k);
+      if (!leverageStats.lastProcessedDate || dateStr > leverageStats.lastProcessedDate) {
+        leverageStats = processLeverageHistoryDay(leverageStats, dateStr, old);
+      }
       old.forEach(g => {
         if (!g.done && g.text && !texts.has(g.text)) {
           today.push({ text: g.text, done: false });
@@ -779,6 +1028,7 @@ body::after {
       });
       storeDelete(k);
     });
+    saveLeverageStats(leverageStats);
     setGoals(todayK, today);
   }
 
@@ -1035,7 +1285,7 @@ body::after {
     });
   }
 
-  function buildGoalRow(goal, idx, key, readOnly, reload) {
+  function buildGoalRow(goal, idx, key, readOnly, reload, skipDrag) {
     const li = document.createElement('li');
     li.className = 'gm-row';
     li.dataset.idx = String(idx);
@@ -1059,6 +1309,9 @@ body::after {
       if (cb.checked) list[idx].doneAt = Date.now();
       else delete list[idx].doneAt;
       setGoals(key, list);
+      // Only on check (not uncheck) — same reasoning as any other one-way
+      // "you did the thing" award elsewhere in the dashboard.
+      if (cb.checked && window.Gamify) window.Gamify.awardXP('complete_todo');
       reload();
     });
     li.appendChild(cb);
@@ -1066,8 +1319,37 @@ body::after {
     const text = document.createElement('span');
     text.className = 'gm-text';
     text.textContent = goal.text;
+    const recurDef = getRecurDefs().find(d => d.name === goal.text);
+    if (recurDef) {
+      const badge = document.createElement('span');
+      badge.className = 'recur-badge';
+      badge.textContent = '🔁';
+      badge.title = recurDef.autoSource ? 'Recurring — auto-checks when logged elsewhere' : 'Recurring item';
+      text.appendChild(badge);
+    }
     li.appendChild(text);
     makeInlineEdit(text, null, idx, key, reload);
+
+    // Optional time-of-day, used by the Schedule view to place this item on
+    // a timeline instead of (or alongside) the flat list — items with no
+    // time just show up in the "Anytime" bucket there. Lives on the same
+    // goal object as text/done, so no separate storage/sync needed.
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.className = 'gm-time-input';
+    timeInput.value = goal.time || '';
+    timeInput.title = 'Set a time (shows on the Schedule view)';
+    if (readOnly) timeInput.disabled = true;
+    timeInput.addEventListener('click', (e) => e.stopPropagation());
+    timeInput.addEventListener('change', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      if (timeInput.value) list[idx].time = timeInput.value;
+      else delete list[idx].time;
+      setGoals(key, list);
+      reload();
+    });
+    li.appendChild(timeInput);
 
     const queueBtn = document.createElement('button');
     queueBtn.type = 'button';
@@ -1085,6 +1367,23 @@ body::after {
     });
     li.appendChild(queueBtn);
 
+    // Exactly one leverage task per day — "the one thing that matters most,"
+    // not a second priority tier. Marking a new one clears any previous
+    // pick for the same day rather than allowing several at once.
+    const leverageBtn = document.createElement('button');
+    leverageBtn.type = 'button';
+    leverageBtn.className = 'gm-leverage-btn' + (goal.leverage ? ' gm-leverage-active' : '');
+    leverageBtn.textContent = '⭐';
+    leverageBtn.title = "Mark as today's Leverage Task (the one thing that matters most)";
+    if (readOnly) leverageBtn.disabled = true;
+    leverageBtn.addEventListener('click', () => {
+      const list = getGoals(key);
+      toggleLeverageTask(list, idx);
+      setGoals(key, list);
+      reload();
+    });
+    li.appendChild(leverageBtn);
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'goal-delete';
@@ -1098,7 +1397,7 @@ body::after {
     });
     li.appendChild(del);
 
-    wireDragReorder(li, null, key, reload);
+    if (!skipDrag) wireDragReorder(li, null, key, reload);
     return li;
   }
 
@@ -1130,6 +1429,53 @@ body::after {
 
     const pushBtn = document.getElementById('gmPushBtn');
     pushBtn.style.display = (total > 0 && done < total) ? 'block' : 'none';
+
+    renderLeverageCallout(goals);
+  }
+
+  function renderLeverageCallout(goals) {
+    const callout = document.getElementById('leverageCallout');
+    const label = document.getElementById('leverageLabel');
+    const textEl = document.getElementById('leverageText');
+    const streakText = document.getElementById('leverageStreakText');
+    const dotsEl = document.getElementById('leverageDots');
+    const stats = loadLeverageStats();
+
+    const now = new Date();
+    const nowHour = now.getHours() + now.getMinutes() / 60;
+    const leverageGoal = goals.find(g => g.leverage);
+    const done = !!(leverageGoal && leverageGoal.done);
+    const urgency = done ? 'calm' : leverageUrgency(nowHour, WAKE_HOUR, SLEEP_HOUR);
+
+    callout.classList.add('show');
+    callout.classList.toggle('leverage-done', done);
+    callout.classList.toggle('leverage-building', urgency === 'building');
+    callout.classList.toggle('leverage-urgent', urgency === 'urgent');
+
+    if (leverageGoal) {
+      label.textContent = '🎯 Leverage Task';
+      textEl.textContent = leverageGoal.text;
+    } else if (goals.length) {
+      label.textContent = urgency === 'urgent' ? '🎯 Still no Leverage Task' : '🎯 Pick a Leverage Task';
+      textEl.textContent = 'Star the one thing today that matters most (⭐ on any item below).';
+    } else {
+      callout.classList.remove('show');
+      return;
+    }
+
+    const rate = leverageFollowThroughRate(stats);
+    let streakMsg = stats.streak > 0
+      ? '🔥 ' + stats.streak + '-day streak'
+      : (leverageGoal ? 'Finish it to start a streak' : 'Pick one to start a streak');
+    if (rate != null) streakMsg += ' · ' + Math.round(rate * 100) + '% follow-through';
+    streakText.innerHTML = streakMsg.replace(/^(🔥 )(\d+)(-day streak)$/, '$1<b>$2</b>$3');
+
+    dotsEl.innerHTML = '';
+    stats.history.slice(-7).forEach(h => {
+      const dot = document.createElement('span');
+      dot.className = 'leverage-dot' + (h.text == null ? '' : h.done ? ' ld-done' : ' ld-missed');
+      dotsEl.appendChild(dot);
+    });
   }
 
   function renderStreak() {
@@ -1199,7 +1545,12 @@ body::after {
     const tomorrow = getGoals(tomorrowKey());
     const seen = new Set(tomorrow.map(g => g.text));
     remaining.forEach(g => {
-      if (!seen.has(g.text)) { tomorrow.push({ text: g.text, done: false }); seen.add(g.text); }
+      if (!seen.has(g.text)) {
+        const entry = { text: g.text, done: false };
+        if (g.time) entry.time = g.time;
+        tomorrow.push(entry);
+        seen.add(g.text);
+      }
     });
     setGoals(tomorrowKey(), tomorrow);
     setGoals(todayKey(), today.filter(g => g.done));
@@ -1295,20 +1646,493 @@ body::after {
     loadTomorrow
   );
 
+  // ============================================================
+  // RECURRING ITEMS — templates that auto-add themselves into today's
+  // To Do List on their scheduled days, so items you do every day (or
+  // every week on fixed days) don't need retyping. Items with an
+  // autoSource check themselves off once the real activity is logged
+  // on the page that actually owns that data (gym.html, reading.html,
+  // the stretch section, business.html) — read-only, never writes back
+  // to those pages.
+  // ============================================================
+  const RECUR_KEY = 'recur:defs';
+  // `time` drives when api/send-reminders.js actually nudges you about each
+  // one — deliberately left unset on the "(PM)" items below, since their
+  // name matches the bedtime-anchor heuristic there (they default to
+  // shortly before BEDTIME_LOCAL rather than a fixed clock time).
+  const RECUR_DEFAULTS = [
+    { id: 'rc1', name: 'Gym', freq: 'days', days: [1,2,3,4,5], autoSource: 'gym', note: '', time: '18:00' },
+    { id: 'rc2', name: 'Work', freq: 'days', days: [1,2,3,4,5,6], autoSource: null, note: '3–6pm', time: '15:00' },
+    { id: 'rc3', name: 'Read', freq: 'daily', days: null, autoSource: 'reading', note: '', time: '20:00' },
+    { id: 'rc4', name: 'Stretch (AM)', freq: 'daily', days: null, autoSource: 'stretch_am', note: '', time: '08:00' },
+    { id: 'rc5', name: 'Stretch (PM)', freq: 'daily', days: null, autoSource: 'stretch_pm', note: '', time: null },
+    { id: 'rc6', name: 'Work on side hustles', freq: 'daily', days: null, autoSource: 'business', note: '', time: '17:00' },
+    { id: 'rc7', name: 'Clean up room', freq: 'daily', days: null, autoSource: null, note: 'morning', time: '09:00' },
+    { id: 'rc8', name: 'Skin care (AM)', freq: 'daily', days: null, autoSource: null, note: '', time: '08:15' },
+    { id: 'rc9', name: 'Skin care (PM)', freq: 'daily', days: null, autoSource: null, note: '', time: null },
+    { id: 'rc10', name: 'Morning Check-In', freq: 'daily', days: null, autoSource: 'peak_morning', note: '', time: '08:00' },
+    { id: 'rc11', name: 'Log a meal', freq: 'daily', days: null, autoSource: 'food', note: '', time: '13:00' },
+    { id: 'rc12', name: 'Log weight', freq: 'daily', days: null, autoSource: 'weight', note: 'morning', time: '08:30' },
+  ];
+  function getRecurDefs() {
+    const v = storeGet(RECUR_KEY);
+    if (Array.isArray(v)) return v;
+    storeSet(RECUR_KEY, RECUR_DEFAULTS);
+    return RECUR_DEFAULTS;
+  }
+  function setRecurDefs(v) { storeSet(RECUR_KEY, v); }
+
+  function getActiveDateObj() {
+    const now = new Date();
+    if (now.getHours() < 6) { const d = new Date(now); d.setDate(d.getDate() - 1); return d; }
+    return now;
+  }
+  const DAY_ABBR = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  function recurScheduleText(def) {
+    if (def.freq === 'daily') return 'Daily';
+    if (!Array.isArray(def.days) || !def.days.length) return 'No days set';
+    return def.days.slice().sort().map(d => DAY_ABBR[d]).join(', ');
+  }
+  function isRecurScheduledToday(def) {
+    const d = getActiveDateObj();
+    if (def.freq === 'daily') return true;
+    if (def.freq === 'days') return Array.isArray(def.days) && def.days.indexOf(d.getDay()) !== -1;
+    return false;
+  }
+
+  function injectRecurringToday() {
+    const defs = getRecurDefs();
+    if (!defs.length) return;
+    const key = todayKey();
+    const today = getGoals(key);
+    const existingTexts = new Set(today.map(g => g.text));
+    let changed = false;
+    defs.forEach(def => {
+      if (!isRecurScheduledToday(def)) return;
+      if (existingTexts.has(def.name)) return;
+      const entry = { text: def.name, done: false };
+      if (def.time) entry.time = def.time;
+      today.push(entry);
+      existingTexts.add(def.name);
+      changed = true;
+    });
+    if (changed) setGoals(key, today);
+  }
+
+  // Each source uses ITS OWN page's native day-key convention (some use
+  // a plain calendar date, business.html uses the same 6 AM boundary as
+  // this page) rather than forcing one convention onto foreign data.
+  function recurSourceDoneToday(autoSource) {
+    if (!autoSource) return false;
+    const n = new Date();
+    const plainToday = n.getFullYear() + '-' + pad2(n.getMonth() + 1) + '-' + pad2(n.getDate());
+    if (autoSource === 'gym') {
+      const doneDays = storeGet('po_coach_workout_done');
+      return !!(doneDays && doneDays[plainToday]);
+    }
+    if (autoSource === 'reading') {
+      const items = storeGet('reading:items');
+      if (!Array.isArray(items)) return false;
+      const utcToday = new Date().toISOString().slice(0, 10);
+      return items.some(it => Array.isArray(it.sessions) && it.sessions.some(s => s.date === utcToday));
+    }
+    if (autoSource === 'stretch_am' || autoSource === 'stretch_pm') {
+      const items = storeGet(autoSource === 'stretch_am' ? 'stretch:am:items' : 'stretch:pm:items');
+      const log = storeGet('stretch:log') || {};
+      if (!Array.isArray(items) || !items.length) return false;
+      return items.every(it => log[it.id] && log[it.id][plainToday]);
+    }
+    if (autoSource === 'business') {
+      const bizKey = getActiveDateString(); // same 6 AM boundary as business.html's own S.activeDateKey()
+      const commitLog = storeGet('biz:affiliate:commitLog') || {};
+      const delivery = storeGet('biz:editing:deliveryLog') || {};
+      const revenue = storeGet('biz:affiliate:revenue') || [];
+      const payments = storeGet('biz:editing:payments') || [];
+      const anyCommit = Object.keys(commitLog).some(cid => commitLog[cid] && commitLog[cid][bizKey]);
+      const anyDelivery = Object.keys(delivery).some(cid => delivery[cid] && (delivery[cid][bizKey] || 0) > 0);
+      const anyRevenue = revenue.some(r => r.date === bizKey) || payments.some(p => p.date === bizKey);
+      return anyCommit || anyDelivery || anyRevenue;
+    }
+    if (autoSource === 'water') {
+      const w = storeGet('po_water_v1');
+      if (!w || !w.profile || !w.profile.weightKg) return false;
+      const p = w.profile;
+      const wKg = w.weightUnit === 'lb' ? p.weightKg / 2.20462 : p.weightKg;
+      const base = wKg * 35, exercise = (p.activityHrsPerWeek || 0) / 7 * 500, caffeine = Math.max(0, (w.caffeineMgPerDay || 0) - 200) * 1.5;
+      let adjust = 0; if (p.sex === 'm') adjust += 200; if ((p.age || 0) >= 50) adjust += 100;
+      const totalMl = base + exercise + caffeine + adjust;
+      let unitMl = 1; if (w.unit === 'bottle') unitMl = w.bottleMl || 500; else if (w.unit === 'glass') unitMl = w.glassMl || 250; else if (w.unit === 'oz') unitMl = 30;
+      const targetUnits = Math.ceil(totalMl / unitMl);
+      const count = (w.logs && w.logs[plainToday]) || 0;
+      return targetUnits > 0 && count >= targetUnits;
+    }
+    if (autoSource === 'supplements') {
+      const items = storeGet('stack:items');
+      const taken = storeGet('stack:taken:' + getActiveDateString()) || {};
+      if (!Array.isArray(items) || !items.length) return false;
+      return items.every(it => taken[it.id]);
+    }
+    if (autoSource === 'peak_morning') {
+      // sleep.html's night log uses a plain calendar date, same as plainToday
+      // here — kept the historical 'peak_morning' string so any already-
+      // saved recurring item (this device's real localStorage, not just
+      // the RECUR_DEFAULTS seed) keeps auto-checking without a silent break.
+      const nights = storeGet('sleep:nights') || {};
+      return !!nights[plainToday];
+    }
+    if (autoSource === 'food') {
+      const entries = storeGet('cal:entries') || [];
+      return entries.some(e => e && e.dateKey === plainToday);
+    }
+    if (autoSource === 'weight') {
+      const entries = storeGet('po_coach_weights') || [];
+      return entries.some(e => e && e.dateKey === plainToday);
+    }
+    return false;
+  }
+
+  function autoCheckRecurringToday() {
+    const withSource = getRecurDefs().filter(d => d.autoSource);
+    if (!withSource.length) return;
+    const key = todayKey();
+    const today = getGoals(key);
+    let changed = false;
+    today.forEach(g => {
+      if (g.done) return;
+      const def = withSource.find(d => d.name === g.text);
+      if (def && recurSourceDoneToday(def.autoSource)) {
+        g.done = true; g.doneAt = Date.now(); g.autoChecked = true;
+        changed = true;
+      }
+    });
+    if (changed) setGoals(key, today);
+  }
+
+  // ---------- Recurring items settings UI ----------
+  let recurEditingId = null;
+  let recurSelectedDays = new Set();
+
+  function recurResetForm() {
+    recurEditingId = null;
+    recurSelectedDays = new Set();
+    document.getElementById('recurName').value = '';
+    document.getElementById('recurSource').value = '';
+    document.getElementById('recurNote').value = '';
+    document.getElementById('recurTime').value = '';
+    document.getElementById('recurFreqSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.f === 'daily'));
+    document.getElementById('recurDaysRow').style.display = 'none';
+    document.getElementById('recurDaysRow').querySelectorAll('.recur-day-btn').forEach(b => b.classList.remove('on'));
+    document.getElementById('recurAddBtn').textContent = '+ Add Recurring Item';
+    document.getElementById('recurCancelBtn').style.display = 'none';
+  }
+  document.getElementById('recurFreqSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.getElementById('recurFreqSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      document.getElementById('recurDaysRow').style.display = b.dataset.f === 'days' ? 'flex' : 'none';
+    });
+  });
+  document.getElementById('recurDaysRow').querySelectorAll('.recur-day-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      const d = Number(b.dataset.d);
+      if (recurSelectedDays.has(d)) { recurSelectedDays.delete(d); b.classList.remove('on'); }
+      else { recurSelectedDays.add(d); b.classList.add('on'); }
+    });
+  });
+  document.getElementById('recurCancelBtn').addEventListener('click', recurResetForm);
+
+  function recurBeginEdit(def) {
+    recurEditingId = def.id;
+    document.getElementById('recurName').value = def.name;
+    document.getElementById('recurSource').value = def.autoSource || '';
+    document.getElementById('recurNote').value = def.note || '';
+    document.getElementById('recurTime').value = def.time || '';
+    const freqBtn = def.freq === 'days' ? 'days' : 'daily';
+    document.getElementById('recurFreqSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.f === freqBtn));
+    document.getElementById('recurDaysRow').style.display = freqBtn === 'days' ? 'flex' : 'none';
+    recurSelectedDays = new Set(Array.isArray(def.days) ? def.days : []);
+    document.getElementById('recurDaysRow').querySelectorAll('.recur-day-btn').forEach(b => b.classList.toggle('on', recurSelectedDays.has(Number(b.dataset.d))));
+    document.getElementById('recurAddBtn').textContent = 'Save Changes';
+    document.getElementById('recurCancelBtn').style.display = 'inline-block';
+    document.getElementById('recurName').focus();
+  }
+
+  document.getElementById('recurAddBtn').addEventListener('click', () => {
+    const name = document.getElementById('recurName').value.trim();
+    if (!name) { document.getElementById('recurName').focus(); return; }
+    const freq = document.getElementById('recurFreqSeg').querySelector('button.on').dataset.f;
+    if (freq === 'days' && recurSelectedDays.size === 0) return;
+    const autoSource = document.getElementById('recurSource').value || null;
+    const note = document.getElementById('recurNote').value.trim();
+    const time = document.getElementById('recurTime').value || null;
+    const days = freq === 'days' ? Array.from(recurSelectedDays).sort() : null;
+
+    const defs = getRecurDefs();
+    if (recurEditingId) {
+      const idx = defs.findIndex(d => d.id === recurEditingId);
+      if (idx >= 0) {
+        const oldName = defs[idx].name;
+        defs[idx] = { id: recurEditingId, name, freq, days, autoSource, note, time };
+        // Keep today's already-injected item in sync too, so it doesn't sit stale.
+        const today = getGoals(todayKey());
+        const gi = today.findIndex(g => g.text === oldName);
+        if (gi >= 0) {
+          today[gi].text = name;
+          if (time) today[gi].time = time; else delete today[gi].time;
+          setGoals(todayKey(), today);
+        }
+      }
+    } else {
+      defs.push({ id: 'rc' + Date.now() + Math.floor(Math.random() * 1000), name, freq, days, autoSource, note, time });
+    }
+    setRecurDefs(defs);
+    recurResetForm();
+    injectRecurringToday();
+    autoCheckRecurringToday();
+    renderRecurList();
+    loadToday();
+  });
+
+  function renderRecurList() {
+    const list = document.getElementById('recurList');
+    const empty = document.getElementById('recurEmpty');
+    const defs = getRecurDefs();
+    list.innerHTML = '';
+    empty.style.display = defs.length ? 'none' : 'block';
+    const SOURCE_LABEL = { gym: 'auto: gym', reading: 'auto: reading', stretch_am: 'auto: stretch AM', stretch_pm: 'auto: stretch PM', business: 'auto: side hustles', water: 'auto: water', supplements: 'auto: supplements', peak_morning: 'auto: sleep', food: 'auto: food log', weight: 'auto: weigh-in' };
+    defs.forEach(def => {
+      const li = document.createElement('li');
+      li.className = 'recur-row';
+      const metaBits = [recurScheduleText(def)];
+      if (def.autoSource) metaBits.push(SOURCE_LABEL[def.autoSource] || 'auto');
+      if (def.note) metaBits.push(def.note);
+      li.innerHTML = '<div class="recur-row-main"><div class="recur-row-name">' + escapeAttr(def.name) + '</div>'
+        + '<div class="recur-row-meta">' + escapeAttr(metaBits.join(' · ')) + '</div></div>'
+        + '<div class="recur-row-actions"><button type="button" class="recur-edit-btn" aria-label="Edit">✏️</button>'
+        + '<button type="button" class="recur-del-btn" aria-label="Delete">×</button></div>';
+      li.querySelector('.recur-edit-btn').addEventListener('click', () => recurBeginEdit(def));
+      li.querySelector('.recur-del-btn').addEventListener('click', () => {
+        setRecurDefs(getRecurDefs().filter(d => d.id !== def.id));
+        if (recurEditingId === def.id) recurResetForm();
+        renderRecurList();
+      });
+      list.appendChild(li);
+    });
+  }
+  function escapeAttr(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
   // ---------- Boot ----------
   rollover();
+  injectRecurringToday();
+  autoCheckRecurringToday();
   processStreak();
   loadToday();
   loadTomorrow();
   renderStreak();
+  renderRecurList();
   updateDayRing();
   setInterval(updateDayRing, 60 * 1000);
+  setInterval(() => { autoCheckRecurringToday(); loadToday(); }, 60 * 1000);
   startTicker();
 
   // Re-render when storage changes from another tab (or our bridged parent).
   window.addEventListener('storage', () => {
-    loadToday(); loadTomorrow(); renderStreak();
+    injectRecurringToday();
+    autoCheckRecurringToday();
+    loadToday(); loadTomorrow(); renderStreak(); renderRecurList();
   });
+})();
+</script>
+
+<script>
+// ============================================================
+// DAILY HABITS — recurring habits with per-habit streaks.
+// Unlike the to-do list above (one-off tasks that roll over and
+// get cleared), habits are defined once and checked off every
+// day, each with its own independent streak + 14-day history.
+//   habits:defs = [{ id, name, createdAt }]
+//   habits:log  = { habitId: { 'YYYY-MM-DD': true } }
+// ============================================================
+(function () {
+  'use strict';
+
+  const DEFS_KEY = 'habits:defs';
+  const LOG_KEY  = 'habits:log';
+
+  const $ = (id) => document.getElementById(id);
+  const listEl  = $('habitList');
+  const emptyEl = $('habitsEmpty');
+  const inputEl = $('habitInput');
+  const addBtn  = $('habitAddBtn');
+
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  function getDefs() { const d = storeGet(DEFS_KEY); return Array.isArray(d) ? d : []; }
+  function setDefs(d) { storeSet(DEFS_KEY, d); }
+  function getLog() { const l = storeGet(LOG_KEY); return (l && typeof l === 'object') ? l : {}; }
+  function setLog(l) { storeSet(LOG_KEY, l); }
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  // Same 6 AM day-boundary as the to-do list: before 6 AM still counts
+  // as "yesterday", so late nights don't reset habits at midnight.
+  function activeDate() {
+    const now = new Date();
+    const d = new Date(now);
+    if (now.getHours() < 6) d.setDate(d.getDate() - 1);
+    return d;
+  }
+  function activeDateKey() { return dateToKey(activeDate()); }
+
+  function isDone(log, habitId, dayKey) {
+    return !!(log[habitId] && log[habitId][dayKey]);
+  }
+
+  // Consecutive days ending at today — or at yesterday if today isn't
+  // done yet, so an unchecked "today" doesn't show your streak as 0
+  // before the day is over (same forgiving rule as the gym streaks).
+  function streakFor(log, habitId) {
+    let streak = 0;
+    const cursor = activeDate();
+    if (!isDone(log, habitId, dateToKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+    while (isDone(log, habitId, dateToKey(cursor))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
+  function last14Days() {
+    const out = [];
+    const cursor = activeDate();
+    cursor.setDate(cursor.getDate() - 13);
+    for (let i = 0; i < 14; i++) {
+      out.push(dateToKey(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return out;
+  }
+
+  function render() {
+    const defs = getDefs();
+    const log = getLog();
+    const todayK = activeDateKey();
+    const days = last14Days();
+
+    listEl.innerHTML = '';
+    emptyEl.style.display = defs.length ? 'none' : 'block';
+
+    const doneToday = defs.filter(h => isDone(log, h.id, todayK)).length;
+    $('habitsDoneNum').textContent = doneToday;
+    $('habitsTotalNum').textContent = '/ ' + defs.length;
+    $('habitsLabel').textContent = defs.length && doneToday === defs.length ? 'all done — clean sweep' : 'done today';
+
+    defs.forEach(habit => {
+      const li = document.createElement('li');
+      li.className = 'habit-row' + (isDone(log, habit.id, todayK) ? ' habit-done-today' : '');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'gm-check';
+      cb.checked = isDone(log, habit.id, todayK);
+      cb.addEventListener('change', () => {
+        const l = getLog();
+        if (!l[habit.id]) l[habit.id] = {};
+        if (cb.checked) l[habit.id][todayK] = true;
+        else delete l[habit.id][todayK];
+        setLog(l);
+        render();
+      });
+      li.appendChild(cb);
+
+      const body = document.createElement('div');
+      body.className = 'habit-body';
+
+      const name = document.createElement('div');
+      name.className = 'habit-name';
+      name.textContent = habit.name;
+      name.title = 'Click to rename';
+      name.addEventListener('click', () => {
+        if (name.getAttribute('contenteditable') === 'true') return;
+        const original = name.textContent;
+        name.setAttribute('contenteditable', 'true');
+        name.focus();
+        const range = document.createRange();
+        range.selectNodeContents(name); range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(range);
+        name.addEventListener('blur', () => {
+          name.removeAttribute('contenteditable');
+          const next = name.textContent.trim();
+          if (next && next !== original) {
+            const d = getDefs();
+            const h = d.find(x => x.id === habit.id);
+            if (h) { h.name = next; setDefs(d); }
+          }
+          render();
+        }, { once: true });
+        name.addEventListener('keydown', function onKey(e) {
+          if (e.key === 'Enter') { e.preventDefault(); name.removeEventListener('keydown', onKey); name.blur(); }
+          else if (e.key === 'Escape') { e.preventDefault(); name.textContent = original; name.removeEventListener('keydown', onKey); name.blur(); }
+        });
+      });
+      body.appendChild(name);
+
+      const dots = document.createElement('div');
+      dots.className = 'habit-dots';
+      days.forEach(dk => {
+        const dot = document.createElement('span');
+        dot.className = 'habit-dot' + (isDone(log, habit.id, dk) ? ' hit' : '') + (dk === todayK ? ' is-today' : '');
+        dot.title = dk;
+        dots.appendChild(dot);
+      });
+      body.appendChild(dots);
+      li.appendChild(body);
+
+      const streak = streakFor(log, habit.id);
+      const pill = document.createElement('span');
+      pill.className = 'habit-streak' + (streak > 0 ? ' habit-streak-active' : '');
+      pill.textContent = '🔥 ' + streak;
+      pill.title = streak + ' day streak';
+      li.appendChild(pill);
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'goal-delete';
+      del.setAttribute('aria-label', 'Delete habit');
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        if (!confirm('Delete "' + habit.name + '" and its history?')) return;
+        setDefs(getDefs().filter(h => h.id !== habit.id));
+        const l = getLog();
+        delete l[habit.id];
+        setLog(l);
+        render();
+      });
+      li.appendChild(del);
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function addHabit() {
+    const name = inputEl.value.trim();
+    if (!name) return;
+    const defs = getDefs();
+    defs.push({ id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name, createdAt: Date.now() });
+    setDefs(defs);
+    inputEl.value = '';
+    render();
+  }
+  addBtn.addEventListener('click', addHabit);
+  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addHabit(); } });
+
+  // Re-render when sync applies remote changes, and once a minute so the
+  // 6 AM day boundary rolls the card over without a reload.
+  window.addEventListener('habits-changed', render);
+  setInterval(render, 60 * 1000);
+
+  render();
 })();
 </script>
 
@@ -1318,8 +2142,10 @@ document.addEventListener('DOMContentLoaded', function () {
   initCloudSync({
     appKey: 'goals',
     syncedPrefixes: ['goals:'],
+    syncedKeys: ['habits:defs', 'habits:log', 'recur:defs', 'leverage_stats_v1'],
     onApplied: function () {
       window.dispatchEvent(new CustomEvent('goals-changed'));
+      window.dispatchEvent(new CustomEvent('habits-changed'));
       window.dispatchEvent(new Event('storage'));
     }
   });

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Mode Breakdown · Insights</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.pe-headline { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.pe-detail { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+.pe-empty { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+.mode-badge {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  font-size: 14px; font-weight: 700; letter-spacing: 0.02em;
+}
+.mode-redline { background: rgba(255,84,112,0.14); color: #FF5470; }
+.mode-recovery { background: rgba(94,234,212,0.14); color: #5EEAD4; }
+.mode-beast { background: rgba(251,191,36,0.14); color: #FBBF24; }
+.mode-steady { background: rgba(var(--hud-rgb), 0.14); color: var(--hud); }
+
+/* ---- Donut chart ---- */
+.donut-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.mode-donut {
+  position: relative; width: 148px; height: 148px; flex-shrink: 0;
+}
+.mode-donut-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 22px), #000 calc(100% - 21px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 22px), #000 calc(100% - 21px));
+}
+.mode-donut-center {
+  position: absolute; inset: 22px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(3,6,10,0.4);
+}
+.mode-donut-num { font-size: 26px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); line-height: 1; }
+.mode-donut-label { font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-top: 4px; }
+.mode-legend { flex: 1; min-width: 160px; }
+.mode-legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+.mode-legend-row:last-child { margin-bottom: 0; }
+.mode-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.mode-legend-pct { margin-left: auto; font-family: var(--font-mono); font-weight: 700; color: var(--text-primary); }
+
+/* ---- Calendar strip (GitHub-heatmap style, oriented like Skill Stack's) ---- */
+.mode-cal-wrap { overflow-x: auto; padding-bottom: 4px; }
+.mode-cal-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); gap: 3px; width: max-content; }
+.mode-cal-cell { width: 14px; height: 14px; border-radius: 3px; background: rgba(var(--hud-rgb), 0.06); }
+.mode-cal-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--text-tertiary); }
+.mode-cal-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.mode-cal-legend-dot { width: 9px; height: 9px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-insights.html">← Insights</a>
+  <h1 class="dash-title">Mode Breakdown</h1>
+
+  <div class="section">
+    <div class="section-title">Right Now</div>
+    <div class="gm-card" id="currentModeCard">
+      <div class="pe-empty">Gathering data…</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Over the last 60 logged days</div>
+    <div class="gm-card" id="donutCard">
+      <div class="pe-empty">Gathering data…</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Day by Day</div>
+    <div class="gm-card">
+      <div class="mode-cal-wrap"><div class="mode-cal-grid" id="modeCalGrid"></div></div>
+      <div class="mode-cal-legend" id="modeCalLegend"></div>
+      <div class="empty-state" id="modeCalEmpty" style="display:none">Not enough logged history yet to show a calendar.</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { dateKeyFromDate, lastNDateKeys, buildDayRows } from './correlation-lab.js';
+
+(function () {
+  'use strict';
+
+  // ============================================================
+  // Alter Ego / Mode Breakdown — passively inferred, never self-tagged.
+  // Same classification logic as the original Insights page, now using the
+  // shared day-row module and
+  // rendered as a donut (instead of flat percentage bars) plus a
+  // day-by-day calendar strip so WHEN each mode shows up is visible, not
+  // just the lifetime aggregate.
+  // ============================================================
+
+  const WINDOW_DAYS = 84; // ~12 weeks, enough for a clean calendar grid
+  const CAL_WEEKS = 12;
+
+  function avg(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+
+  const MODE_LABELS = { redline: 'Redline Mode', recovery: 'Recovery Mode', beast: 'Beast Mode', steady: 'Steady Mode' };
+  const MODE_DESCRIPTIONS = {
+    redline: 'Poor sleep or high stress — a day that called for easing off, not pushing through.',
+    recovery: 'A workout day without a rough sleep/stress signal — actively investing in recovery.',
+    beast: 'High habit/to-do completion with nothing dragging on you — a high-output day.',
+    steady: 'No signal strong enough to stand out either way — an ordinary day.',
+  };
+  const MODE_COLORS = { redline: '#FF5470', recovery: '#5EEAD4', beast: '#FBBF24', steady: '#22D3F5' };
+  const MODE_ORDER = ['beast', 'recovery', 'steady', 'redline'];
+
+  function dayHasModeSignal(dayRow) {
+    return dayRow.sleepQuality != null || dayRow.outcomeStress != null || dayRow.outcomeFeeling != null
+      || dayRow.habitRate != null || dayRow.todoRate != null || !!dayRow.factors.workoutDone;
+  }
+
+  function classifyDayMode(dayRow) {
+    if ((dayRow.sleepQuality != null && dayRow.sleepQuality <= 2) || (dayRow.outcomeStress != null && dayRow.outcomeStress >= 4)) {
+      return 'redline';
+    }
+    if (dayRow.factors.workoutDone) return 'recovery';
+    if ((dayRow.habitRate != null && dayRow.habitRate >= 0.8) || (dayRow.todoRate != null && dayRow.todoRate >= 0.8)) {
+      return 'beast';
+    }
+    return 'steady';
+  }
+
+  function computeModeBreakdown(dayRows) {
+    const counts = { redline: 0, recovery: 0, beast: 0, steady: 0 };
+    let total = 0;
+    (dayRows || []).forEach(r => {
+      if (!dayHasModeSignal(r)) return;
+      counts[classifyDayMode(r)]++;
+      total++;
+    });
+    if (!total) return null;
+    const rates = {};
+    Object.keys(counts).forEach(k => { rates[k] = counts[k] / total; });
+    return { counts, rates, total };
+  }
+
+  function computeCurrentMode(dayRows) {
+    for (let i = 0; i < (dayRows || []).length; i++) {
+      if (dayHasModeSignal(dayRows[i])) return classifyDayMode(dayRows[i]);
+    }
+    return null;
+  }
+
+  window.__insightsModeLogic = {
+    dateKeyFromDate, lastNDateKeys, buildDayRows, dayHasModeSignal, classifyDayMode,
+    computeModeBreakdown, computeCurrentMode, MODE_LABELS, MODE_COLORS, MODE_ORDER,
+  };
+
+  // ---- Rendering ----
+  function renderCurrentMode(dayRows) {
+    const el = document.getElementById('currentModeCard');
+    const mode = computeCurrentMode(dayRows);
+    if (!mode) {
+      el.innerHTML = '<div class="pe-empty">Not enough recent data logged to infer today\'s mode.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="pe-headline">Right now: <span class="mode-badge mode-' + mode + '">' + MODE_LABELS[mode]
+      + '</span></div><div class="pe-detail">' + MODE_DESCRIPTIONS[mode] + '</div>';
+  }
+
+  function renderDonut(breakdown) {
+    const el = document.getElementById('donutCard');
+    if (!breakdown) {
+      el.innerHTML = '<div class="pe-empty">Not enough logged history yet to break down your modes.</div>';
+      return;
+    }
+    let cursor = 0;
+    const stops = MODE_ORDER.map(k => {
+      const from = cursor, to = cursor + breakdown.rates[k] * 100;
+      cursor = to;
+      return MODE_COLORS[k] + ' ' + from.toFixed(2) + '% ' + to.toFixed(2) + '%';
+    }).join(', ');
+    const legend = MODE_ORDER.map(k => {
+      const pct = Math.round(breakdown.rates[k] * 100);
+      return '<div class="mode-legend-row"><span class="mode-legend-dot" style="background:' + MODE_COLORS[k] + '"></span>'
+        + MODE_LABELS[k] + '<span class="mode-legend-pct">' + pct + '%</span></div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="donut-row">' +
+        '<div class="mode-donut">' +
+          '<div class="mode-donut-ring" style="background:conic-gradient(' + stops + ')"></div>' +
+          '<div class="mode-donut-center"><div class="mode-donut-num">' + breakdown.total + '</div><div class="mode-donut-label">days</div></div>' +
+        '</div>' +
+        '<div class="mode-legend">' + legend + '</div>' +
+      '</div>';
+  }
+
+  // dayRows is most-recent-first; the calendar reads left-to-right oldest
+  // to newest (like a GitHub contribution graph), so reverse it, then chunk
+  // into week-columns of 7 starting from the oldest day's actual weekday
+  // (Sun=0) so rows stay aligned to real weekdays rather than just "day 1
+  // of the window".
+  function renderCalendar(dayRows) {
+    const gridEl = document.getElementById('modeCalGrid');
+    const legendEl = document.getElementById('modeCalLegend');
+    const emptyEl = document.getElementById('modeCalEmpty');
+    gridEl.innerHTML = '';
+    const withSignal = dayRows.filter(dayHasModeSignal);
+    if (!withSignal.length) { emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+
+    const oldestFirst = dayRows.slice().reverse();
+    const firstDate = new Date(oldestFirst[0].dateKey + 'T00:00:00');
+    const leadingBlanks = firstDate.getDay(); // 0=Sun
+    const cells = new Array(leadingBlanks).fill(null).concat(oldestFirst);
+
+    cells.forEach(dayRow => {
+      const cell = document.createElement('div');
+      cell.className = 'mode-cal-cell';
+      if (dayRow && dayHasModeSignal(dayRow)) {
+        const mode = classifyDayMode(dayRow);
+        cell.style.background = MODE_COLORS[mode];
+        cell.title = dayRow.dateKey + ' — ' + MODE_LABELS[mode];
+      } else if (dayRow) {
+        cell.title = dayRow.dateKey + ' — no signal logged';
+      } else {
+        cell.style.visibility = 'hidden';
+      }
+      gridEl.appendChild(cell);
+    });
+
+    legendEl.innerHTML = MODE_ORDER.map(k =>
+      '<span class="mode-cal-legend-item"><span class="mode-cal-legend-dot" style="background:' + MODE_COLORS[k] + '"></span>' + MODE_LABELS[k] + '</span>'
+    ).join('');
+  }
+
+  // ---- Wiring ----
+  const SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+  async function loadAndRender() {
+    if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+      document.getElementById('currentModeCard').innerHTML = '<div class="pe-empty">Cloud sync isn\'t configured on this device.</div>';
+      return;
+    }
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+      });
+      if (!res.ok) throw new Error('fetch failed: ' + res.status);
+      const rows = await res.json();
+      const rowsByKey = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.key) rowsByKey[r.key] = r.data; });
+      const dateKeys = lastNDateKeys(WINDOW_DAYS);
+      const dayRows = buildDayRows(rowsByKey, dateKeys);
+      renderCurrentMode(dayRows);
+      renderDonut(computeModeBreakdown(dayRows));
+      renderCalendar(dayRows);
+    } catch (e) {
+      document.getElementById('currentModeCard').innerHTML = '<div class="pe-empty">Couldn\'t load your data — check your connection.</div>';
+    }
+  }
+
+  loadAndRender();
+})();
+</script>
+</body>
+</html>

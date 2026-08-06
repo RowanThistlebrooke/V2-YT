@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Peak · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+:root { --peak: #C4B5FD; }
+.page { position: relative; }
+
+/* ===== Hero ring + curve ===== */
+.peak-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 6px; }
+.ring { position: relative; width: 92px; height: 92px; flex-shrink: 0; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-track { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 7; }
+.ring-fill { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.6s cubic-bezier(0.22,1,0.36,1), stroke 0.4s; }
+.ring-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); letter-spacing: -0.03em; }
+.peak-label { display: flex; flex-direction: column; }
+.peak-state { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
+.peak-when { font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-tertiary); margin: 3px 0 5px; }
+.peak-hint { font-size: 11px; color: var(--text-tertiary); display: inline-flex; align-items: center; gap: 6px; }
+.peak-hint .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--peak); }
+.peak-desc { flex: 1; min-width: 160px; font-size: 13px; color: var(--text-tertiary); line-height: 1.5; }
+.curve-wrap { position: relative; width: 100%; margin-top: 14px; touch-action: pan-y; }
+.curve-wrap svg { width: 100%; height: 210px; display: block; overflow: visible; }
+.axis { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
+
+.grade-band { margin-top: 16px; padding: 14px 16px; border: 1px dashed rgba(255,255,255,0.12); border-radius: 12px;
+  display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.grade-item { display: flex; flex-direction: column; gap: 2px; }
+.grade-item .k { font-size: 9.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-tertiary); }
+.grade-item .v { font-size: 16px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+/* ===== Forms ===== */
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 12px; }
+.field-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; display: block; }
+.gm-input {
+  width: 100%; padding: 11px 13px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+  background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gm-input::placeholder { color: var(--text-tertiary); }
+.gm-input:focus { border-color: rgba(196,181,253,0.5); background: rgba(0,0,0,0.36); }
+.star-row { display: flex; gap: 6px; }
+.star-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.28);
+  color: var(--text-tertiary); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.star-btn.on { background: rgba(196,181,253,0.18); border-color: rgba(196,181,253,0.4); color: var(--peak); }
+.gm-add {
+  padding: 12px 20px; border: 0; border-radius: 12px; background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 8px rgba(0,0,0,0.35), 0 8px 22px rgba(0,0,0,0.25);
+  transition: transform 0.1s, filter 0.15s; margin-top: 14px;
+}
+.gm-add:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.gm-add:active { transform: translateY(0); }
+.gm-note { font-size: 11.5px; color: var(--text-tertiary); margin-top: 10px; line-height: 1.5; }
+.whoop-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--success); font-weight: 700; margin-bottom: 10px; }
+
+/* ===== Feeling check-in ===== */
+.checkin-log { list-style: none; margin: 14px 0 0; padding: 0; }
+.checkin-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; font-size: 12.5px; }
+.checkin-time { font-family: var(--font-mono); color: var(--text-tertiary); flex-shrink: 0; }
+.checkin-vals { flex: 1; color: var(--text-secondary); }
+.checkin-del { border: 0; background: transparent; color: var(--text-tertiary); font-size: 16px; cursor: pointer; opacity: 0.5; }
+.checkin-del:hover { opacity: 1; color: var(--danger); }
+.empty-state { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 14px 0; }
+
+/* ===== Factors ===== */
+.factor-list { list-style: none; margin: 0; padding: 0; }
+.factor-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid rgba(255,255,255,0.05); }
+.factor-row:first-child { border-top: 0; }
+.factor-ic { font-size: 17px; flex-shrink: 0; width: 22px; text-align: center; }
+.factor-main { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-secondary); }
+.factor-main b { color: var(--text-primary); }
+.factor-adj { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; flex-shrink: 0; }
+.factor-adj.pos { color: var(--success); } .factor-adj.neg { color: var(--danger); } .factor-adj.flat { color: var(--text-tertiary); }
+
+/* ===== Trend chart ===== */
+.trend-toggle { display: inline-flex; border: 1px solid rgba(255,255,255,0.10); border-radius: 11px; overflow: hidden; margin-bottom: 14px; }
+.trend-toggle button { border: 0; background: transparent; color: var(--text-tertiary); font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 14px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.trend-toggle button.on { background: rgba(196,181,253,0.18); color: var(--peak); }
+.trend-wrap svg { width: 100%; height: 140px; display: block; overflow: visible; }
+.trend-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 10.5px; color: var(--text-tertiary); }
+.trend-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+.trend-legend .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+  .curve-wrap svg { height: 190px; }
+  .peak-desc { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">Peak</h1>
+
+  <!-- HERO: LIVE CURVE -->
+  <div class="section">
+    <div class="section-title">Right Now</div>
+    <div class="gm-card">
+      <div class="whoop-badge" id="whoopBadge" style="display:none">🟢 Using WHOOP recovery + sleep for today</div>
+      <div class="peak-head">
+        <div class="ring">
+          <svg viewBox="0 0 92 92">
+            <circle class="ring-track" cx="46" cy="46" r="40"></circle>
+            <circle class="ring-fill" id="ringFill" cx="46" cy="46" r="40"></circle>
+          </svg>
+          <div class="ring-num" id="ringNum">—</div>
+        </div>
+        <div class="peak-label">
+          <span class="peak-state" id="peakState">—</span>
+          <span class="peak-when" id="peakWhen">Right now</span>
+          <span class="peak-hint"><span class="dot"></span>Hover / drag the curve</span>
+        </div>
+        <div class="peak-desc">Your predicted energy, hour by hour — built from sleep, RHR, hydration, nutrition, supplements, stimulants, workouts, and how you say you're actually feeling.</div>
+      </div>
+
+      <div class="curve-wrap" id="curveWrap">
+        <svg id="peakChart" viewBox="0 0 600 210" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="axis">
+        <span>12A</span><span>3A</span><span>6A</span><span>9A</span><span>12P</span><span>3P</span><span>6P</span><span>9P</span><span>12A</span>
+      </div>
+
+      <div class="grade-band" id="gradeBand">
+        <div class="grade-item"><span class="k">Today so far</span><span class="v" id="gradeToday">—</span></div>
+        <div class="grade-item"><span class="k">7-day average</span><span class="v" id="grade7d">—</span></div>
+        <div class="grade-item"><span class="k">30-day average</span><span class="v" id="grade30d">—</span></div>
+        <div class="grade-item"><span class="k">vs your normal RHR</span><span class="v" id="gradeRhr">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLEEP (logged on its own dedicated page — see sleep.html; wake time,
+       RHR, hours, and quality all live there now) -->
+  <div class="section">
+    <a class="link-out-card" href="sleep.html">
+      <span class="link-out-icon">😴</span>
+      <span class="link-out-text">
+        <span class="link-out-title">Log last night's sleep</span>
+        <span class="link-out-sub">Bedtime, wake-up, quality &amp; RHR — feeds this page's energy curve</span>
+      </span>
+      <span class="link-out-chevron">→</span>
+    </a>
+  </div>
+
+  <!-- FEELING CHECK-IN -->
+  <div class="section">
+    <div class="section-title">How Are You Feeling</div>
+    <div class="gm-card">
+      <div class="field-grid">
+        <div>
+          <label class="field-label">Feeling (1 low – 5 great)</label>
+          <div class="star-row" id="feelingRow">
+            <button class="star-btn" data-v="1" type="button">1</button>
+            <button class="star-btn" data-v="2" type="button">2</button>
+            <button class="star-btn" data-v="3" type="button">3</button>
+            <button class="star-btn" data-v="4" type="button">4</button>
+            <button class="star-btn" data-v="5" type="button">5</button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label">Stress (1 calm – 5 high)</label>
+          <div class="star-row" id="stressRow">
+            <button class="star-btn" data-v="1" type="button">1</button>
+            <button class="star-btn" data-v="2" type="button">2</button>
+            <button class="star-btn" data-v="3" type="button">3</button>
+            <button class="star-btn" data-v="4" type="button">4</button>
+            <button class="star-btn" data-v="5" type="button">5</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label class="field-label">Note (optional)</label>
+        <input class="gm-input" id="checkinNote" type="text" placeholder="what's going on right now…">
+      </div>
+      <button class="gm-add" id="logCheckinBtn" type="button">Log Check-in</button>
+      <ul class="checkin-log" id="checkinLog"></ul>
+    </div>
+  </div>
+
+  <!-- QUICK LOG (AI) -->
+  <div class="section">
+    <div class="section-title">Quick Log</div>
+    <div class="gm-card">
+      <label class="field-label">Tell it what happened</label>
+      <input class="gm-input" id="quickLogInput" type="text" placeholder="e.g. just got off work, played basketball for 2 hours">
+      <button class="gm-add" id="quickLogBtn" type="button">Log It</button>
+      <div class="gm-note" id="quickLogNote">Uses Claude (your saved Nova API key) to pull any workout or feeling/stress info out of what you type and fold it straight into today's score — a workout adds a boost + a post-activity dip sized to its intensity/duration, same as gym.html's logged sessions; feeling/stress become a normal check-in.</div>
+      <ul class="checkin-log" id="activityLog"></ul>
+    </div>
+  </div>
+
+  <!-- CONTRIBUTING FACTORS -->
+  <div class="section">
+    <div class="section-title">What's Shaping Your Score</div>
+    <div class="gm-card">
+      <ul class="factor-list" id="factorList"></ul>
+    </div>
+  </div>
+
+  <!-- INSIGHTS -->
+  <div class="section">
+    <div class="section-title">Insights</div>
+    <div class="gm-card">
+      <ul class="factor-list" id="insightList"></ul>
+      <div class="empty-state" id="insightEmpty" style="display:none">Not enough history yet — insights need at least a handful of days of both morning check-ins and check-ins/caffeine logs to compare, so this fills in as you keep using Peak.</div>
+    </div>
+  </div>
+
+  <!-- TREND -->
+  <div class="section">
+    <div class="section-title">Trend</div>
+    <div class="gm-card">
+      <div class="trend-toggle" id="trendToggle">
+        <button type="button" data-m="day" class="on">Day</button>
+        <button type="button" data-m="week">Week</button>
+        <button type="button" data-m="month">Month</button>
+      </div>
+      <div class="trend-wrap" id="trendWrap">
+        <svg id="trendChart" viewBox="0 0 600 140" preserveAspectRatio="none"></svg>
+        <div class="empty-state" id="trendEmpty" style="display:none"></div>
+      </div>
+      <div class="trend-legend" id="trendLegend"></div>
+    </div>
+  </div>
+
+<!-- ===== Nova Peak coach ===== -->
+<style>
+  .page { position: relative; }
+  #nvFab {
+    position: absolute; top: 16px; right: 16px; z-index: 30;
+    width: 46px; height: 46px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+    overflow: hidden; -webkit-tap-highlight-color: transparent; transition: transform 0.12s;
+    background: radial-gradient(circle at 50% 58%, #8A6CFF, #4C2EC9 80%);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.14), 0 6px 22px rgba(124,92,255,0.55),
+                inset 0 -6px 14px rgba(38,10,86,0.65);
+  }
+  #nvFab:active { transform: scale(0.93); }
+  #nvFab::before {
+    content: ''; position: absolute; inset: -28%; border-radius: 50%;
+    background: conic-gradient(from 0deg, #6D4AE0, #C9B8FF, #7C5CFF, #B98AFF, #8A6CFF, #6D4AE0);
+    filter: blur(2px); opacity: 0.92; animation: nvspin 7s linear infinite;
+  }
+  #nvFab::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle at 34% 26%, rgba(255,255,255,0.92), rgba(255,255,255,0) 40%),
+                radial-gradient(circle at 72% 82%, rgba(18,7,40,0.5), transparent 55%);
+  }
+  @keyframes nvspin { to { transform: rotate(360deg); } }
+  #nvFab .nv-online { position: absolute; right: 1px; bottom: 1px; z-index: 2; width: 11px; height: 11px; border-radius: 50%; background: #6ee7b7; border: 2px solid #0a0a0b; box-shadow: 0 0 6px rgba(110,231,183,0.7); }
+  #nvPanel {
+    position: absolute; top: 72px; right: 16px; z-index: 30;
+    width: min(340px, calc(100vw - 28px)); max-height: 66vh; display: none; flex-direction: column;
+    background: #111016; border: 1px solid rgba(255,255,255,0.10); border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.65); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+  #nvPanel.open { display: flex; }
+  .nv-head { display: flex; align-items: center; gap: 9px; padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+  .nv-head .nv-av { position: relative; overflow: hidden; width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    background: radial-gradient(circle at 34% 26%, rgba(255,255,255,0.85), rgba(255,255,255,0) 42%),
+               conic-gradient(from 0deg, #6D4AE0, #C9B8FF, #7C5CFF, #B98AFF, #6D4AE0); }
+  .nv-head .nv-name { font-size: 14px; font-weight: 700; color: #FAFAFA; }
+  .nv-head .nv-sub { font-size: 10.5px; color: #76746E; }
+  .nv-head .nv-new { margin-left: auto; border: 0; background: transparent; color: #76746E; font-size: 15px; cursor: pointer; line-height: 1; padding: 4px; }
+  .nv-head .nv-new:hover { color: #CBBDFF; }
+  .nv-head .nv-x { border: 0; background: transparent; color: #76746E; font-size: 20px; cursor: pointer; line-height: 1; }
+  .nv-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .nv-msg { font-size: 13px; line-height: 1.5; max-width: 90%; padding: 9px 12px; border-radius: 13px; }
+  .nv-msg.coach { background: rgba(255,255,255,0.05); color: #E9E7E2; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .nv-msg.user { background: rgba(124,92,255,0.22); color: #FAFAFA; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .nv-msg b { color: #FAFAFA; } .nv-msg ul { margin: 4px 0; padding-left: 18px; } .nv-msg li { margin: 2px 0; } .nv-msg code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .nv-quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+  .nv-chip { border: 1px solid rgba(124,92,255,0.35); background: rgba(124,92,255,0.12); color: #CBBDFF; font-size: 11px; font-weight: 600; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+  .nv-chip:active { transform: scale(0.96); }
+  .nv-foot { display: flex; gap: 7px; padding: 11px 12px; border-top: 1px solid rgba(255,255,255,0.07); }
+  .nv-input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.32); color: #FAFAFA; font-family: inherit; font-size: 13px; outline: none; }
+  .nv-input::placeholder { color: #6c6a64; }
+  .nv-send { border: 0; border-radius: 11px; padding: 0 14px; background: linear-gradient(180deg,#C9B8FF,#7C5CFF); color: #14081f; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .nv-dots i { display:inline-block; width:5px; height:5px; margin:0 1px; border-radius:50%; background:#9b8aff; animation: nvb 1s infinite; }
+  .nv-dots i:nth-child(2){animation-delay:.15s} .nv-dots i:nth-child(3){animation-delay:.3s}
+  @keyframes nvb { 0%,100%{opacity:.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
+</style>
+<button id="nvFab" type="button" aria-label="Open Nova coach"><span class="nv-online"></span></button>
+<div id="nvPanel" role="dialog" aria-label="Nova peak coach">
+  <div class="nv-head">
+    <div class="nv-av"></div>
+    <div><div class="nv-name">Nova</div><div class="nv-sub">your peak coach</div></div>
+    <button class="nv-new" id="nvNew" type="button" aria-label="New conversation" title="New conversation">↻</button>
+    <button class="nv-x" id="nvClose" type="button" aria-label="Close">×</button>
+  </div>
+  <div class="nv-body" id="nvBody"></div>
+  <div class="nv-quick" id="nvQuick">
+    <button class="nv-chip" data-q="Why is my score low today?">Why is it low?</button>
+    <button class="nv-chip" data-q="What's dragging my score down the most this week?">Biggest drag this week</button>
+    <button class="nv-chip" data-q="What should I change tomorrow to feel better?">Tomorrow's fix</button>
+  </div>
+  <div class="nv-foot">
+    <input class="nv-input" id="nvInput" type="text" placeholder="Ask Nova…">
+    <button class="nv-send" id="nvSend" type="button">↑</button>
+  </div>
+</div>
+
+</div><!-- /.page -->
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  const gauss = (x,mu,sd) => Math.exp(-Math.pow(x-mu,2)/(2*sd*sd));
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function todayKey() { return dateToKey(new Date()); }
+  function midnight() { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+  function nowHour() { const d = new Date(); return d.getHours() + d.getMinutes()/60; }
+  function hToTs(h) { return midnight() + h*3600000; }
+  function fmtClock(h) {
+    h = ((h % 24) + 24) % 24;
+    let hr = Math.floor(h), m = Math.round((h-hr)*60);
+    if (m === 60) { m = 0; hr = (hr+1)%24; }
+    const ap = hr >= 12 ? 'PM' : 'AM'; let h12 = hr % 12; if (h12===0) h12=12;
+    return h12 + ':' + String(m).padStart(2,'0') + ' ' + ap;
+  }
+
+  const NIGHTS_KEY = 'sleep:nights';
+  const CHECKIN_KEY = 'peak:checkins';
+  const DAILY_KEY = 'peak:daily';
+  const ACTIVITY_KEY = 'peak:activities';
+
+  /* ============ WHOOP (optional — prefers this over manual entry when connected) ============ */
+  let whoop = { recovery: null, rhr: null, sleepPct: null, wakeHour: null, bedHour: null };
+  async function loadWhoop() {
+    let t = storeGet('whoop_tokens_v1');
+    if (!t || !t.access) return;
+    async function whFetch(path, tok) {
+      const [p, qs] = path.split('?'); const params = new URLSearchParams(qs || ''); params.set('path', p);
+      const r = await fetch('/api/whoop-data?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + tok.access, 'Accept': 'application/json' } });
+      if (!r.ok) throw new Error('whoop ' + r.status); return r.json();
+    }
+    try {
+      const [rec, sleep] = await Promise.all([
+        whFetch('/recovery?limit=1', t).catch(() => null),
+        whFetch('/activity/sleep?limit=1', t).catch(() => null),
+      ]);
+      const r0 = rec && rec.records && rec.records[0];
+      if (r0 && r0.score) {
+        if (r0.score.recovery_score != null) whoop.recovery = Math.round(r0.score.recovery_score);
+        if (r0.score.resting_heart_rate != null) whoop.rhr = Math.round(r0.score.resting_heart_rate);
+      }
+      const s0 = sleep && sleep.records && sleep.records[0];
+      if (s0) {
+        if (s0.score && s0.score.sleep_performance_percentage != null) whoop.sleepPct = Math.round(s0.score.sleep_performance_percentage);
+        if (s0.start) { const d = new Date(s0.start); whoop.bedHour = clamp(d.getHours() + d.getMinutes()/60, 20, 23.9); }
+        if (s0.end) { const d = new Date(s0.end); whoop.wakeHour = clamp(d.getHours() + d.getMinutes()/60, 4, 11); }
+      }
+      if (whoop.recovery != null) $('whoopBadge').style.display = 'inline-flex';
+      renderAll();
+    } catch (e) {}
+  }
+
+  /* ============ Sleep (logged on sleep.html — read-only here) ============ */
+  // Manual entry moved to its own dedicated page; this energy engine just
+  // reads whatever's there, exactly like it already treats WHOOP as an
+  // alternate (preferred, when connected) source below.
+  function getNights() { return storeGet(NIGHTS_KEY) || {}; }
+
+  /* ============ Feeling / stress check-ins ============ */
+  function getCheckins() { return storeGet(CHECKIN_KEY) || []; }
+  function setCheckins(c) { storeSet(CHECKIN_KEY, c); }
+  function todaysCheckins() { const s = midnight(); return getCheckins().filter(c => c.ts >= s); }
+  let feelingSel = 0, stressSel = 0;
+  $('feelingRow').querySelectorAll('.star-btn').forEach(b => b.addEventListener('click', () => {
+    feelingSel = Number(b.dataset.v);
+    $('feelingRow').querySelectorAll('.star-btn').forEach(x => x.classList.toggle('on', Number(x.dataset.v) <= feelingSel));
+  }));
+  $('stressRow').querySelectorAll('.star-btn').forEach(b => b.addEventListener('click', () => {
+    stressSel = Number(b.dataset.v);
+    $('stressRow').querySelectorAll('.star-btn').forEach(x => x.classList.toggle('on', Number(x.dataset.v) <= stressSel));
+  }));
+  $('logCheckinBtn').addEventListener('click', () => {
+    if (!feelingSel && !stressSel) return;
+    const list = getCheckins();
+    list.push({ id: 'ck' + Date.now() + Math.floor(Math.random()*1000), ts: Date.now(), dateKey: todayKey(),
+      feeling: feelingSel || null, stress: stressSel || null, note: $('checkinNote').value.trim() });
+    setCheckins(list);
+    feelingSel = 0; stressSel = 0;
+    $('feelingRow').querySelectorAll('.star-btn').forEach(x => x.classList.remove('on'));
+    $('stressRow').querySelectorAll('.star-btn').forEach(x => x.classList.remove('on'));
+    $('checkinNote').value = '';
+    renderAll();
+  });
+  function renderCheckinLog() {
+    const list = $('checkinLog');
+    const items = todaysCheckins().slice().sort((a,b) => b.ts - a.ts);
+    list.innerHTML = '';
+    if (!items.length) { const li = document.createElement('li'); li.className = 'empty-state'; li.textContent = 'No check-ins yet today.'; list.appendChild(li); return; }
+    items.forEach(c => {
+      const li = document.createElement('li'); li.className = 'checkin-row';
+      const bits = [];
+      if (c.feeling) bits.push('Feeling ' + c.feeling + '/5');
+      if (c.stress) bits.push('Stress ' + c.stress + '/5');
+      if (c.note) bits.push('"' + c.note + '"');
+      li.innerHTML = '<span class="checkin-time">' + new Date(c.ts).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}) + '</span>'
+        + '<span class="checkin-vals">' + bits.join(' · ') + '</span>'
+        + '<button class="checkin-del" type="button" aria-label="Delete">×</button>';
+      li.querySelector('.checkin-del').addEventListener('click', () => { setCheckins(getCheckins().filter(x => x.id !== c.id)); renderAll(); });
+      list.appendChild(li);
+    });
+  }
+
+  /* ============ Quick Log (AI) ============
+   * Free-text entry ("just got off work, played basketball for 2 hours") ->
+   * Claude extracts structured facts -> those facts are written into the
+   * SAME stores the rest of this page already reads, so no separate scoring
+   * path is needed: an activity becomes a peak:activities entry (feeds
+   * workoutBoostFlat()/workoutDipAt() above), feeling/stress becomes a
+   * normal peak:checkins entry (feeds checkinAdjAt() and shows up in the
+   * existing "How Are You Feeling" log, curve dot, and Nova's context,
+   * unchanged). This never touches gym.html/cardio's own data.
+   */
+  const QUICK_LOG_SYS = 'You extract structured facts from a short first-person message about what someone just did or how they feel, for a personal energy-tracking dashboard. Respond with ONLY a JSON object (no markdown fences, no commentary) matching exactly this shape:\n'
+    + '{"activity":{"present":boolean,"description":string,"durationMin":number|null,"intensity":"low"|"moderate"|"high"},"feeling":number|null,"stress":number|null,"summary":string}\n'
+    + 'Rules:\n'
+    + '- activity.present is true only for physical activity/exercise (sports, workouts, walks, etc.), not passive things like "got off work" or "ate lunch".\n'
+    + '- Infer durationMin and intensity from context (e.g. "basketball for 2 hours" -> durationMin:120, intensity likely "high"; a light walk is "low"). If activity.present is true but duration/intensity aren\'t stated, default durationMin to 30 and intensity to "moderate".\n'
+    + '- feeling is 1-5 (1=very low energy/mood, 5=great) and stress is 1-5 (1=very calm, 5=very stressed) — set ONLY if the message actually conveys something about mood, energy, or stress; leave null otherwise, don\'t invent them.\n'
+    + '- summary is a short (under 12 words) human-readable one-line summary of the whole message.\n'
+    + 'Output raw JSON only.';
+
+  function parseJsonLoose(raw) {
+    let s = String(raw).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+    return JSON.parse(s);
+  }
+
+  function applyQuickLog(parsed, originalText) {
+    const now = Date.now();
+    const activity = parsed && parsed.activity;
+    if (activity && activity.present) {
+      const activities = storeGet(ACTIVITY_KEY) || [];
+      activities.push({
+        id: 'act' + now + Math.floor(Math.random() * 1000),
+        ts: now,
+        description: (activity.description || originalText).slice(0, 140),
+        durationMin: Number(activity.durationMin) > 0 ? Number(activity.durationMin) : 30,
+        intensity: ['low', 'moderate', 'high'].indexOf(activity.intensity) !== -1 ? activity.intensity : 'moderate',
+      });
+      storeSet(ACTIVITY_KEY, activities);
+    }
+    if (parsed && (parsed.feeling != null || parsed.stress != null)) {
+      const list = getCheckins();
+      list.push({
+        id: 'ck' + now + Math.floor(Math.random() * 1000), ts: now, dateKey: todayKey(),
+        feeling: parsed.feeling != null ? clamp(Math.round(parsed.feeling), 1, 5) : null,
+        stress: parsed.stress != null ? clamp(Math.round(parsed.stress), 1, 5) : null,
+        note: (parsed.summary || originalText).slice(0, 140),
+      });
+      setCheckins(list);
+    }
+  }
+
+  function renderActivityLog() {
+    const list = $('activityLog');
+    const items = activitiesToday().slice().sort((a, b) => b.ts - a.ts);
+    list.innerHTML = '';
+    if (!items.length) { const li = document.createElement('li'); li.className = 'empty-state'; li.textContent = 'No activities logged today yet.'; list.appendChild(li); return; }
+    items.forEach(a => {
+      const li = document.createElement('li'); li.className = 'checkin-row';
+      li.innerHTML = '<span class="checkin-time">' + new Date(a.ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '</span>'
+        + '<span class="checkin-vals">' + esc(a.description) + ' · ' + a.durationMin + 'min · ' + a.intensity + '</span>'
+        + '<button class="checkin-del" type="button" aria-label="Delete">×</button>';
+      li.querySelector('.checkin-del').addEventListener('click', () => {
+        storeSet(ACTIVITY_KEY, (storeGet(ACTIVITY_KEY) || []).filter(x => x.id !== a.id));
+        renderAll();
+      });
+      list.appendChild(li);
+    });
+  }
+
+  async function submitQuickLog() {
+    const input = $('quickLogInput'), btn = $('quickLogBtn'), note = $('quickLogNote');
+    const text = input.value.trim();
+    if (!text) return;
+    const key = savedKey();
+    if (!key) { note.textContent = "Paste your Anthropic API key on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and reused here."; return; }
+    const origNote = note.textContent;
+    btn.disabled = true; btn.textContent = 'Analyzing…'; note.textContent = '';
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-opus-4-8', max_tokens: 300, system: QUICK_LOG_SYS, messages: [{ role: 'user', content: text }] }),
+      });
+      const data = await res.json();
+      const raw = (data && data.content && data.content[0] && data.content[0].text) || '';
+      const parsed = parseJsonLoose(raw);
+      applyQuickLog(parsed, text);
+      input.value = '';
+      note.textContent = parsed && parsed.summary ? ('Logged: ' + parsed.summary) : 'Logged.';
+      renderAll();
+    } catch (e) {
+      note.textContent = "Couldn't understand or log that — check your API key and connection, or try rephrasing.";
+    } finally {
+      btn.disabled = false; btn.textContent = 'Log It';
+      if (!note.textContent) note.textContent = origNote;
+    }
+  }
+  $('quickLogBtn').addEventListener('click', submitQuickLog);
+  $('quickLogInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitQuickLog(); });
+
+  /* ============ Read-only inputs from every other domain ============ */
+  function readWakeHour() {
+    if (whoop.wakeHour != null) return whoop.wakeHour;
+    const m = getNights()[todayKey()];
+    if (m && m.wakeTime) { const [h, mi] = m.wakeTime.split(':').map(Number); return h + mi/60; }
+    return 7;
+  }
+  function readBedHour() {
+    if (whoop.bedHour != null) return whoop.bedHour;
+    const m = getNights()[todayKey()];
+    if (m && m.wakeTime && m.sleepHours) {
+      const [h, mi] = m.wakeTime.split(':').map(Number);
+      let bed = (h + mi/60) - m.sleepHours;
+      if (bed < 0) bed += 24;
+      return clamp(bed, 18, 23.9);
+    }
+    return 23;
+  }
+  function readSleepFactor() {
+    // 0-100 "how good was last night's sleep"
+    if (whoop.sleepPct != null) return whoop.sleepPct;
+    const m = getNights()[todayKey()];
+    if (!m || (!m.sleepHours && !m.sleepQuality)) return null;
+    const hours = m.sleepHours || 7;
+    const hoursScore = clamp(100 - Math.abs(8 - hours) * 15, 0, 100);
+    const qualityScore = m.sleepQuality ? (m.sleepQuality / 5) * 100 : hoursScore;
+    return hoursScore * 0.5 + qualityScore * 0.5;
+  }
+  function rollingRhrAvg() {
+    const nights = getNights();
+    const today = todayKey();
+    const entries = Object.keys(nights).filter(k => k !== today && nights[k].rhr).sort().slice(-14);
+    if (entries.length < 3) return null;
+    return entries.reduce((a, k) => a + nights[k].rhr, 0) / entries.length;
+  }
+  function readTodayRhr() { if (whoop.rhr != null) return whoop.rhr; const m = getNights()[todayKey()]; return m ? m.rhr : null; }
+
+  function readHydrationPct() {
+    const w = storeGet('po_water_v1');
+    if (!w || !w.profile || !w.profile.weightKg) return null;
+    const p = w.profile;
+    const wKg = w.weightUnit === 'lb' ? p.weightKg / 2.20462 : p.weightKg;
+    const base = wKg * 35, exercise = (p.activityHrsPerWeek || 0) / 7 * 500, caffeine = Math.max(0, (w.caffeineMgPerDay || 0) - 200) * 1.5;
+    let adjust = 0; if (p.sex === 'm') adjust += 200; if ((p.age || 0) >= 50) adjust += 100;
+    const totalMl = base + exercise + caffeine + adjust;
+    let unitMl = 1; if (w.unit === 'bottle') unitMl = w.bottleMl || 500; else if (w.unit === 'glass') unitMl = w.glassMl || 250; else if (w.unit === 'oz') unitMl = 30;
+    const targetUnits = Math.ceil(totalMl / unitMl);
+    const count = (w.logs && w.logs[todayKey()]) || 0;
+    if (!targetUnits) return null;
+    return clamp(count / targetUnits * 100, 0, 200);
+  }
+  function readNutritionPct() {
+    const entries = storeGet('cal:entries');
+    const targets = storeGet('cal:targets');
+    if (!Array.isArray(entries) || !targets || !targets.calories) return null;
+    const today = todayKey();
+    const cals = entries.filter(e => e.dateKey === today).reduce((a, e) => a + (Number(e.calories) || 0), 0);
+    if (!cals) return null;
+    return cals / targets.calories * 100;
+  }
+  function readSupplementPct() {
+    const items = storeGet('stack:items');
+    if (!Array.isArray(items) || !items.length) return null;
+    const taken = storeGet('stack:taken:' + todayKey()) || {};
+    const done = items.filter(it => taken[it.id]).length;
+    return done / items.length * 100;
+  }
+  function readCaffeineMgAt(t) {
+    const logs = storeGet('caf:logs') || [];
+    const ts = hToTs(t);
+    return logs.reduce((s, l) => { const hrs = (ts - l.ts) / 3600000; return s + (hrs < 0 ? 0 : l.mg * Math.pow(0.5, hrs / 5)); }, 0);
+  }
+  function readNicotineMgAt(t) {
+    const logs = storeGet('nic:logs') || [];
+    const ts = hToTs(t);
+    return logs.reduce((s, l) => { const hrs = (ts - l.ts) / 3600000; return s + (hrs < 0 ? 0 : l.mg * Math.pow(0.5, hrs / 2)); }, 0);
+  }
+  function gymCardioTimestampsToday() {
+    const out = [];
+    const doneDays = storeGet('po_coach_workout_done');
+    if (doneDays) {
+      Object.keys(doneDays).forEach(k => {
+        const v = doneDays[k];
+        const ts = typeof v === 'string' ? new Date(v).getTime() : null;
+        if (ts && ts >= midnight()) out.push(ts);
+        else if (v === true && k === todayKey()) out.push(midnight() + 8*3600000); // fallback anchor if no timestamp stored
+      });
+    }
+    const cardio = storeGet('cardio:sessions');
+    if (Array.isArray(cardio)) cardio.forEach(s => { if (s.ts >= midnight()) out.push(s.ts); });
+    return out;
+  }
+  // Ad-hoc activities logged via Quick Log (below) — same shape/intent as a
+  // gym.html workout, but for things gym.html doesn't track (basketball,
+  // a walk, etc.), sized by the intensity/duration Claude pulled out of
+  // the free-text description instead of a fixed constant.
+  function activitiesToday() {
+    const all = storeGet(ACTIVITY_KEY) || [];
+    return all.filter(a => a.ts >= midnight());
+  }
+  function intensityMult(i) { return i === 'high' ? 1.4 : i === 'low' ? 0.6 : 1.0; }
+
+  // readWorkoutTimestamps() is only used for the "logged today" count in
+  // renderFactors() / Nova's context — it doesn't need per-entry intensity.
+  function readWorkoutTimestamps() {
+    return gymCardioTimestampsToday().concat(activitiesToday().map(a => a.ts));
+  }
+  function workoutBoostFlat() {
+    let boost = gymCardioTimestampsToday().length ? 3 : 0;
+    activitiesToday().forEach(a => { boost += 3 * intensityMult(a.intensity); });
+    return clamp(boost, 0, 10);
+  }
+  function workoutDipAt(t) {
+    const ts = hToTs(t);
+    let dip = 0;
+    gymCardioTimestampsToday().forEach(wts => {
+      const hoursSince = (ts - wts) / 3600000;
+      if (hoursSince >= 0 && hoursSince < 1.5) dip += 15 * (1 - hoursSince / 1.5);
+    });
+    activitiesToday().forEach(a => {
+      const mult = intensityMult(a.intensity);
+      const window = clamp(1.5 * mult, 1, 2.5);
+      const hoursSince = (ts - a.ts) / 3600000;
+      if (hoursSince >= 0 && hoursSince < window) dip += (15 * mult) * (1 - hoursSince / window);
+    });
+    return dip;
+  }
+
+  /* ============ Composite energy model ============ */
+  function circadian(t) { return 50 + 18 * Math.cos(2 * Math.PI * (t - 16.5) / 24); }
+  function lunchDip(t) { return 10 * gauss(t, 14, 1.4); }
+  function sleepPressure(awakeH) { return clamp(awakeH, 0, 24) * 1.7; }
+  function morningBump(t, wakeHour) { const d = t - wakeHour; return (d < 0 || d > 4) ? 0 : 10 * gauss(d, 1.2, 0.9); }
+  function asleepAt(t, wakeHour, bedHour) { return (t < wakeHour) || (t >= bedHour); }
+
+  function checkinAdjAt(t) {
+    const ts = hToTs(t);
+    let adj = 0;
+    todaysCheckins().forEach(c => {
+      if (c.feeling == null && c.stress == null) return;
+      const feeling = c.feeling || 3, stress = c.stress || 3;
+      const reported = (feeling / 5 * 70) + ((5 - stress) / 5 * 30); // 0-100
+      const predicted = rawPredictedAt((c.ts - midnight()) / 3600000, true);
+      const chHour = (c.ts - midnight()) / 3600000;
+      adj += (reported - predicted) * gauss(t, chHour, 1.6);
+    });
+    return adj;
+  }
+
+  // withCheckins=false avoids infinite recursion when computing the
+  // "predicted" baseline that check-ins are compared against.
+  function rawPredictedAt(t, skipCheckins) {
+    const wakeHour = readWakeHour(), bedHour = readBedHour();
+    if (asleepAt(t, wakeHour, bedHour)) return clamp(circadian(t) - 34, 3, 20);
+    let e = circadian(t) - lunchDip(t) - sleepPressure(t - wakeHour) + morningBump(t, wakeHour);
+    const sleepFactor = readSleepFactor();
+    if (sleepFactor != null) e = e * (0.6 + 0.4 * sleepFactor / 100);
+    e += (readCaffeineMgAt(t) > 0 ? 34 * (1 - Math.exp(-readCaffeineMgAt(t) / 110)) : 0);
+    e += (readNicotineMgAt(t) > 0 ? 12 * (1 - Math.exp(-readNicotineMgAt(t) / 8)) : 0);
+    const rhrAvg = rollingRhrAvg(), todayRhr = readTodayRhr();
+    if (rhrAvg != null && todayRhr != null) e += clamp(-(todayRhr - rhrAvg) / 3 * 5, -20, 10);
+    const hyd = readHydrationPct(); if (hyd != null) e += (hyd >= 80 ? 5 : hyd >= 50 ? 0 : -10);
+    const nut = readNutritionPct();
+    if (nut != null) { const dev = Math.abs(100 - nut); e += (dev <= 15 ? 5 : dev <= 30 ? 0 : -8); }
+    const sup = readSupplementPct(); if (sup != null) e += (sup - 50) / 50 * 5;
+    e += workoutBoostFlat() - workoutDipAt(t);
+    if (!skipCheckins) e += checkinAdjAt(t);
+    return clamp(e, 0, 100);
+  }
+  function energyAt(t) { return rawPredictedAt(t, false); }
+
+  function stateWord(v) { if (v>=80) return 'Peak'; if (v>=62) return 'High'; if (v>=44) return 'Steady'; if (v>=28) return 'Dip'; return 'Low'; }
+  function stateColor(v) { if (v>=80) return '#C4B5FD'; if (v>=62) return '#6BE3A4'; if (v>=44) return '#F2C063'; if (v>=28) return '#FB923C'; return '#FF6B6B'; }
+
+  function todayAverageScore() {
+    const now = nowHour();
+    const wakeHour = readWakeHour();
+    const start = Math.max(0, wakeHour);
+    if (now <= start) return null;
+    let sum = 0, n = 0;
+    for (let t = start; t <= now; t += 0.25) { sum += energyAt(t); n++; }
+    return n ? sum / n : null;
+  }
+
+  /* ============ Rendering ============ */
+  let scrubT = null;
+  function renderRing() {
+    const t = scrubT != null ? scrubT : nowHour();
+    const v = Math.round(energyAt(t));
+    const C = 2 * Math.PI * 40;
+    const fill = $('ringFill');
+    fill.style.strokeDasharray = C;
+    fill.style.strokeDashoffset = C * (1 - v / 100);
+    fill.style.stroke = stateColor(v);
+    $('ringNum').textContent = v;
+    $('peakState').textContent = stateWord(v);
+    $('peakState').style.color = stateColor(v);
+    $('peakWhen').textContent = scrubT != null ? ('at ' + fmtClock(t)) : 'Right now';
+  }
+  function renderChart() {
+    const svg = $('peakChart'); const W = 600, H = 210, padT = 14, padB = 8;
+    const now = nowHour();
+    const X = (t) => (t / 24) * W;
+    const Y = (v) => H - padB - (v / 100) * (H - padB - padT);
+    const wakeHour = readWakeHour(), bedHour = readBedHour();
+    const pts = []; for (let i = 0; i <= 144; i++) { const t = i / 6; pts.push([t, energyAt(t)]); }
+    let parts = [];
+    parts.push('<rect x="0" y="0" width="' + X(wakeHour) + '" height="' + H + '" fill="rgba(255,255,255,0.025)"/>');
+    parts.push('<rect x="' + X(bedHour) + '" y="0" width="' + (W - X(bedHour)) + '" height="' + H + '" fill="rgba(255,255,255,0.025)"/>');
+    for (let g = 25; g <= 100; g += 25) { const y = Y(g).toFixed(1); parts.push('<line x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>'); }
+    parts.push('<defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(196,181,253,0.42)"/><stop offset="100%" stop-color="rgba(196,181,253,0)"/></linearGradient></defs>');
+    let line = 'M ' + X(pts[0][0]).toFixed(1) + ' ' + Y(pts[0][1]).toFixed(1);
+    pts.forEach((p, i) => { if (i) line += ' L ' + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
+    const area = line + ' L ' + W + ' ' + (H - padB) + ' L 0 ' + (H - padB) + ' Z';
+    parts.push('<path d="' + area + '" fill="url(#pg)"/>');
+    parts.push('<path d="' + line + '" fill="none" stroke="#C4B5FD" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 6px rgba(196,181,253,0.55))"/>');
+    // check-in anchor dots
+    todaysCheckins().forEach(c => {
+      const ch = (c.ts - midnight()) / 3600000;
+      parts.push('<circle cx="' + X(ch).toFixed(1) + '" cy="' + Y(energyAt(ch)).toFixed(1) + '" r="4" fill="#0e0e10" stroke="#6BE3A4" stroke-width="2"/>');
+    });
+    const xNow = X(now).toFixed(1);
+    parts.push('<line x1="' + xNow + '" y1="0" x2="' + xNow + '" y2="' + H + '" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>');
+    parts.push('<circle cx="' + xNow + '" cy="' + Y(energyAt(now)).toFixed(1) + '" r="4" fill="#fff"/>');
+    if (scrubT != null) {
+      const xs = X(scrubT).toFixed(1), ys = Y(energyAt(scrubT)).toFixed(1);
+      parts.push('<line x1="' + xs + '" y1="0" x2="' + xs + '" y2="' + H + '" stroke="rgba(196,181,253,0.7)" stroke-width="1.5" stroke-dasharray="3 3"/>');
+      parts.push('<circle cx="' + xs + '" cy="' + ys + '" r="6" fill="#0e0e10" stroke="#C4B5FD" stroke-width="2.5"/>');
+    }
+    svg.innerHTML = parts.join('');
+  }
+  function avgOverLastNDays(n) {
+    const daily = storeGet(DAILY_KEY) || {};
+    const vals = Object.keys(daily).sort().slice(-n).map(k => daily[k].avgScore).filter(v => v != null);
+    return vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : null;
+  }
+  function weeklyAverages(nWeeks) {
+    const daily = storeGet(DAILY_KEY) || {};
+    const keys = Object.keys(daily).sort();
+    const buckets = {};
+    keys.forEach(k => {
+      const d = new Date(k + 'T00:00:00');
+      const dow = (d.getDay() + 6) % 7; // 0 = Monday
+      const weekStart = new Date(d); weekStart.setDate(d.getDate() - dow);
+      const wk = dateToKey(weekStart);
+      (buckets[wk] = buckets[wk] || []).push(daily[k].avgScore);
+    });
+    return Object.keys(buckets).sort().slice(-nWeeks).map(wk => ({
+      key: wk, v: Math.round(buckets[wk].reduce((a,b)=>a+b,0) / buckets[wk].length),
+    }));
+  }
+  function monthlyAverages(nMonths) {
+    const daily = storeGet(DAILY_KEY) || {};
+    const keys = Object.keys(daily).sort();
+    const buckets = {};
+    keys.forEach(k => { const mk = k.slice(0, 7); (buckets[mk] = buckets[mk] || []).push(daily[k].avgScore); });
+    return Object.keys(buckets).sort().slice(-nMonths).map(mk => ({
+      key: mk, v: Math.round(buckets[mk].reduce((a,b)=>a+b,0) / buckets[mk].length),
+    }));
+  }
+
+  function renderGradeBand() {
+    const today = todayAverageScore();
+    $('gradeToday').textContent = today != null ? (Math.round(today) + ' · ' + stateWord(today)) : 'Log a morning check-in';
+    const avg7 = avgOverLastNDays(7);
+    $('grade7d').textContent = avg7 != null ? (Math.round(avg7) + ' avg') : '—';
+    const avg30 = avgOverLastNDays(30);
+    $('grade30d').textContent = avg30 != null ? (Math.round(avg30) + ' avg') : '—';
+    const rhrAvg = rollingRhrAvg(), todayRhr = readTodayRhr();
+    if (rhrAvg != null && todayRhr != null) {
+      const diff = Math.round(todayRhr - rhrAvg);
+      $('gradeRhr').textContent = (diff > 0 ? '+' : '') + diff + ' bpm';
+      $('gradeRhr').style.color = diff > 3 ? 'var(--danger)' : diff < -2 ? 'var(--success)' : 'var(--text-primary)';
+    } else { $('gradeRhr').textContent = 'Building baseline'; $('gradeRhr').style.color = 'var(--text-primary)'; }
+  }
+  // Snapshot of the actual inputs behind today's score — without this,
+  // peakContext() below could only ever tell Nova the FINAL number for past
+  // days, never why, since todaysCheckins()/readHydrationPct()/etc. all read
+  // "today" specifically and go stale the moment the day rolls over. This
+  // freezes them into history so a later "why was Tuesday low" question has
+  // real data to answer from instead of generic guessing.
+  function computeFactorsSnapshot() {
+    const sleepFactor = readSleepFactor();
+    const hyd = readHydrationPct();
+    const nut = readNutritionPct();
+    const sup = readSupplementPct();
+    const rhrAvg = rollingRhrAvg(), todayRhr = readTodayRhr();
+    const todays = todaysCheckins();
+    const feelings = todays.filter(c => c.feeling).map(c => c.feeling);
+    const stresses = todays.filter(c => c.stress).map(c => c.stress);
+    return {
+      sleep: sleepFactor != null ? Math.round(sleepFactor) : null,
+      hydration: hyd != null ? Math.round(hyd) : null,
+      nutrition: nut != null ? Math.round(nut) : null,
+      supplements: sup != null ? Math.round(sup) : null,
+      rhrDiff: (rhrAvg != null && todayRhr != null) ? Math.round(todayRhr - rhrAvg) : null,
+      workouts: readWorkoutTimestamps().length,
+      checkinCount: todays.length,
+      avgFeeling: feelings.length ? +(feelings.reduce((a, b) => a + b, 0) / feelings.length).toFixed(1) : null,
+      avgStress: stresses.length ? +(stresses.reduce((a, b) => a + b, 0) / stresses.length).toFixed(1) : null,
+    };
+  }
+  function persistDailyScore() {
+    const today = todayAverageScore();
+    if (today == null) return;
+    const daily = storeGet(DAILY_KEY) || {};
+    daily[todayKey()] = { avgScore: Math.round(today), tier: stateWord(today), computedAt: Date.now(), factors: computeFactorsSnapshot() };
+    storeSet(DAILY_KEY, daily);
+  }
+
+  function factorRow(ic, main, adjText, cls) {
+    return '<li class="factor-row"><span class="factor-ic">' + ic + '</span><span class="factor-main">' + main + '</span><span class="factor-adj ' + cls + '">' + adjText + '</span></li>';
+  }
+  function renderFactors() {
+    const rows = [];
+    const m = getNights()[todayKey()];
+    const sleepFactor = readSleepFactor();
+    if (sleepFactor != null) {
+      const pct = Math.round((0.6 + 0.4 * sleepFactor / 100) * 100);
+      rows.push(factorRow('😴', '<b>Sleep</b> — ' + (whoop.sleepPct != null ? (whoop.sleepPct + '% performance (WHOOP)') : ((m && m.sleepHours ? m.sleepHours + 'h' : '—') + ', quality ' + (m && m.sleepQuality ? m.sleepQuality + '/5' : '—'))), 'scaling curve to ' + pct + '%', sleepFactor >= 70 ? 'pos' : sleepFactor >= 40 ? 'flat' : 'neg'));
+    } else {
+      rows.push(factorRow('😴', '<b>Sleep</b> — no check-in yet today', 'neutral', 'flat'));
+    }
+    const rhrAvg = rollingRhrAvg(), todayRhr = readTodayRhr();
+    if (rhrAvg != null && todayRhr != null) {
+      const adj = Math.round(clamp(-(todayRhr - rhrAvg) / 3 * 5, -20, 10));
+      rows.push(factorRow('❤️', '<b>RHR</b> — ' + todayRhr + ' bpm (your avg ' + Math.round(rhrAvg) + ')', (adj>0?'+':'') + adj + ' pts', adj>0?'pos':adj<0?'neg':'flat'));
+    } else if (todayRhr != null) {
+      rows.push(factorRow('❤️', '<b>RHR</b> — ' + todayRhr + ' bpm', 'building your baseline', 'flat'));
+    } else {
+      rows.push(factorRow('❤️', '<b>RHR</b> — not logged today', 'neutral', 'flat'));
+    }
+    const hyd = readHydrationPct();
+    if (hyd != null) { const adj = hyd>=80?5:hyd>=50?0:-10; rows.push(factorRow('💧', '<b>Hydration</b> — ' + Math.round(hyd) + '% of target', (adj>0?'+':'') + adj + ' pts', adj>0?'pos':adj<0?'neg':'flat')); }
+    else rows.push(factorRow('💧', '<b>Hydration</b> — no data', 'neutral', 'flat'));
+    const nut = readNutritionPct();
+    if (nut != null) { const dev=Math.abs(100-nut); const adj = dev<=15?5:dev<=30?0:-8; rows.push(factorRow('🍽️', '<b>Nutrition</b> — ' + Math.round(nut) + '% of calorie target', (adj>0?'+':'') + adj + ' pts', adj>0?'pos':adj<0?'neg':'flat')); }
+    else rows.push(factorRow('🍽️', '<b>Nutrition</b> — no meals logged today', 'neutral', 'flat'));
+    const sup = readSupplementPct();
+    if (sup != null) { const adj = Math.round((sup-50)/50*5); rows.push(factorRow('💊', '<b>Supplements</b> — ' + Math.round(sup) + '% taken', (adj>0?'+':'') + adj + ' pts', adj>0?'pos':adj<0?'neg':'flat')); }
+    else rows.push(factorRow('💊', '<b>Supplements</b> — no stack set up', 'neutral', 'flat'));
+    const cafNow = Math.round(readCaffeineMgAt(nowHour())), nicNow = Math.round(readNicotineMgAt(nowHour())*10)/10;
+    if (cafNow > 0 || nicNow > 0) rows.push(factorRow('☕', '<b>Stimulants</b> — ' + cafNow + 'mg caffeine' + (nicNow>0?', '+nicNow+'mg nicotine':'') + ' active', 'boosting now', 'pos'));
+    else rows.push(factorRow('☕', '<b>Stimulants</b> — none active', 'neutral', 'flat'));
+    const wCount = readWorkoutTimestamps().length;
+    rows.push(factorRow('🏋️', '<b>Workout</b> — ' + (wCount ? wCount + ' logged today' : 'none today'), wCount ? '+3 pts baseline' : 'neutral', wCount ? 'pos' : 'flat'));
+    const todays = todaysCheckins();
+    if (todays.length) {
+      const avgF = todays.filter(c=>c.feeling).reduce((a,c)=>a+c.feeling,0) / (todays.filter(c=>c.feeling).length || 1);
+      const avgS = todays.filter(c=>c.stress).reduce((a,c)=>a+c.stress,0) / (todays.filter(c=>c.stress).length || 1);
+      rows.push(factorRow('🧠', '<b>Check-ins</b> — avg feeling ' + avgF.toFixed(1) + '/5, stress ' + avgS.toFixed(1) + '/5', 'anchoring curve', 'flat'));
+    } else rows.push(factorRow('🧠', '<b>Check-ins</b> — none logged today', 'curve is pure prediction', 'flat'));
+    $('factorList').innerHTML = rows.join('');
+  }
+
+  // ============================================================
+  // INSIGHTS — a couple of specific, pre-defined correlations mined from
+  // history, rather than a general-purpose stats engine. Each needs a
+  // minimum sample size per side of the comparison before showing
+  // anything, so a handful of days doesn't get over-read as a real pattern.
+  // ============================================================
+  const INSIGHT_MIN_SAMPLES = 5;
+  function avg(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+  function shiftDateKey(dateKey, days) {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + days);
+    return dateToKey(dt);
+  }
+
+  // Late-afternoon/evening caffeine (>=2pm) the day before, vs. that
+  // night's logged sleep quality the following morning.
+  function computeCaffeineSleepInsight() {
+    const cafLogs = storeGet('caf:logs') || [];
+    const lateCaffeineDays = new Set();
+    cafLogs.forEach(l => {
+      if (!l.ts) return;
+      const d = new Date(l.ts);
+      if (d.getHours() >= 14) lateCaffeineDays.add(dateToKey(d));
+    });
+    const morning = getNights();
+    const withLate = [], withoutLate = [];
+    Object.keys(morning).forEach(dateKey => {
+      const q = morning[dateKey] && morning[dateKey].sleepQuality;
+      if (!q) return;
+      const prevDay = shiftDateKey(dateKey, -1);
+      (lateCaffeineDays.has(prevDay) ? withLate : withoutLate).push(q);
+    });
+    if (withLate.length < INSIGHT_MIN_SAMPLES || withoutLate.length < INSIGHT_MIN_SAMPLES) return null;
+    return { avgWith: avg(withLate), avgWithout: avg(withoutLate), nWith: withLate.length, nWithout: withoutLate.length };
+  }
+
+  // Morning-logged sleep quality vs. that SAME day's average check-in stress.
+  function computeSleepStressInsight() {
+    const morning = getNights();
+    const checkins = getCheckins();
+    const stressByDay = {};
+    checkins.forEach(c => {
+      if (!c.stress || !c.dateKey) return;
+      (stressByDay[c.dateKey] = stressByDay[c.dateKey] || []).push(c.stress);
+    });
+    const goodSleepStress = [], poorSleepStress = [];
+    Object.keys(morning).forEach(dateKey => {
+      const q = morning[dateKey] && morning[dateKey].sleepQuality;
+      const dayStress = stressByDay[dateKey];
+      if (!q || !dayStress || !dayStress.length) return;
+      const dayAvgStress = avg(dayStress);
+      if (q >= 4) goodSleepStress.push(dayAvgStress);
+      else if (q <= 2) poorSleepStress.push(dayAvgStress);
+    });
+    if (goodSleepStress.length < INSIGHT_MIN_SAMPLES || poorSleepStress.length < INSIGHT_MIN_SAMPLES) return null;
+    return { avgGood: avg(goodSleepStress), avgPoor: avg(poorSleepStress), nGood: goodSleepStress.length, nPoor: poorSleepStress.length };
+  }
+
+  // Gym day (plain calendar date, matching po_coach_workout_done's own
+  // convention) vs. that SAME day's average check-in feeling/stress —
+  // generalizes the caffeine/sleep and sleep/stress pattern above to a
+  // different life domain (working out) using the same "two buckets, min
+  // sample size per side" approach rather than a different statistical
+  // method, so the results read the same way. checkinField is 'feeling' or
+  // 'stress' — one function covers both since the bucketing logic is
+  // identical, only which check-in field gets averaged differs.
+  function computeGymCheckinInsight(checkinField) {
+    const doneDays = storeGet('po_coach_workout_done') || {};
+    const checkins = getCheckins();
+    const byDay = {};
+    checkins.forEach(c => {
+      if (!c[checkinField] || !c.dateKey) return;
+      (byDay[c.dateKey] = byDay[c.dateKey] || []).push(c[checkinField]);
+    });
+    const withGym = [], withoutGym = [];
+    Object.keys(byDay).forEach(dateKey => {
+      const dayAvg = avg(byDay[dateKey]);
+      (doneDays[dateKey] ? withGym : withoutGym).push(dayAvg);
+    });
+    if (withGym.length < INSIGHT_MIN_SAMPLES || withoutGym.length < INSIGHT_MIN_SAMPLES) return null;
+    return { avgWith: avg(withGym), avgWithout: avg(withoutGym), nWith: withGym.length, nWithout: withoutGym.length };
+  }
+
+  // Gym day vs. THAT NIGHT'S logged sleep quality the following morning —
+  // same day-shift relationship as the caffeine/sleep insight (an evening
+  // behavior affecting the sleep that follows it), just a different source
+  // behavior.
+  function computeGymSleepInsight() {
+    const doneDays = storeGet('po_coach_workout_done') || {};
+    const morning = getNights();
+    const withGym = [], withoutGym = [];
+    Object.keys(morning).forEach(dateKey => {
+      const q = morning[dateKey] && morning[dateKey].sleepQuality;
+      if (!q) return;
+      const prevDay = shiftDateKey(dateKey, -1);
+      (doneDays[prevDay] ? withGym : withoutGym).push(q);
+    });
+    if (withGym.length < INSIGHT_MIN_SAMPLES || withoutGym.length < INSIGHT_MIN_SAMPLES) return null;
+    return { avgWith: avg(withGym), avgWithout: avg(withoutGym), nWith: withGym.length, nWithout: withoutGym.length };
+  }
+
+  function renderInsights() {
+    const list = $('insightList'), empty = $('insightEmpty');
+    const rows = [];
+
+    const caf = computeCaffeineSleepInsight();
+    if (caf) {
+      const diff = caf.avgWithout - caf.avgWith;
+      const meaningful = Math.abs(diff) >= 0.4;
+      const text = 'On nights with caffeine at/after 2pm, sleep quality averaged <b>' + caf.avgWith.toFixed(1) + '/5</b> vs <b>'
+        + caf.avgWithout.toFixed(1) + '/5</b> without (' + caf.nWith + ' vs ' + caf.nWithout + ' days)';
+      rows.push(factorRow('☕', text, meaningful && diff > 0 ? 'worse sleep' : meaningful ? 'better sleep' : 'no difference', meaningful && diff > 0 ? 'neg' : meaningful ? 'pos' : 'flat'));
+    }
+
+    const sleepStress = computeSleepStressInsight();
+    if (sleepStress) {
+      const diff = sleepStress.avgPoor - sleepStress.avgGood;
+      const meaningful = Math.abs(diff) >= 0.4;
+      const text = 'On good-sleep days (4-5/5), average stress was <b>' + sleepStress.avgGood.toFixed(1) + '/5</b> vs <b>'
+        + sleepStress.avgPoor.toFixed(1) + '/5</b> on poor-sleep days (1-2/5) (' + sleepStress.nGood + ' vs ' + sleepStress.nPoor + ' days)';
+      rows.push(factorRow('😴', text, meaningful && diff > 0 ? 'more stress' : meaningful ? 'less stress' : 'no difference', meaningful && diff > 0 ? 'neg' : meaningful ? 'pos' : 'flat'));
+    }
+
+    const gymFeeling = computeGymCheckinInsight('feeling');
+    if (gymFeeling) {
+      const diff = gymFeeling.avgWith - gymFeeling.avgWithout;
+      const meaningful = Math.abs(diff) >= 0.4;
+      const text = 'On gym days, average feeling was <b>' + gymFeeling.avgWith.toFixed(1) + '/5</b> vs <b>'
+        + gymFeeling.avgWithout.toFixed(1) + '/5</b> on rest days (' + gymFeeling.nWith + ' vs ' + gymFeeling.nWithout + ' days)';
+      rows.push(factorRow('💪', text, meaningful && diff > 0 ? 'better mood' : meaningful ? 'worse mood' : 'no difference', meaningful && diff > 0 ? 'pos' : meaningful ? 'neg' : 'flat'));
+    }
+
+    const gymStress = computeGymCheckinInsight('stress');
+    if (gymStress) {
+      const diff = gymStress.avgWith - gymStress.avgWithout;
+      const meaningful = Math.abs(diff) >= 0.4;
+      const text = 'On gym days, average stress was <b>' + gymStress.avgWith.toFixed(1) + '/5</b> vs <b>'
+        + gymStress.avgWithout.toFixed(1) + '/5</b> on rest days (' + gymStress.nWith + ' vs ' + gymStress.nWithout + ' days)';
+      rows.push(factorRow('💪', text, meaningful && diff < 0 ? 'less stress' : meaningful ? 'more stress' : 'no difference', meaningful && diff < 0 ? 'pos' : meaningful ? 'neg' : 'flat'));
+    }
+
+    const gymSleep = computeGymSleepInsight();
+    if (gymSleep) {
+      const diff = gymSleep.avgWith - gymSleep.avgWithout;
+      const meaningful = Math.abs(diff) >= 0.4;
+      const text = 'On nights after a gym day, sleep quality averaged <b>' + gymSleep.avgWith.toFixed(1) + '/5</b> vs <b>'
+        + gymSleep.avgWithout.toFixed(1) + '/5</b> on nights after a rest day (' + gymSleep.nWith + ' vs ' + gymSleep.nWithout + ' days)';
+      rows.push(factorRow('💪', text, meaningful && diff > 0 ? 'better sleep' : meaningful ? 'worse sleep' : 'no difference', meaningful && diff > 0 ? 'pos' : meaningful ? 'neg' : 'flat'));
+    }
+
+    if (!rows.length) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+    } else {
+      empty.style.display = 'none';
+      list.innerHTML = rows.join('');
+    }
+  }
+
+  let trendMode = 'day'; // 'day' | 'week' | 'month'
+  function renderTrend() {
+    const svg = $('trendChart'), emptyEl = $('trendEmpty');
+    let items, emptyMsg;
+    if (trendMode === 'week') {
+      items = weeklyAverages(12);
+      emptyMsg = 'Not enough history yet — check back after a couple weeks.';
+    } else if (trendMode === 'month') {
+      items = monthlyAverages(6);
+      emptyMsg = 'Not enough history yet — check back after a month or two.';
+    } else {
+      const daily = storeGet(DAILY_KEY) || {};
+      items = Object.keys(daily).sort().slice(-30).map(k => ({ key: k, v: daily[k].avgScore }));
+      emptyMsg = 'Not enough history yet — check back after a few days.';
+    }
+
+    // Toggle visibility instead of ever replacing trendWrap's innerHTML —
+    // that would permanently destroy the #trendChart svg node the same way
+    // an earlier bug did on gym.html's cardio chart.
+    if (!items.length) {
+      svg.style.display = 'none';
+      emptyEl.textContent = emptyMsg; emptyEl.style.display = '';
+      $('trendLegend').innerHTML = '';
+      return;
+    }
+    svg.style.display = ''; emptyEl.style.display = 'none';
+
+    const W = 600, H = 140, padT = 10, padB = 8;
+    const barW = Math.min(30, (W / items.length) * 0.6);
+    const gap = (W - barW * items.length) / (items.length + 1);
+    let parts = [];
+    items.forEach((it, i) => {
+      const v = it.v;
+      const x = gap + i * (barW + gap);
+      const h = (v / 100) * (H - padT - padB);
+      const y = H - padB - h;
+      parts.push('<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" fill="' + stateColor(v) + '" opacity="0.9"><title>' + it.key + ': ' + v + '</title></rect>');
+    });
+    svg.innerHTML = parts.join('');
+    $('trendLegend').innerHTML = ['Peak','High','Steady','Dip','Low'].map(w => {
+      const colorMap = { Peak:'#C4B5FD', High:'#6BE3A4', Steady:'#F2C063', Dip:'#FB923C', Low:'#FF6B6B' };
+      return '<span class="lg"><span class="sw" style="background:' + colorMap[w] + '"></span>' + w + '</span>';
+    }).join('');
+  }
+  $('trendToggle').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    trendMode = b.dataset.m;
+    $('trendToggle').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    renderTrend();
+  }));
+
+  function renderAll() {
+    renderCheckinLog();
+    renderActivityLog();
+    persistDailyScore();
+    renderRing(); renderChart(); renderGradeBand(); renderFactors(); renderInsights(); renderTrend();
+  }
+
+  /* ============ Scrub interaction ============ */
+  function scrubFromEvent(e) {
+    const wrap = $('curveWrap'); const rect = wrap.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    scrubT = clamp((cx / rect.width) * 24, 0, 24); renderRing(); renderChart();
+  }
+  function endScrub() { scrubT = null; renderRing(); renderChart(); }
+  const wrap = $('curveWrap');
+  wrap.addEventListener('mousemove', scrubFromEvent);
+  wrap.addEventListener('mouseleave', endScrub);
+  wrap.addEventListener('touchstart', (e) => { scrubFromEvent(e); }, { passive: true });
+  wrap.addEventListener('touchmove', (e) => { scrubFromEvent(e); }, { passive: true });
+  wrap.addEventListener('touchend', endScrub);
+
+  renderAll();
+  loadWhoop();
+  setInterval(() => { if (scrubT == null) renderAll(); }, 60000);
+
+  /* ============ Nova Peak coach ============ */
+  const KEY_LS = 'nova_lite_api_key';
+  const HIST_KEY = 'nova:peak:history';
+  const fab = $('nvFab'), panel = $('nvPanel'), body = $('nvBody'), input = $('nvInput');
+  function savedKey() { try { return localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; } }
+  function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+  function md(t) {
+    let h = esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>');
+    return h.split('\n').join('<br>');
+  }
+  function loadHistory() { return storeGet(HIST_KEY) || []; }
+  function saveHistory(h) { storeSet(HIST_KEY, h.slice(-20)); }
+  let history = loadHistory();
+  function addMsg(role, html) {
+    const div = document.createElement('div'); div.className = 'nv-msg ' + (role === 'user' ? 'user' : 'coach'); div.innerHTML = html;
+    body.appendChild(div); body.scrollTop = body.scrollHeight;
+  }
+  function replayHistory() {
+    body.innerHTML = '';
+    if (!history.length) { addMsg('coach', "Hey — I'm Nova, your peak coach. I can see your sleep, RHR, hydration, nutrition, stimulants, workouts, and how you say you're feeling. Ask me why today looks the way it does, or what to change."); return; }
+    history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'coach', md(m.content)));
+  }
+  // Renders one past day's stored factor snapshot (see computeFactorsSnapshot)
+  // back into the same style of line peakContext() uses for "today" below,
+  // so Nova can explain a specific past day instead of only ever seeing its
+  // final score. Days persisted before this existed just show the score.
+  function factorsLine(f) {
+    if (!f) return '';
+    const bits = [];
+    if (f.sleep != null) bits.push('sleep ' + f.sleep + '%');
+    if (f.hydration != null) bits.push('hydration ' + f.hydration + '%');
+    if (f.nutrition != null) bits.push('nutrition ' + f.nutrition + '%');
+    if (f.supplements != null) bits.push('supplements ' + f.supplements + '%');
+    if (f.rhrDiff != null) bits.push('RHR ' + (f.rhrDiff > 0 ? '+' : '') + f.rhrDiff + ' vs baseline');
+    bits.push(f.workouts ? f.workouts + ' workout' + (f.workouts === 1 ? '' : 's') : 'no workout');
+    if (f.checkinCount) bits.push('checkins: feeling ' + f.avgFeeling + '/5, stress ' + f.avgStress + '/5');
+    return bits.length ? ' — ' + bits.join(', ') : '';
+  }
+  function peakContext() {
+    const today = todayAverageScore();
+    const m = getNights()[todayKey()];
+    const daily = storeGet(DAILY_KEY) || {};
+    const last7 = Object.keys(daily).sort().slice(-7).map(k => k + ': ' + daily[k].avgScore + ' (' + daily[k].tier + ')' + factorsLine(daily[k].factors));
+    return '\n\nCurrent context:\n'
+      + 'Today so far: ' + (today != null ? Math.round(today) + ' (' + stateWord(today) + ')' : 'not enough data yet') + '\n'
+      + "Last night's sleep: " + (m ? ('wake ' + (m.wakeTime||'—') + ', RHR ' + (m.rhr||'—') + ', slept ' + (m.sleepHours||'—') + 'h, quality ' + (m.sleepQuality||'—') + '/5') : 'none logged today') + '\n'
+      + 'Hydration: ' + (readHydrationPct() != null ? Math.round(readHydrationPct()) + '% of target' : 'no data') + '\n'
+      + 'Nutrition: ' + (readNutritionPct() != null ? Math.round(readNutritionPct()) + '% of calorie target' : 'no data') + '\n'
+      + 'Supplements: ' + (readSupplementPct() != null ? Math.round(readSupplementPct()) + '% taken' : 'no data') + '\n'
+      + 'Caffeine active now: ' + Math.round(readCaffeineMgAt(nowHour())) + 'mg, nicotine: ' + Math.round(readNicotineMgAt(nowHour())*10)/10 + 'mg\n'
+      + 'Workouts today: ' + readWorkoutTimestamps().length + '\n'
+      + "Today's check-ins: " + todaysCheckins().map(c => (c.feeling?('feeling '+c.feeling+'/5 '):'') + (c.stress?('stress '+c.stress+'/5 '):'') + (c.note||'')).join(' | ') + '\n'
+      + 'Last 7 days (with what actually drove each day\'s score, where recorded): ' + (last7.join('; ') || 'no history yet');
+  }
+  const SYS = "You are Nova, Fernando's peak/energy coach inside his personal dashboard. He tracks a composite energy score (0-100, tiers Peak/High/Steady/Dip/Low) built from sleep, resting heart rate vs his own baseline, hydration, nutrition, supplements, caffeine/nicotine, workouts, and self-reported feeling/stress check-ins. "
+    + "Answer using the real context provided below each message — the last-7-days line includes the actual factor breakdown behind each day's score where it was recorded, so use those specifics rather than guessing at generic causes when asked about a past day. Be specific about which factors are helping or hurting, not generic wellness advice. Keep replies concise (3-6 sentences unless asked for more), plain text with occasional **bold**, no long lists unless helpful.";
+
+  async function ask(text) {
+    text = (text || '').trim(); if (!text || panel.dataset.busy) return;
+    const key = savedKey();
+    addMsg('user', md(text));
+    if (!key) { addMsg('coach', md("Paste your **Anthropic API key** on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and I'll use it here too.")); return; }
+    panel.dataset.busy = '1';
+    history.push({ role: 'user', content: text });
+    if (history.length > 20) history = history.slice(-20);
+    const dots = document.createElement('div'); dots.className = 'nv-msg coach'; dots.innerHTML = '<div class="nv-dots"><i></i><i></i><i></i></div>';
+    body.appendChild(dots); body.scrollTop = body.scrollHeight;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-opus-4-8', max_tokens: 700, system: SYS + peakContext(), messages: history }),
+      });
+      const data = await res.json();
+      dots.remove();
+      const t = (data && data.content && data.content[0] && data.content[0].text) ? data.content[0].text : "Sorry, I couldn't get a response just now.";
+      addMsg('coach', md(t));
+      history.push({ role: 'assistant', content: t });
+      saveHistory(history);
+    } catch (e) {
+      dots.remove();
+      history.pop();
+      addMsg('coach', md("Something went wrong reaching Claude — check your API key and connection."));
+    } finally { panel.dataset.busy = ''; }
+  }
+  fab.addEventListener('click', () => { panel.classList.toggle('open'); if (panel.classList.contains('open')) { replayHistory(); input.focus(); } });
+  $('nvClose').addEventListener('click', () => panel.classList.remove('open'));
+  $('nvNew').addEventListener('click', () => { history = []; saveHistory(history); replayHistory(); });
+  $('nvSend').addEventListener('click', () => { const t = input.value; input.value = ''; ask(t); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const t = input.value; input.value = ''; ask(t); } });
+  $('nvQuick').querySelectorAll('.nv-chip').forEach(c => c.addEventListener('click', () => ask(c.dataset.q)));
+
+  /* ============ Cloud sync ============ */
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'peak',
+      syncedKeys: [CHECKIN_KEY, DAILY_KEY, HIST_KEY, ACTIVITY_KEY],
+      onApplied: function () { renderAll(); },
+    });
+  });
+})();
+</script>
+</body>
+</html>

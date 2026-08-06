@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Correlation Lab · Insights</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.cl-intro { color: var(--text-tertiary); font-size: 13px; line-height: 1.65; margin: 4px 0 18px; max-width: 760px; }
+.cl-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.cl-preset {
+  padding: 7px 12px; border: 1px solid var(--hud-line); border-radius: var(--radius-full,999px);
+  background: rgba(255,255,255,0.03); color: var(--text-secondary); cursor: pointer;
+  font-size: 11.5px; font-weight: 700;
+}
+.cl-preset:hover, .cl-preset:focus-visible, .cl-preset.is-active { border-color: var(--hud); color: var(--hud); background: rgba(var(--hud-rgb),0.12); }
+.cl-grid { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) minmax(130px,.55fr); gap: 10px; align-items: end; }
+.cl-field { min-width: 0; }
+.cl-label { display: block; color: var(--text-tertiary); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+.cl-select { width: 100%; min-width: 0; }
+.cl-vs { align-self: center; margin-top: 20px; color: var(--hud); font: 800 11px var(--font-mono,monospace); letter-spacing: .1em; }
+.cl-run { width: 100%; min-height: 42px; }
+.cl-run:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none; }
+.cl-proxy-note { margin-top: 10px; color: #FBBF24; font-size: 11.5px; line-height: 1.5; display: none; }
+.cl-proxy-note.show { display: block; }
+
+.cl-status { font-size: 13px; color: var(--text-tertiary); padding: 30px 4px; text-align: center; }
+.cl-status.is-error { color: var(--danger,#FF5470); }
+.cl-result { margin-top: 14px; }
+.cl-result-head { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 18px; align-items: center; }
+.cl-r-wrap { text-align: center; padding: 16px 10px; border: 1px solid var(--hud-line); border-radius: var(--radius-md,16px); background: rgba(var(--hud-rgb),.05); }
+.cl-r-label { color: var(--text-tertiary); font: 800 9.5px var(--font-mono,monospace); letter-spacing: .1em; text-transform: uppercase; }
+.cl-r { color: var(--hud); font: 800 34px var(--font-mono,monospace); letter-spacing: -.04em; margin: 3px 0 1px; }
+.cl-strength { color: var(--text-primary); font-size: 11.5px; font-weight: 800; }
+.cl-pair { color: var(--text-primary); font-size: 17px; font-weight: 750; line-height: 1.35; }
+.cl-direction { color: var(--text-secondary); font-size: 13px; line-height: 1.55; margin-top: 5px; }
+.cl-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.cl-chip { border: 1px solid var(--hud-line-soft); border-radius: var(--radius-full,999px); padding: 4px 9px; color: var(--text-tertiary); font-size: 10.5px; }
+.cl-empty-title { color: var(--text-primary); font-size: 16px; font-weight: 750; margin-bottom: 5px; }
+.cl-empty-copy { color: var(--text-tertiary); font-size: 12.5px; line-height: 1.6; }
+
+.cl-lag-title { color: var(--text-primary); font-size: 13px; font-weight: 750; margin: 18px 0 4px; }
+.cl-lag-explain { color: var(--text-tertiary); font-size: 11.5px; line-height: 1.5; margin-bottom: 10px; }
+.cl-lags { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 6px; align-items: end; }
+.cl-lag { min-width: 0; text-align: center; }
+.cl-lag-track { height: 70px; display: flex; align-items: flex-end; justify-content: center; border: 1px solid var(--hud-line-soft); border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.02); }
+.cl-lag-bar { width: 100%; min-height: 2px; background: #3FE0A8; opacity: .82; }
+.cl-lag-bar.negative { background: #FF5470; }
+.cl-lag.is-best .cl-lag-track { border-color: var(--hud); box-shadow: inset 0 0 0 1px rgba(var(--hud-rgb),.15); }
+.cl-lag-r { color: var(--text-secondary); font: 750 10px var(--font-mono,monospace); margin-top: 5px; white-space: nowrap; }
+.cl-lag-label { color: var(--text-tertiary); font-size: 9.5px; margin-top: 2px; white-space: nowrap; }
+.cl-lag-missing { color: var(--text-tertiary); font-size: 9px; align-self: center; padding-bottom: 25px; }
+
+.cl-caveat { margin-top: 12px; padding: 9px 11px; border-left: 2px solid #FBBF24; background: rgba(251,191,36,.07); color: var(--text-secondary); font-size: 11.5px; line-height: 1.5; }
+.cl-disclaimer { margin-top: 14px; border-top: 1px solid var(--hud-line-soft); padding-top: 10px; color: var(--text-tertiary); font-size: 11px; line-height: 1.55; }
+.cl-method { margin-top: 10px; color: var(--text-tertiary); font-size: 10.5px; line-height: 1.55; }
+
+@media (max-width: 720px) {
+  .cl-grid { grid-template-columns: 1fr 1fr; }
+  .cl-vs { display: none; }
+  .cl-field-window, .cl-run { grid-column: span 1; }
+}
+@media (max-width: 520px) {
+  .cl-grid { grid-template-columns: 1fr; }
+  .cl-field-window, .cl-run { grid-column: auto; }
+  .cl-result-head { grid-template-columns: 1fr; }
+  .cl-r-wrap { display: grid; grid-template-columns: auto auto auto; align-items: baseline; justify-content: center; gap: 8px; }
+  .cl-r { font-size: 28px; }
+  .cl-lags { gap: 3px; }
+  .cl-lag-track { height: 58px; }
+  .cl-lag-r { font-size: 8.5px; }
+  .cl-lag-label { font-size: 8.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .cl-preset, .cl-run { transition: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <a class="back-link" href="hub-insights.html">← Insights</a>
+  <h1 class="dash-title">Correlation Lab</h1>
+  <p class="cl-intro">Compare two metrics you already track. The Lab only uses days where both have real values, refuses small or unchanging samples, and checks whether one tends to lead the other by up to three days.</p>
+
+  <div class="section">
+    <div class="gm-card">
+      <span class="cl-label">Presets</span>
+      <div class="cl-presets" id="clPresets" aria-label="Correlation presets"></div>
+      <div class="cl-grid">
+        <label class="cl-field">
+          <span class="cl-label">First metric</span>
+          <select class="gm-input cl-select" id="clMetricA"></select>
+        </label>
+        <span class="cl-vs" aria-hidden="true">VS</span>
+        <label class="cl-field">
+          <span class="cl-label">Second metric</span>
+          <select class="gm-input cl-select" id="clMetricB"></select>
+        </label>
+        <label class="cl-field cl-field-window">
+          <span class="cl-label">Window</span>
+          <select class="gm-input cl-select" id="clWindow">
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90" selected>90 days</option>
+            <option value="180">180 days</option>
+          </select>
+        </label>
+        <button class="gm-add cl-run" id="clRun" type="button" disabled>Analyze</button>
+      </div>
+      <div class="cl-proxy-note" id="clProxyNote"></div>
+    </div>
+  </div>
+
+  <div class="section" id="clResults">
+    <div class="cl-status" id="clStatus">Loading your tracked metrics…</div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  METRIC_CATALOG, CORRELATION_PRESETS, MIN_CORRELATION_SAMPLES,
+  lastNDateKeys, buildDayRows, buildCorrelationResult,
+} from './correlation-lab.js';
+
+const metricAEl = document.getElementById('clMetricA');
+const metricBEl = document.getElementById('clMetricB');
+const windowEl = document.getElementById('clWindow');
+const runEl = document.getElementById('clRun');
+const presetsEl = document.getElementById('clPresets');
+const resultsEl = document.getElementById('clResults');
+const statusEl = document.getElementById('clStatus');
+const proxyNoteEl = document.getElementById('clProxyNote');
+
+let rowsByKey = null;
+let activePreset = null;
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+}
+
+function populateMetricSelect(select, selectedId) {
+  const groups = {};
+  METRIC_CATALOG.forEach(metric => {
+    groups[metric.group] = groups[metric.group] || [];
+    groups[metric.group].push(metric);
+  });
+  select.innerHTML = '';
+  Object.keys(groups).forEach(groupLabel => {
+    const group = document.createElement('optgroup');
+    group.label = groupLabel;
+    groups[groupLabel].forEach(metric => {
+      const option = document.createElement('option');
+      option.value = metric.id;
+      option.textContent = metric.label;
+      option.selected = metric.id === selectedId;
+      group.appendChild(option);
+    });
+    select.appendChild(group);
+  });
+}
+
+function renderPresets() {
+  presetsEl.innerHTML = '';
+  CORRELATION_PRESETS.forEach(preset => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cl-preset';
+    button.dataset.preset = preset.id;
+    button.textContent = preset.label;
+    button.addEventListener('click', () => {
+      activePreset = preset.id;
+      metricAEl.value = preset.metricA;
+      metricBEl.value = preset.metricB;
+      presetsEl.querySelectorAll('.cl-preset').forEach(item => item.classList.toggle('is-active', item === button));
+      proxyNoteEl.textContent = preset.caveat || '';
+      proxyNoteEl.classList.toggle('show', !!preset.caveat);
+      analyze();
+    });
+    presetsEl.appendChild(button);
+  });
+}
+
+function clearPreset() {
+  activePreset = null;
+  presetsEl.querySelectorAll('.cl-preset').forEach(item => item.classList.remove('is-active'));
+  proxyNoteEl.textContent = '';
+  proxyNoteEl.classList.remove('show');
+}
+
+function formatDate(dateKey) {
+  if (!dateKey) return '—';
+  const parts = dateKey.split('-').map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function lagLabel(lag) {
+  if (lag === 0) return 'Same day';
+  return lag > 0 ? '+' + lag + 'd' : lag + 'd';
+}
+
+function lagSentence(result) {
+  const best = result.bestLag;
+  if (!best) return 'No lag from −3 to +3 days had enough overlapping, varying data.';
+  if (best.lagDays === 0) return 'The strongest relationship in this window is on the same day.';
+  if (best.lagDays > 0) return result.metricB.label + ' is most strongly related ' + best.lagDays + ' day' + (best.lagDays === 1 ? '' : 's') + ' after ' + result.metricA.label.toLowerCase() + '.';
+  const days = Math.abs(best.lagDays);
+  return result.metricB.label + ' is most strongly related ' + days + ' day' + (days === 1 ? '' : 's') + ' before ' + result.metricA.label.toLowerCase() + '.';
+}
+
+function renderLagBars(result) {
+  return result.lags.map(lag => {
+    const isBest = result.bestLag && lag.lagDays === result.bestLag.lagDays;
+    if (lag.status !== 'ok') {
+      return '<div class="cl-lag' + (isBest ? ' is-best' : '') + '"><div class="cl-lag-track"><span class="cl-lag-missing">n=' + lag.n + '</span></div><div class="cl-lag-r">—</div><div class="cl-lag-label">' + lagLabel(lag.lagDays) + '</div></div>';
+    }
+    const height = Math.max(3, Math.round(Math.abs(lag.r) * 100));
+    return '<div class="cl-lag' + (isBest ? ' is-best' : '') + '"><div class="cl-lag-track"><span class="cl-lag-bar' + (lag.r < 0 ? ' negative' : '') + '" style="height:' + height + '%"></span></div><div class="cl-lag-r">' + (lag.r >= 0 ? '+' : '') + lag.r.toFixed(2) + '</div><div class="cl-lag-label">' + lagLabel(lag.lagDays) + '</div></div>';
+  }).join('');
+}
+
+function renderResult(result) {
+  const caveats = (result.caveats || []).map(caveat => '<div class="cl-caveat">' + escapeHtml(caveat) + '</div>').join('');
+  const disclaimer = '<div class="cl-disclaimer"><strong>Correlation ≠ causation.</strong> ' + escapeHtml(result.disclaimer || 'A relationship does not prove that one metric caused the other.') + '</div>';
+  const method = '<div class="cl-method">Pearson r · minimum ' + MIN_CORRELATION_SAMPLES + ' overlapping days · strength bands: &lt;0.10 negligible, 0.10–0.29 weak, 0.30–0.49 moderate, 0.50–0.69 strong, ≥0.70 very strong.</div>';
+
+  if (result.status !== 'ok') {
+    let title = 'Not enough overlapping data';
+    let copy = result.reason || 'Choose two different supported metrics.';
+    if (result.status === 'zero-variance') {
+      title = 'Not enough variation';
+      const constantLabel = result.zeroLag.constant === 'a' ? result.metricA.label : result.zeroLag.constant === 'b' ? result.metricB.label : 'Both metrics';
+      copy = constantLabel + ' stayed constant across the ' + result.zeroLag.n + ' overlapping days, so Pearson r is undefined—not zero.';
+    } else if (result.status === 'invalid') {
+      title = 'Choose a valid pair';
+    }
+    const counts = result.seriesCounts ? '<div class="cl-meta"><span class="cl-chip">' + result.metricA.label + ': ' + result.seriesCounts.a + ' days</span><span class="cl-chip">' + result.metricB.label + ': ' + result.seriesCounts.b + ' days</span></div>' : '';
+    resultsEl.innerHTML = '<div class="gm-card cl-result"><div class="cl-empty-title">' + escapeHtml(title) + '</div><div class="cl-empty-copy">' + escapeHtml(copy) + '</div>' + counts
+      + (result.bestLag ? '<div class="cl-lag-title">Lag scan</div><div class="cl-lag-explain">' + escapeHtml(lagSentence(result)) + '</div><div class="cl-lags">' + renderLagBars(result) + '</div>' : '')
+      + caveats + disclaimer + method + '</div>';
+    return;
+  }
+
+  const zero = result.zeroLag;
+  resultsEl.innerHTML = '<div class="gm-card cl-result">'
+    + '<div class="cl-result-head"><div class="cl-r-wrap"><div class="cl-r-label">Pearson r</div><div class="cl-r">' + (zero.r >= 0 ? '+' : '') + zero.r.toFixed(2) + '</div><div class="cl-strength">' + escapeHtml(zero.strength) + '</div></div>'
+    + '<div><div class="cl-pair">' + escapeHtml(result.metricA.label) + ' × ' + escapeHtml(result.metricB.label) + '</div><div class="cl-direction">' + escapeHtml(result.direction) + '</div>'
+    + '<div class="cl-meta"><span class="cl-chip">n = ' + zero.n + ' overlapping days</span><span class="cl-chip">' + formatDate(zero.dateRange.start) + ' – ' + formatDate(zero.dateRange.end) + '</span><span class="cl-chip">Same-day result</span></div></div></div>'
+    + '<div class="cl-lag-title">Lag scan</div><div class="cl-lag-explain">' + escapeHtml(lagSentence(result)) + ' Positive lag means the second metric follows the first.</div>'
+    + '<div class="cl-lags">' + renderLagBars(result) + '</div>'
+    + caveats + disclaimer + method + '</div>';
+}
+
+function analyze() {
+  if (!rowsByKey) return;
+  const days = Number(windowEl.value) || 90;
+  const dayRows = buildDayRows(rowsByKey, lastNDateKeys(days));
+  renderResult(buildCorrelationResult(dayRows, metricAEl.value, metricBEl.value));
+}
+
+populateMetricSelect(metricAEl, 'sleepHours');
+populateMetricSelect(metricBEl, 'workoutDone');
+renderPresets();
+metricAEl.addEventListener('change', () => { clearPreset(); analyze(); });
+metricBEl.addEventListener('change', () => { clearPreset(); analyze(); });
+windowEl.addEventListener('change', analyze);
+runEl.addEventListener('click', analyze);
+
+// One-shot read of the same app_state rows used by the rest of Insights.
+const SUPABASE_URL = window.DASH_SUPABASE_URL || 'https://srajryooffirbroltjmg.supabase.co';
+const SUPABASE_KEY = window.DASH_SUPABASE_KEY || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+async function load() {
+  if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+    statusEl.textContent = "Cloud sync isn't configured on this device.";
+    statusEl.classList.add('is-error');
+    return;
+  }
+  try {
+    const response = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+    });
+    if (!response.ok) throw new Error('fetch failed: ' + response.status);
+    const rows = await response.json();
+    rowsByKey = {};
+    (Array.isArray(rows) ? rows : []).forEach(row => { if (row && row.key) rowsByKey[row.key] = row.data; });
+    runEl.disabled = false;
+    analyze();
+  } catch (error) {
+    statusEl.textContent = "Couldn't load your tracked metrics — check your connection and try again.";
+    statusEl.classList.add('is-error');
+  }
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Your Year · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+:root { --accent: #FBBF24; }
+.dash-title { margin: 0 0 4px; }
+.dash-sub { font-size: 13px; color: var(--text-tertiary); margin: 0 0 18px; }
+.gm-ghost:disabled { opacity: 0.5; cursor: default; }
+
+/* ===== Narrative insight ===== */
+.insight-body { font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 14px; min-height: 20px; }
+.insight-body.empty { font-style: italic; color: var(--text-tertiary); }
+.insight-meta { font-size: 10.5px; color: var(--text-tertiary); margin-top: 8px; font-family: var(--font-mono); }
+
+/* ===== Recap grid ===== */
+.recap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px,1fr)); gap: 14px; }
+.recap-card {
+  background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 16px;
+}
+.recap-num { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); margin-top: 8px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.recap-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.4; }
+.recap-empty { font-size: 12px; font-style: italic; color: var(--text-tertiary); margin-top: 10px; }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-reflect.html">← Reflect</a>
+  <h1 class="dash-title">Your Year</h1>
+  <p class="dash-sub" id="rangeLabel">Last 365 days</p>
+
+  <!-- NOVA NARRATIVE -->
+  <div class="section">
+    <div class="section-title">Nova Narrative</div>
+    <div class="gm-card">
+      <div class="insight-body empty" id="insightBody">No summary generated yet.</div>
+      <button class="gm-ghost" id="insightBtn" type="button">🧠 Generate Year Summary</button>
+      <div class="insight-meta" id="insightMeta"></div>
+    </div>
+  </div>
+
+  <!-- RECAP -->
+  <div class="section">
+    <div class="section-title">The Numbers</div>
+    <div class="recap-grid" id="recapGrid"></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  // Same forgiving 6 AM boundary used across the dashboard.
+  function activeDate() { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); return d; }
+  function stripTime(d) { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; }
+  function daysList(start, end) {
+    const days = []; const cur = new Date(start); const e = new Date(end);
+    while (cur <= e) { days.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+    return days;
+  }
+
+  // Trailing 365-day window ending today (not a calendar year) — a rolling
+  // retrospective rather than "since Jan 1", so it's meaningful any day you
+  // open it, not just around New Year's.
+  const today = activeDate();
+  const windowStart = stripTime(today); windowStart.setDate(windowStart.getDate() - 364);
+  const windowDays = daysList(windowStart, today);
+
+  /* ============ Domain stat functions — duplicated verbatim from
+   * review.html's own recap logic (same read-only, same-origin localStorage
+   * reads, same "return null when a domain has no data at all" contract so
+   * that card can be omitted cleanly), plus a few new ones this page needed
+   * that review.html's week/month view didn't. ============ */
+  function habitsStat(days) {
+    const defs = storeGet('habits:defs') || [];
+    if (!defs.length) return null;
+    const log = storeGet('habits:log') || {};
+    let done = 0;
+    days.forEach(d => { const k = dateToKey(d); defs.forEach(h => { if (log[h.id] && log[h.id][k]) done++; }); });
+    const possible = defs.length * days.length;
+    return { done, possible, rate: possible ? Math.round(done / possible * 100) : 0 };
+  }
+  function todosStat(days) {
+    let done = 0, total = 0;
+    days.forEach(d => { const goals = storeGet('goals:' + dateToKey(d)) || []; total += goals.length; done += goals.filter(g => g.done).length; });
+    if (!total) return null;
+    return { done, total, rate: Math.round(done / total * 100) };
+  }
+  function gymStat(days) {
+    const doneDaysMap = storeGet('po_coach_workout_done');
+    if (!doneDaysMap) return null;
+    const sessions = days.filter(d => doneDaysMap[dateToKey(d)]).length;
+    const weights = storeGet('po_coach_weights') || [];
+    const keys = new Set(days.map(dateToKey));
+    const inRange = weights.filter(w => keys.has(w.dateKey)).slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+    let weightDelta = null;
+    if (inRange.length >= 2) weightDelta = Math.round((inRange[inRange.length - 1].weight - inRange[0].weight) * 10) / 10;
+    return { sessions, days: days.length, weightDelta };
+  }
+  function readingStat(days) {
+    const items = storeGet('reading:items');
+    if (!Array.isArray(items) || !items.length) return null;
+    // reading.html logs sessions keyed by a UTC-ISO date string, not the
+    // local-date keys used elsewhere — match it exactly, same as review.html.
+    const utcKeys = new Set(days.map(d => d.toISOString().slice(0, 10)));
+    let pages = 0, minutes = 0, any = false;
+    items.forEach(it => {
+      const sessions = (it.sessions || []).slice().sort((a, b) => a.date < b.date ? -1 : 1);
+      sessions.forEach((s, i) => {
+        if (!utcKeys.has(s.date)) return;
+        any = true;
+        // An audiobook logs minutes listened instead of a page number.
+        if (it.audiobook) {
+          const prior = i > 0 ? (sessions[i - 1].minutes || 0) : 0;
+          const delta = (s.minutes || 0) - prior;
+          if (delta > 0) minutes += delta;
+        } else {
+          const prior = i > 0 ? (sessions[i - 1].page || 0) : 0;
+          const delta = (s.page || 0) - prior;
+          if (delta > 0) pages += delta;
+        }
+      });
+    });
+    if (!any) return null;
+    return { pages, minutes };
+  }
+  function peakStat(days) {
+    const daily = storeGet('peak:daily');
+    if (!daily) return null;
+    const keys = new Set(days.map(dateToKey));
+    const scores = Object.keys(daily).filter(k => keys.has(k)).map(k => daily[k].avgScore);
+    if (!scores.length) return null;
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    return { avg, loggedDays: scores.length, totalDays: days.length };
+  }
+  function businessStat(days) {
+    const rev = storeGet('biz:affiliate:revenue') || [];
+    const pay = storeGet('biz:editing:payments') || [];
+    const keys = new Set(days.map(dateToKey));
+    const revenue = rev.filter(r => keys.has(r.date)).reduce((a, r) => a + (Number(r.amount) || 0), 0)
+                  + pay.filter(p => keys.has(p.date)).reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const commitments = storeGet('biz:affiliate:commitments') || [];
+    const commitLog = storeGet('biz:affiliate:commitLog') || {};
+    const clients = (storeGet('biz:editing:clients') || []).filter(c => c.billingType === 'retainer' && c.dailyDeliverables > 0);
+    const delivery = storeGet('biz:editing:deliveryLog') || {};
+    let done = 0, total = 0;
+    days.forEach(d => {
+      const k = dateToKey(d);
+      commitments.forEach(c => { total++; if (commitLog[c.id] && commitLog[c.id][k]) done++; });
+      clients.forEach(c => { total++; const dt = (delivery[c.id] && delivery[c.id][k]) || 0; if (dt >= c.dailyDeliverables) done++; });
+    });
+    if (!total && !revenue && !commitments.length) return null;
+    return { revenue, done, total, rate: total ? Math.round(done / total * 100) : null };
+  }
+  function peakTier(v) { if (v>=80) return 'Peak'; if (v>=62) return 'High'; if (v>=44) return 'Steady'; if (v>=28) return 'Dip'; return 'Low'; }
+
+  /* ============ New for this page ============ */
+  function sleepStat(days) {
+    const morning = storeGet('sleep:nights') || {};
+    const keys = new Set(days.map(dateToKey));
+    const entries = Object.keys(morning).filter(k => keys.has(k) && morning[k].sleepHours != null);
+    if (!entries.length) return null;
+    const avgHours = entries.reduce((a, k) => a + morning[k].sleepHours, 0) / entries.length;
+    const qualityEntries = entries.filter(k => morning[k].sleepQuality != null);
+    const avgQuality = qualityEntries.length ? qualityEntries.reduce((a, k) => a + morning[k].sleepQuality, 0) / qualityEntries.length : null;
+    return {
+      avgHours: Math.round(avgHours * 10) / 10,
+      avgQuality: avgQuality != null ? Math.round(avgQuality * 10) / 10 : null,
+      loggedDays: entries.length, totalDays: days.length,
+    };
+  }
+  // Returns raw CHF-equivalent base values (matching finance.html's internal
+  // engine) — deliberately NOT converted here, so this stays a pure function
+  // of nw:history alone. Callers multiply by usdRate at display time instead
+  // (see renderRecap/statsSummaryText below).
+  function netWorthChangeStat(windowStartMs) {
+    const hist = storeGet('nw:history') || [];
+    const pts = hist.filter(p => p.t >= windowStartMs);
+    if (!pts.length) return null;
+    const last = pts[pts.length - 1];
+    if (pts.length < 2) return { current: last.v, change: null };
+    return { current: last.v, change: Math.round((last.v - pts[0].v) * 100) / 100 };
+  }
+  let yrUsdRate = 1;
+  async function loadYrUsdRate() {
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/CHF');
+      const data = await res.json();
+      if (data && data.rates && data.rates.USD) { yrUsdRate = data.rates.USD; renderRecap(); }
+    } catch (e) {}
+  }
+  // Longest UNBROKEN run within the window — a genuine "best streak of the
+  // year" milestone, distinct from the CURRENT streak shown elsewhere.
+  function longestConsecutiveRun(days, isDoneOnDay) {
+    let best = 0, cur = 0;
+    days.forEach(d => { if (isDoneOnDay(d)) { cur++; if (cur > best) best = cur; } else cur = 0; });
+    return best;
+  }
+  function longestHabitStreak(days) {
+    const defs = storeGet('habits:defs') || [];
+    if (!defs.length) return null;
+    const log = storeGet('habits:log') || {};
+    let best = 0, label = '';
+    defs.forEach(h => {
+      const run = longestConsecutiveRun(days, d => !!(log[h.id] && log[h.id][dateToKey(d)]));
+      if (run > best) { best = run; label = h.name; }
+    });
+    if (!best) return null;
+    return { days: best, label };
+  }
+  function longestGymStreak(days) {
+    const doneDaysMap = storeGet('po_coach_workout_done');
+    if (!doneDaysMap) return null;
+    const best = longestConsecutiveRun(days, d => !!doneDaysMap[dateToKey(d)]);
+    if (!best) return null;
+    return { days: best };
+  }
+
+  /* ============ Recap card rendering ============ */
+  function card(title, numHtml, subHtml) {
+    return '<div class="recap-card"><div class="gm-eyebrow">' + title + '</div>'
+      + '<div class="recap-num">' + numHtml + '</div>'
+      + (subHtml ? '<div class="recap-sub">' + subHtml + '</div>' : '')
+      + '</div>';
+  }
+
+  function renderRecap() {
+    const days = windowDays;
+    const cards = [];
+
+    const g = gymStat(days);
+    if (g) cards.push(card('Gym', g.sessions + ' session' + (g.sessions === 1 ? '' : 's'),
+      (g.weightDelta != null ? ('Weight: ' + (g.weightDelta > 0 ? '+' : '') + g.weightDelta + ' over the year · ') : '') + 'out of ' + g.days + ' days'));
+
+    const lg = longestGymStreak(days);
+    if (lg) cards.push(card('Longest Gym Streak', lg.days + ' day' + (lg.days === 1 ? '' : 's'), 'consecutive workout days, best of the year'));
+
+    const h = habitsStat(days);
+    if (h) cards.push(card('Habits', h.rate + '%', h.done + '/' + h.possible + ' possible check-ins'));
+
+    const lh = longestHabitStreak(days);
+    if (lh) cards.push(card('Longest Habit Streak', lh.days + ' day' + (lh.days === 1 ? '' : 's'), lh.label));
+
+    const t = todosStat(days);
+    if (t) cards.push(card('To-Dos', t.rate + '%', t.done + '/' + t.total + ' completed'));
+
+    const r = readingStat(days);
+    if (r) {
+      const bits = [];
+      if (r.pages > 0) bits.push(r.pages.toLocaleString() + ' pages');
+      if (r.minutes > 0) bits.push(r.minutes.toLocaleString() + ' min listened');
+      cards.push(card('Reading', bits.length ? bits.join(' + ') : '0 pages', 'read over the last year'));
+    }
+
+    const s = sleepStat(days);
+    if (s) cards.push(card('Sleep', s.avgHours + 'h avg' + (s.avgQuality != null ? (' · quality ' + s.avgQuality + '/5') : ''), 'logged ' + s.loggedDays + '/' + s.totalDays + ' nights'));
+
+    const pk = peakStat(days);
+    if (pk) cards.push(card('Peak Score', pk.avg + ' · ' + peakTier(pk.avg), 'logged ' + pk.loggedDays + '/' + pk.totalDays + ' days'));
+
+    const nw = netWorthChangeStat(windowStart.getTime());
+    if (nw) cards.push(card('Net Worth', 'USD ' + Math.round(nw.current * yrUsdRate).toLocaleString('en-US'),
+      nw.change != null ? ((nw.change >= 0 ? '+' : '−') + 'USD ' + Math.abs(Math.round(nw.change * yrUsdRate)).toLocaleString('en-US') + ' over the year') : 'not enough history yet for a year-over comparison'));
+
+    const b = businessStat(days);
+    if (b) cards.push(card('Business', '$' + Math.round(b.revenue).toLocaleString(), b.rate != null ? (b.rate + '% of daily commitments met') : 'revenue over the year'));
+
+    const grid = $('recapGrid');
+    grid.innerHTML = cards.length ? cards.join('') : '<div class="recap-empty">No tracked activity yet — this fills in as you use the dashboard over time.</div>';
+  }
+
+  /* ============ Nova narrative (single-shot, cached) ============ */
+  const KEY_LS = 'nova_lite_api_key';
+  function savedKey() { try { return localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; } }
+  const SUMMARY_KEY = 'yearreview:summary';
+  function getSummary() { return storeGet(SUMMARY_KEY); }
+  function setSummary(s) { storeSet(SUMMARY_KEY, s); }
+
+  function statsSummaryText() {
+    const days = windowDays;
+    const lines = ['Trailing 365-day window ending today.'];
+    const push = (name, val) => { if (val != null) lines.push(name + ': ' + val); };
+    const g = gymStat(days); if (g) push('Gym sessions', g.sessions + ' out of ' + g.days + ' days' + (g.weightDelta != null ? (', weight change ' + g.weightDelta) : ''));
+    const lg = longestGymStreak(days); if (lg) push('Longest gym streak', lg.days + ' days');
+    const h = habitsStat(days); if (h) push('Habit completion', h.rate + '%');
+    const lh = longestHabitStreak(days); if (lh) push('Longest habit streak', lh.days + ' days (' + lh.label + ')');
+    const t = todosStat(days); if (t) push('To-do completion', t.rate + '%');
+    const r = readingStat(days); if (r) push('Pages read', r.pages + (r.minutes > 0 ? (' (plus ' + r.minutes + ' min of audiobook listening)') : ''));
+    const s = sleepStat(days); if (s) push('Avg sleep', s.avgHours + 'h' + (s.avgQuality != null ? (', quality ' + s.avgQuality + '/5') : '') + ' (logged ' + s.loggedDays + '/' + s.totalDays + ' nights)');
+    const pk = peakStat(days); if (pk) push('Avg peak/energy score', pk.avg + ' (' + peakTier(pk.avg) + ')');
+    const nw = netWorthChangeStat(windowStart.getTime()); if (nw) push('Net worth', 'USD ' + Math.round(nw.current * yrUsdRate) + (nw.change != null ? (', change over the year ' + (nw.change >= 0 ? '+' : '') + Math.round(nw.change * yrUsdRate)) : ''));
+    const b = businessStat(days); if (b) push('Business revenue', '$' + Math.round(b.revenue));
+    return lines.join('\n');
+  }
+
+  const SYS = "You are Nova, Fernando's blunt but supportive personal coach, writing a short year-in-review narrative. "
+    + "You'll get a compact stats summary across health, fitness, nutrition, learning, and business for the trailing 365 days. "
+    + "Write 3-5 sentences that read like an actual retrospective — connect what happened ACROSS domains, name a real high point and a real low point grounded in the numbers given, don't just restate every stat. "
+    + "End with one concrete, specific focus for the year ahead. Plain prose only, no markdown headers or bullet lists, under 150 words.\n\n";
+
+  async function generateSummary() {
+    const btn = $('insightBtn'), body = $('insightBody'), meta = $('insightMeta');
+    const key = savedKey();
+    if (!key) {
+      body.className = 'insight-body'; body.textContent = "Paste your Anthropic API key on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and I'll use it here too.";
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Thinking…';
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-opus-4-8', max_tokens: 450, system: SYS, messages: [{ role: 'user', content: statsSummaryText() }] }),
+      });
+      const data = await res.json();
+      const text = (data && data.content && data.content[0] && data.content[0].text) ? data.content[0].text.trim() : null;
+      if (!text) throw new Error('empty response');
+      setSummary({ text: text, generatedAt: Date.now() });
+      renderSummary();
+    } catch (e) {
+      body.className = 'insight-body'; body.textContent = "Couldn't generate a summary just now — check your API key or connection and try again.";
+    } finally {
+      btn.disabled = false; btn.textContent = '🧠 Regenerate Year Summary';
+    }
+  }
+  function renderSummary() {
+    const body = $('insightBody'), meta = $('insightMeta'), btn = $('insightBtn');
+    const s = getSummary();
+    if (s && s.text) {
+      body.className = 'insight-body'; body.textContent = s.text;
+      meta.textContent = 'Generated ' + new Date(s.generatedAt).toLocaleString();
+      btn.textContent = '🧠 Regenerate Year Summary';
+    } else {
+      body.className = 'insight-body empty'; body.textContent = 'No summary generated yet.';
+      meta.textContent = '';
+      btn.textContent = '🧠 Generate Year Summary';
+    }
+  }
+  $('insightBtn').addEventListener('click', generateSummary);
+
+  function renderAll() {
+    const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+    $('rangeLabel').textContent = windowStart.toLocaleDateString(undefined, opts) + ' – ' + today.toLocaleDateString(undefined, opts) + ' · last 365 days';
+    renderRecap();
+    renderSummary();
+  }
+  renderAll();
+  loadYrUsdRate();
+
+  /* ============ Cloud sync (only the cached narrative — every underlying
+   * stat is read from data other pages already sync) ============ */
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'year-review',
+      syncedKeys: [SUMMARY_KEY],
+      onApplied: function () { renderSummary(); },
+    });
+  });
+})();
+</script>
+</body>
+</html>

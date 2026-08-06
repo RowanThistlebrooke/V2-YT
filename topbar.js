@@ -26,8 +26,10 @@
   display: flex; justify-content: flex-end; align-items: center;
   gap: 8px;
   padding: max(10px, env(safe-area-inset-top)) 14px 8px;
-  background: #0a0a0b;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(3, 9, 14, 0.75);
+  backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-bottom: 1px solid var(--hud-line-soft, rgba(34, 211, 245, 0.10));
+  box-shadow: 0 1px 0 rgba(var(--hud-rgb, 34, 211, 245), 0.06);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
 }
 .topbar-water-wrap {
@@ -36,76 +38,82 @@
 .topbar-water-pill {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 14px;
-  background: rgba(125, 211, 252, 0.08);
-  border: 1px solid rgba(125, 211, 252, 0.16);
+  background: rgba(var(--hud-rgb, 34, 211, 245), 0.06);
+  border: 1px solid var(--hud-line, rgba(34, 211, 245, 0.20));
   border-right: none;
   border-radius: 12px 0 0 12px;
   text-decoration: none;
-  color: #FAFAFA;
+  color: var(--text-primary, #FAFAFA);
   -webkit-tap-highlight-color: transparent;
 }
 .topbar-water-pill .topbar-pill-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: #7DD3FC; flex-shrink: 0;
+  background: var(--hud, #22D3F5); flex-shrink: 0;
+  box-shadow: 0 0 8px var(--hud-glow, rgba(34, 211, 245, 0.35));
 }
-.topbar-water-pill.warn .topbar-pill-dot { background: #fbbf24; }
+.topbar-water-pill.warn .topbar-pill-dot { background: #FFB84D; box-shadow: 0 0 8px rgba(255,184,77,0.5); }
 .topbar-water-pill.miss .topbar-pill-dot {
-  background: #ff8a8a;
+  background: #FF5470; box-shadow: 0 0 8px rgba(255,84,112,0.5);
   animation: topbar-miss-pulse 1.6s ease-in-out infinite;
 }
 @keyframes topbar-miss-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-  50%      { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 84, 112, 0.5); }
+  50%      { box-shadow: 0 0 0 5px rgba(255, 84, 112, 0); }
 }
 .topbar-pill-count {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px; font-weight: 700;
-  color: #FAFAFA;
+  color: var(--text-primary, #FAFAFA);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .topbar-water-add {
   width: 44px;
-  border: 1px solid rgba(125, 211, 252, 0.16);
-  background: linear-gradient(180deg, rgba(125, 211, 252, 0.28), rgba(110, 231, 183, 0.28));
-  color: #FFFFFF;
+  border: 1px solid var(--hud-line, rgba(34, 211, 245, 0.20));
+  background: linear-gradient(180deg, rgba(var(--hud-rgb, 34, 211, 245), 0.30), rgba(var(--hud-rgb, 34, 211, 245), 0.12));
+  color: var(--text-primary, #FFFFFF);
   font-family: inherit; font-size: 20px; font-weight: 700; line-height: 1;
   cursor: pointer;
   border-radius: 0 12px 12px 0;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s, transform 0.10s;
+  transition: background 0.15s, transform 0.10s, box-shadow 0.2s;
 }
 .topbar-water-add:active { transform: scale(0.94); }
 .topbar-water-add.flash {
-  background: linear-gradient(180deg, rgba(125, 211, 252, 0.7), rgba(110, 231, 183, 0.7));
+  background: linear-gradient(180deg, rgba(var(--hud-rgb, 34, 211, 245), 0.75), rgba(var(--hud-rgb, 34, 211, 245), 0.4));
+  box-shadow: 0 0 18px var(--hud-glow, rgba(34, 211, 245, 0.35));
 }
-.topbar-finance-btn {
+.topbar-finance-btn, .topbar-command-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hud-line-soft, rgba(34, 211, 245, 0.10));
+  background: rgba(var(--hud-rgb, 34, 211, 245), 0.04);
   border-radius: 12px;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
-.topbar-finance-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.topbar-finance-btn:hover, .topbar-command-btn:hover { background: rgba(var(--hud-rgb, 34, 211, 245), 0.10); border-color: var(--hud-line, rgba(34, 211, 245, 0.20)); }
+.topbar-command-btn { color: var(--text-secondary, #A9C4D6); cursor: pointer; font: 700 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 .topbar-finance-icon {
   font-size: 20px; line-height: 1;
   filter: grayscale(100%) brightness(1.4);
   opacity: 0.85;
 }
 
-/* Bottom tab bar — Instagram-style */
+/* Bottom tab bar — Instagram-style, now with a HUD glow on the active tab */
 .bottombar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
   display: flex; justify-content: space-around; align-items: stretch;
   padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
-  background: #0a0a0b;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(3, 9, 14, 0.8);
+  backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-top: 1px solid var(--hud-line-soft, rgba(34, 211, 245, 0.10));
+  box-shadow: 0 -1px 0 rgba(var(--hud-rgb, 34, 211, 245), 0.06);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
 }
 .bottombar-tab {
+  position: relative;
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px;
@@ -124,11 +132,20 @@
   transition: opacity 0.15s, filter 0.15s, transform 0.10s;
 }
 .bottombar-tab.active {
-  color: #FAFAFA;
+  color: var(--text-primary, #FAFAFA);
 }
 .bottombar-tab.active .bottombar-tab-icon {
-  filter: grayscale(100%) brightness(1.6);
+  filter: grayscale(100%) brightness(1.6) drop-shadow(0 0 6px var(--hud-glow, rgba(34, 211, 245, 0.35)));
   opacity: 1;
+}
+/* A small glowing tick above the active tab — the active-state "tell"
+   instead of just a brighter icon. */
+.bottombar-tab.active::before {
+  content: '';
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 18px; height: 2px; border-radius: 2px;
+  background: var(--hud, #22D3F5);
+  box-shadow: 0 0 8px var(--hud-glow, rgba(34, 211, 245, 0.6));
 }
 .bottombar-tab:active .bottombar-tab-icon { transform: scale(0.92); }
 
@@ -142,7 +159,7 @@ body.has-bottombar {
   .topbar-water-pill { padding: 8px 11px; gap: 6px; }
   .topbar-pill-count { font-size: 12px; }
   .topbar-water-add { width: 40px; font-size: 18px; }
-  .topbar-finance-btn { width: 40px; height: 38px; }
+  .topbar-finance-btn, .topbar-command-btn { width: 40px; height: 38px; }
   .topbar-finance-icon { font-size: 18px; }
   .bottombar-tab-icon { font-size: 22px; }
   .bottombar-tab { font-size: 10px; }
@@ -195,6 +212,7 @@ body.topbar-modal-open {
 `;
 
   // -------- HTML --------
+  const commandButtonHtml = '<button class="topbar-command-btn" id="topbarCommand" data-command-open type="button" aria-label="Open command bar" title="Search · ⌘K">⌘K</button>';
   const topbarHtml = `
 <header class="topbar" id="topbar" role="navigation" aria-label="Quick actions">
   <div class="topbar-water-wrap">
@@ -207,6 +225,7 @@ body.topbar-modal-open {
   <a href="finance.html" class="topbar-finance-btn" id="topbarFinance" aria-label="Finance">
     <span class="topbar-finance-icon">📊</span>
   </a>
+  ${commandButtonHtml}
 </header>
 `;
 
@@ -233,13 +252,30 @@ body.topbar-modal-open {
     const p = (window.location.pathname || '').toLowerCase();
     return p.endsWith('/finance.html') || p.endsWith('finance.html');
   }
+  function isStandalonePage() {
+    const name = (window.location.pathname || '').toLowerCase().split('/').pop();
+    return ['avatar-lab.html', 'nova-lite.html'].indexOf(name) !== -1;
+  }
   // When the water tracker is iframed inside health.html, the embedded
   // page shouldn't render its own chrome again.
   function isEmbedded() {
     try { return window.self !== window.top; } catch (e) { return true; }
   }
   function shouldShowChrome() {
-    return !isFinancePage() && !isEmbedded();
+    return !isFinancePage() && !isStandalonePage() && !isEmbedded();
+  }
+  function loadSharedModule(src, marker) {
+    if (document.querySelector('script[' + marker + ']')) return;
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = src;
+    script.setAttribute(marker, 'true');
+    document.head.appendChild(script);
+  }
+  function loadSharedModules() {
+    if (isEmbedded()) return;
+    loadSharedModule('time-theme.js', 'data-time-theme-loader');
+    loadSharedModule('command-bar.js', 'data-command-bar-loader');
   }
   function currentPageKey() {
     const p = (window.location.pathname || '').toLowerCase();
@@ -274,6 +310,7 @@ body.topbar-modal-open {
     // Reserve room above the fixed bottom bar so page content can scroll
     // past it without being hidden.
     document.body.classList.add('has-bottombar');
+
   }
 
   // -------- Active-date helpers (match the goals page 6 AM rollover) --------
@@ -481,6 +518,7 @@ body.topbar-modal-open {
     setInterval(render, 30 * 1000);
   }
 
+  loadSharedModules();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot, { once: true });
   } else {

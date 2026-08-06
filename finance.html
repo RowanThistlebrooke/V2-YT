@@ -5,40 +5,37 @@
 <script src="/api/config"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0a0a0b">
+<meta name="theme-color" content="#03060a">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Finances</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
 <style>
+/* text-primary/secondary/tertiary, --success/--warning/--danger, and the
+   --hud tokens + body background/grid now come from design-system.css.
+   Only page-specific extras stay here, remapped to the HUD cyan palette. */
 :root {
-  --bg: #0A0A0B;
-  --bg-deep: #050506;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-secondary: rgba(255, 255, 255, 0.035);
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-border: transparent;
-  --glass-border-strong: transparent;
+  --bg: #03060a;
+  --bg-deep: #03060a;
+  --bg-card: rgba(10, 22, 30, 0.55);
+  --bg-secondary: rgba(var(--hud-rgb), 0.035);
+  --glass-bg: rgba(var(--hud-rgb), 0.045);
+  --glass-border: var(--hud-line-soft);
+  --glass-border-strong: var(--hud-line);
   --glass-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 1px 0 0 rgba(34, 211, 245, 0.06) inset,
     0 12px 40px rgba(0, 0, 0, 0.45),
     0 1px 2px rgba(0, 0, 0, 0.25);
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --text-quaternary: #4D4B47;
-  --border: transparent;
+  --text-quaternary: rgba(94, 122, 140, 0.6);
+  --border: var(--hud-line-soft);
   --border-soft: transparent;
-  --accent: #E07658;
-  --success: #6BE3A4;
-  --warning: #F2C063;
-  --danger: #FF6B6B;
+  --accent: var(--hud);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 
@@ -50,30 +47,6 @@ html, body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   min-height: 100%;
-}
-
-/* Backdrop — black with subtle warm + cool washes */
-body::before {
-  content: '';
-  position: fixed;
-  inset: -10%;
-  z-index: -2;
-  background:
-    radial-gradient(60% 45% at 82% 14%, rgba(224, 118, 88, 0.16) 0%, transparent 55%),
-    radial-gradient(55% 45% at 18% 90%, rgba(180, 180, 200, 0.06) 0%, transparent 55%),
-    linear-gradient(180deg, #0A0A0B 0%, #050506 100%);
-  filter: blur(40px) saturate(1.05);
-  pointer-events: none;
-}
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px;
-  opacity: 0.7;
-  pointer-events: none;
 }
 
 .shell {
@@ -89,8 +62,8 @@ body::after {
   gap: 6px;
   padding: 8px 14px 8px 10px;
   margin: 0 0 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(34,211,245,0.04);
+  border: 1px solid rgba(34,211,245,0.08);
   border-radius: 999px;
   color: var(--text-secondary);
   font-family: var(--font);
@@ -102,7 +75,7 @@ body::after {
   transition: background 0.15s ease, color 0.15s ease;
 }
 .fin-back-btn:hover, .fin-back-btn:active {
-  background: rgba(255,255,255,0.07);
+  background: rgba(34,211,245,0.07);
   color: var(--text-primary);
 }
 .fin-back-btn svg { display: block; }
@@ -125,7 +98,7 @@ body::after {
   position: absolute;
   top: 0; left: 12px; right: 12px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+  background: linear-gradient(90deg, transparent, rgba(34,211,245,0.10), transparent);
   pointer-events: none;
 }
 .bot-tab {
@@ -141,11 +114,11 @@ body::after {
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.bot-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.025); }
+.bot-tab:hover { color: var(--text-secondary); background: rgba(34,211,245,0.025); }
 .bot-tab.active {
   color: var(--text-primary);
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.10);
+  background: rgba(34,211,245,0.06);
+  border-color: rgba(34,211,245,0.10);
 }
 .bot-tab-icon { font-size: 18px; line-height: 1; }
 .bot-tab-label {
@@ -204,7 +177,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
+  background: linear-gradient(90deg, rgba(34,211,245,0.08), transparent);
 }
 
 /* Card */
@@ -225,7 +198,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   position: absolute;
   top: 0; left: 14px; right: 14px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
+  background: linear-gradient(90deg, transparent, rgba(34,211,245,0.16), transparent);
   pointer-events: none;
 }
 .card-grid {
@@ -246,7 +219,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   font-weight: 700;
   letter-spacing: 0.04em;
   border: none;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(34, 211, 245, 0.05);
   color: var(--text-secondary);
   font-family: var(--font-mono);
   text-transform: uppercase;
@@ -256,7 +229,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   width: 5px; height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: rgba(255,255,255,0.30);
+  background: rgba(34,211,245,0.30);
 }
 .tag-green::before { background: #6BE3A4; box-shadow: 0 0 6px rgba(107,227,164,0.55); }
 .tag-green { background: rgba(107, 227, 164, 0.10); color: #8EE9B7; }
@@ -314,7 +287,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .quick-add input::placeholder { color: var(--text-tertiary); }
 .quick-add-btn {
   padding: 0 14px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(34,211,245,0.06);
   border: none;
   color: var(--text-secondary);
   border-radius: 9px;
@@ -324,7 +297,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   cursor: pointer;
   white-space: nowrap;
 }
-.quick-add-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-primary); }
+.quick-add-btn:hover { background: rgba(34,211,245,0.12); color: var(--text-primary); }
 .quick-add-btn:active { transform: scale(0.96); }
 
 /* Custom list rows */
@@ -333,18 +306,18 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
-  background: rgba(255,255,255,0.025);
+  background: rgba(34,211,245,0.025);
   border: none;
   border-radius: 10px;
   margin-bottom: 5px;
   font-size: 13px;
   color: var(--text-primary);
 }
-.custom-item:hover { background: rgba(255,255,255,0.05); }
+.custom-item:hover { background: rgba(34,211,245,0.05); }
 .custom-item .item-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.30);
+  background: rgba(34,211,245,0.30);
   flex-shrink: 0;
 }
 .custom-item span { flex: 1; word-break: break-word; }
@@ -391,7 +364,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   cursor: pointer; border-radius: 4px;
   padding: 2px 4px; margin: -2px -4px;
 }
-.nw-name-edit:hover, .nw-amt-edit:hover { background: rgba(255, 255, 255, 0.06); }
+.nw-name-edit:hover, .nw-amt-edit:hover { background: rgba(34, 211, 245, 0.06); }
 .nw-del {
   background: none; border: none;
   color: var(--text-tertiary); cursor: pointer;
@@ -399,9 +372,15 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   flex-shrink: 0;
 }
 .nw-del:hover { color: var(--danger); }
+.nw-wallet-refresh {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; padding: 0 2px; line-height: 1; flex-shrink: 0;
+  opacity: 0.75;
+}
+.nw-wallet-refresh:hover { opacity: 1; }
 
 .nw-subcard {
-  background: rgba(255,255,255,0.025) !important;
+  background: rgba(34,211,245,0.025) !important;
   border: none;
   margin-bottom: 0;
   min-width: 0;
@@ -420,6 +399,14 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .nw-subcard .quick-add input {
   min-width: 0; width: 100%; max-width: none !important;
 }
+/* Add Income row has 4 controls (label, amount, account select, button)
+   instead of the 2-input layout .nw-subcard .quick-add's grid assumes. */
+#nwIncomeCard .quick-add {
+  grid-template-columns: 1.3fr 0.9fr 1.3fr auto !important;
+}
+#nwIncomeCard .quick-add select {
+  min-width: 0; width: 100%; max-width: none !important;
+}
 #netWorthTotal + * + .card-grid,
 .section .card .card-grid {
   display: grid;
@@ -434,7 +421,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .nw-chart-wrap {
   margin: 14px 0 18px;
   padding: 14px 16px 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(34, 211, 245, 0.025);
   border: none;
   border-radius: 12px;
   position: relative;
@@ -464,7 +451,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   transition: color 0.4s ease;
 }
 .nw-chart-grid {
-  stroke: rgba(255,255,255,0.05);
+  stroke: rgba(34,211,245,0.05);
   stroke-width: 1;
   stroke-dasharray: 2 4;
   vector-effect: non-scaling-stroke;
@@ -490,7 +477,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   gap: 6px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  border-top: 1px solid rgba(34,211,245,0.05);
 }
 @media (max-width: 720px) {
   .nw-chart-stats { grid-template-columns: repeat(2, 1fr); }
@@ -529,7 +516,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .nw-donut-wrap {
   position: relative;
   padding: 14px 16px 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(34, 211, 245, 0.025);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -617,7 +604,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .nw-activity {
   margin-top: 14px;
   padding: 14px 16px 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(34, 211, 245, 0.025);
   border-radius: 12px;
 }
 .nw-activity-h {
@@ -640,18 +627,18 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 }
 /* Subtle scroll affordance — shows there's more below */
 .nw-activity-list::-webkit-scrollbar { width: 4px !important; display: block !important; }
-.nw-activity-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+.nw-activity-list::-webkit-scrollbar-thumb { background: rgba(34,211,245,0.10); border-radius: 2px; }
 .nw-activity-list::-webkit-scrollbar-track { background: transparent; }
 .nw-activity-row {
   display: grid; grid-template-columns: 4px 1fr auto auto;
   gap: 10px; align-items: center;
   padding: 8px 12px;
-  background: rgba(255,255,255,0.025);
+  background: rgba(34,211,245,0.025);
   border-radius: 8px;
   font-size: 12.5px;
   transition: background 0.15s;
 }
-.nw-activity-row:hover { background: rgba(255,255,255,0.05); }
+.nw-activity-row:hover { background: rgba(34,211,245,0.05); }
 .nw-activity-bar {
   width: 4px; height: 24px; border-radius: 2px;
   flex-shrink: 0;
@@ -698,8 +685,8 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
    ORDERS — full-spec form (name, cost, ccy, from-category, date)
    ============================================================ */
 .ord-add-card {
-  background: rgba(255,255,255,0.025) !important;
-  border: 1px solid rgba(255,255,255,0.05) !important;
+  background: rgba(34,211,245,0.025) !important;
+  border: 1px solid rgba(34,211,245,0.05) !important;
 }
 .ord-add-eyebrow {
   font-size: 10px; letter-spacing: 0.18em; font-weight: 800;
@@ -733,7 +720,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .ord-input::placeholder { color: var(--text-tertiary); }
 .ord-input-cost { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .ord-input-ccy, .ord-input-from {
-  background: rgba(255,255,255,0.04);
+  background: rgba(34,211,245,0.04);
   border-radius: 8px;
   cursor: pointer; font-weight: 600;
   appearance: none; -webkit-appearance: none;
@@ -779,18 +766,29 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 }
 
 .ord-card {
-  background: rgba(255,255,255,0.025);
+  background: rgba(34,211,245,0.025);
   border-radius: 14px;
   padding: 14px 16px;
   margin-bottom: 8px;
   border-left: 3px solid var(--text-tertiary);
   transition: background 0.15s;
 }
-.ord-card:hover { background: rgba(255,255,255,0.045); }
+.ord-card:hover { background: rgba(34,211,245,0.045); }
+.ord-card.cat-cash   { border-left-color: #F472B6; }
 .ord-card.cat-bank   { border-left-color: #7DD3FC; }
 .ord-card.cat-stocks { border-left-color: #6EE7B7; }
 .ord-card.cat-crypto { border-left-color: #FBBF24; }
 .ord-card.cat-other  { border-left-color: #B794F4; }
+/* Purchases tab colors rows by SPENDING category (pcat-*), not by NW
+   account, since which account it came from is optional/secondary there. */
+.ord-card.pcat-food          { border-left-color: #FDBA74; }
+.ord-card.pcat-shopping      { border-left-color: #F472B6; }
+.ord-card.pcat-bills         { border-left-color: #93C5FD; }
+.ord-card.pcat-transport     { border-left-color: #67E8F9; }
+.ord-card.pcat-health        { border-left-color: #6EE7B7; }
+.ord-card.pcat-entertainment { border-left-color: #C4B5FD; }
+.ord-card.pcat-travel        { border-left-color: #FCD34D; }
+.ord-card.pcat-other         { border-left-color: #B794F4; }
 .ord-card-h {
   display: grid; grid-template-columns: 1fr auto auto;
   gap: 12px; align-items: baseline;
@@ -808,7 +806,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   white-space: nowrap;
 }
 .ord-card-x {
-  background: transparent; border: 1px solid rgba(255,255,255,0.08);
+  background: transparent; border: 1px solid rgba(34,211,245,0.08);
   color: var(--text-tertiary);
   cursor: pointer; font-size: 14px;
   padding: 4px 9px; border-radius: 6px;
@@ -825,7 +823,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .ord-meta-pill {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 999px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(34,211,245,0.04);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -840,9 +838,9 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 
 .ord-empty-card {
   text-align: center; padding: 32px 20px;
-  background: rgba(255,255,255,0.025);
+  background: rgba(34,211,245,0.025);
   border-radius: 14px;
-  border: 1px dashed rgba(255,255,255,0.08);
+  border: 1px dashed rgba(34,211,245,0.08);
 }
 .ord-empty-card.hidden { display: none; }
 .ord-empty-icon {
@@ -908,7 +906,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .wish-hero-pct-num.bad  { color: #FF8A8A; }
 .wish-hero-bar {
   height: 6px; border-radius: 3px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(34,211,245,0.06);
   overflow: hidden; position: relative;
 }
 .wish-hero-bar-fill {
@@ -925,8 +923,8 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 
 /* Add card */
 .wish-add-card {
-  background: rgba(255,255,255,0.025) !important;
-  border: 1px solid rgba(255,255,255,0.05) !important;
+  background: rgba(34,211,245,0.025) !important;
+  border: 1px solid rgba(34,211,245,0.05) !important;
 }
 .wish-add-eyebrow {
   font-size: 10px; letter-spacing: 0.18em; font-weight: 800;
@@ -955,7 +953,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .wish-input-amt  { flex: 1; min-width: 80px; max-width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
 .wish-input-ccy {
   flex: 0 1 80px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(34,211,245,0.04);
   border-radius: 9px;
   color: var(--text-primary);
   font-family: inherit; font-size: 12px;
@@ -995,9 +993,9 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 
 .wish-empty-card {
   text-align: center; padding: 32px 20px;
-  background: rgba(255,255,255,0.025);
+  background: rgba(34,211,245,0.025);
   border-radius: 14px;
-  border: 1px dashed rgba(255,255,255,0.08);
+  border: 1px dashed rgba(34,211,245,0.08);
 }
 .wish-empty-card.hidden { display: none; }
 .wish-empty-icon {
@@ -1015,7 +1013,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 
 /* ===== Wishlist rows ===== */
 .wish-row {
-  background: rgba(255,255,255,0.025);
+  background: rgba(34,211,245,0.025);
   border-radius: 12px;
   padding: 12px 14px;
   margin-bottom: 8px;
@@ -1055,7 +1053,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .wish-row-pct.bad  { color: #FF8A8A; }
 .wish-row-pct.flat { color: var(--text-tertiary); }
 .wish-row-x {
-  background: transparent; border: 1px solid rgba(255,255,255,0.10);
+  background: transparent; border: 1px solid rgba(34,211,245,0.10);
   color: var(--text-tertiary);
   cursor: pointer; font-size: 14px;
   padding: 4px 8px; border-radius: 6px;
@@ -1064,7 +1062,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .wish-row-x:hover { color: #FF8A8A; }
 .wish-row-bar {
   height: 5px; border-radius: 3px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(34,211,245,0.04);
   margin-top: 10px;
   overflow: hidden;
 }
@@ -1075,7 +1073,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .wish-row-bar-fill.good { background: #6BE3A4; box-shadow: 0 0 6px rgba(107,227,164,0.5); }
 .wish-row-bar-fill.warn { background: #F2C063; box-shadow: 0 0 6px rgba(242,192,99,0.5); }
 .wish-row-bar-fill.bad  { background: #FF8A8A; box-shadow: 0 0 6px rgba(255,138,138,0.5); }
-.wish-row-bar-fill.flat { background: rgba(255,255,255,0.20); }
+.wish-row-bar-fill.flat { background: rgba(34,211,245,0.20); }
 
 /* ============================================================
    FINANCE TICKER — rotating Nasdaq-style subscription renewal
@@ -1164,7 +1162,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .ticker-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.18);
+  background: rgba(34,211,245,0.18);
   transition: background 0.2s;
 }
 .ticker-dot.active { background: #6BE3A4; }
@@ -1176,7 +1174,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 .ord-card-foot {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px dashed rgba(255,255,255,0.06);
+  border-top: 1px dashed rgba(34,211,245,0.06);
   display: flex; flex-wrap: wrap; gap: 8px;
   align-items: center;
 }
@@ -1219,7 +1217,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
 }
 .ord-deduct-undo {
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 1px solid rgba(34,211,245,0.10);
   color: var(--text-tertiary);
   font-family: inherit;
   font-size: 10.5px;
@@ -1229,7 +1227,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   border-radius: 6px;
   cursor: pointer;
 }
-.ord-deduct-undo:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.20); }
+.ord-deduct-undo:hover { color: var(--text-primary); border-color: rgba(34,211,245,0.20); }
 
 .ord-deduct-chooser {
   margin-top: 10px;
@@ -1249,8 +1247,8 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   margin-bottom: 8px;
 }
 .ord-deduct-opt {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(34,211,245,0.04);
+  border: 1px solid rgba(34,211,245,0.06);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 12px;
@@ -1278,8 +1276,8 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   cursor: not-allowed;
 }
 .ord-deduct-opt.insufficient:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.06);
+  background: rgba(34,211,245,0.04);
+  border-color: rgba(34,211,245,0.06);
 }
 .ord-deduct-cancel {
   background: transparent;
@@ -1291,7 +1289,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   text-decoration: underline;
 }
 .ord-card.is-deducted { opacity: 0.85; }
-.ord-card.is-deducted .ord-card-name { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: rgba(255,255,255,0.20); }
+.ord-card.is-deducted .ord-card-name { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: rgba(34,211,245,0.20); }
 .ord-meta-pill.pct.frozen { font-style: italic; }
 .ord-meta-pill.pct.frozen::after { content: ' · frozen'; opacity: 0.6; font-style: normal; }
 
@@ -1363,6 +1361,25 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
     font-size: 15px !important;
   }
 
+  /* ---------- Add Income row ---------- */
+  #nwIncomeCard .quick-add {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px;
+    gap: 8px;
+  }
+  #nwIncomeCard .quick-add input,
+  #nwIncomeCard .quick-add select,
+  #nwIncomeCard .quick-add button {
+    flex: none !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    width: 100%;
+    padding: 12px 14px !important;
+    font-size: 15px !important;
+  }
+
   /* ---------- Orders add grid ---------- */
   .ord-add-grid {
     grid-template-columns: 1fr !important;
@@ -1419,7 +1436,7 @@ html, body { scrollbar-width: none; -ms-overflow-style: none; }
   gap: 8px;
   padding: 9px 12px;
   background: var(--bg-card);
-  border: 0.5px solid rgba(255,255,255,0.10);
+  border: 0.5px solid rgba(34,211,245,0.10);
   border-radius: var(--radius-md);
   font-family: inherit;
   color: var(--text-primary);
@@ -1468,7 +1485,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   gap: 8px;
   padding: 6px 12px;
   background: var(--bg-card);
-  border: 0.5px solid rgba(255,255,255,0.10);
+  border: 0.5px solid rgba(34,211,245,0.10);
   border-radius: var(--radius-md);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -1488,7 +1505,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   width: 30px;
   height: 16px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.10);
+  background: rgba(34,211,245,0.10);
   transition: background 0.2s;
   flex-shrink: 0;
 }
@@ -1525,8 +1542,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(34,211,245,0.04);
+  border: 1px solid rgba(34,211,245,0.08);
   border-radius: 999px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -1545,7 +1562,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 .sub-row-toggle .sub-row-toggle-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: rgba(255,255,255,0.25);
+  background: rgba(34,211,245,0.25);
 }
 .sub-row-toggle.is-on .sub-row-toggle-dot {
   background: #6BE3A4;
@@ -1597,16 +1614,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:14px">
       <div>
         <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;font-weight:500">Total net worth</div>
-        <div id="netWorthTotal" style="font-size:34px;font-weight:700;color:var(--text-primary);line-height:1.05;margin-top:2px">CHF 0</div>
+        <div id="netWorthTotal" style="font-size:34px;font-weight:700;color:var(--text-primary);line-height:1.05;margin-top:2px">USD 0</div>
         <div id="netWorthBreakdown" style="font-size:11px;color:var(--text-tertiary);margin-top:4px"></div>
+        <div id="netWorthAfterDebt" style="font-size:11px;color:var(--text-tertiary);margin-top:4px"></div>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:11px;color:var(--text-tertiary)">CHF</span>
         <select id="netWorthCurrency" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;cursor:pointer">
-          <option value="CHF">CHF</option>
           <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-          <option value="GBP">GBP</option>
+          <option value="DOP">DOP</option>
         </select>
       </div>
     </div>
@@ -1675,6 +1690,58 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       </div>
     </div>
 
+    <!-- Forecast — trend-based projection from nw:history, a custom goal, and a "what would this purchase cost me" impact preview -->
+    <div class="card nw-subcard" id="nwForecastCard">
+      <div class="label">📈 Forecast</div>
+      <div id="nwForecastTrend" style="font-size:12px;color:var(--text-tertiary);margin-top:6px"></div>
+      <div id="nwForecastMilestone" style="font-size:13px;color:var(--text-primary);margin-top:6px;font-weight:600"></div>
+
+      <!-- Trajectory: historical + Slow/Typical/Fast scenario fan to a goal,
+           built from percentiles of the real month-to-month rate history
+           instead of one single linear-regression guess. -->
+      <div id="nwTrajBody" style="display:none;margin-top:12px">
+        <svg id="nwTrajSvg" viewBox="0 0 320 140" preserveAspectRatio="none" style="width:100%;height:120px;display:block"></svg>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:10.5px;color:var(--text-tertiary)">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#22D3F5;margin-right:4px"></span>Net worth</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#FF5470;margin-right:4px"></span>Slow</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#FBBF24;margin-right:4px"></span>Typical</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#3FE0A8;margin-right:4px"></span>Fast</span>
+        </div>
+        <div id="nwTrajRateGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px"></div>
+      </div>
+
+      <div class="quick-add" style="flex-wrap:wrap;margin-top:10px">
+        <input type="number" placeholder="Goal amount" id="nwGoalAmount" step="0.01" style="flex:1;min-width:110px" />
+        <button class="quick-add-btn" id="nwGoalCalcBtn" onclick="window.__calcGoal && window.__calcGoal()">Project</button>
+      </div>
+      <div id="nwGoalResult" style="font-size:13px;color:var(--text-primary);margin-top:8px"></div>
+      <div id="nwGoalEtaTable" style="font-size:11.5px;color:var(--text-tertiary);margin-top:6px"></div>
+      <div style="border-top:1px solid var(--border);margin:12px 0 10px;padding-top:10px">
+        <div style="font-size:11.5px;color:var(--text-tertiary);margin-bottom:6px">What would spending this cost your timeline?</div>
+        <div class="quick-add" style="flex-wrap:wrap">
+          <input type="number" placeholder="Purchase amount" id="nwImpactAmount" step="0.01" style="flex:1;min-width:110px" />
+          <button class="quick-add-btn" id="nwImpactCalcBtn" onclick="window.__calcImpact && window.__calcImpact()">Check impact</button>
+        </div>
+        <div id="nwImpactResult" style="font-size:12px;color:var(--text-tertiary);margin-top:8px"></div>
+      </div>
+      <div class="empty-state" id="nwForecastEmpty" style="margin-top:10px">Not enough history yet — the forecast needs at least a few days of tracked net worth changes.</div>
+    </div>
+
+    <!-- Add income / salary — quick deposit into any existing account -->
+    <div class="card nw-subcard" id="nwIncomeCard">
+      <div class="label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>💰 Add Income</span>
+        <span id="nwIncomeStats" style="font-size:11.5px;color:var(--text-tertiary);font-weight:500">—</span>
+      </div>
+      <div class="quick-add" style="flex-wrap:wrap">
+        <input type="text" placeholder="Label (e.g. Salary, Freelance)" id="incomeLabel" style="flex:1.4;min-width:130px" />
+        <input type="number" placeholder="Amount" id="incomeAmount" step="0.01" style="flex:1;min-width:90px" />
+        <select id="incomeAccount" style="flex:1.2;min-width:140px;padding:8px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:13px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)"></select>
+        <button class="quick-add-btn" id="incomeAddBtn">+</button>
+      </div>
+      <div id="nwIncomeStatus" style="font-size:11.5px;color:var(--text-tertiary);margin-top:8px;display:none"></div>
+    </div>
+
     <!-- Activity log — every add / edit, newest first -->
     <div class="nw-activity" id="nwActivity">
       <div class="nw-activity-h">
@@ -1686,6 +1753,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     </div>
 
     <div class="card-grid" style="gap:10px">
+      <!-- Cash -->
+      <div class="card nw-subcard">
+        <div class="label" style="display:flex;justify-content:space-between;align-items:center"><span>💵 Cash</span><span id="cashTotal" style="font-size:13px;color:var(--text-primary);font-weight:600">0</span></div>
+        <div id="cashList" class="nw-list"></div>
+        <div class="quick-add">
+          <input type="text" placeholder="e.g. Wallet, Safe" id="cashName" />
+          <input type="number" placeholder="Amount" id="cashAmount" step="0.01" />
+          <button class="quick-add-btn" id="cashAddBtn">+</button>
+        </div>
+      </div>
       <!-- Bank accounts -->
       <div class="card nw-subcard">
         <div class="label" style="display:flex;justify-content:space-between;align-items:center"><span>🏦 Bank accounts</span><span id="bankTotal" style="font-size:13px;color:var(--text-primary);font-weight:600">0</span></div>
@@ -1715,6 +1792,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
           <input type="number" placeholder="Value" id="cryptoAmount" step="0.01" />
           <button class="quick-add-btn" id="cryptoAddBtn">+</button>
         </div>
+        <div class="quick-add" style="margin-top:6px">
+          <input type="text" placeholder="Or paste a wallet address to auto-track" id="cryptoWalletAddr" style="flex:2" />
+          <button class="quick-add-btn" id="cryptoWalletAddBtn">Track</button>
+        </div>
+        <div id="cryptoWalletStatus" style="font-size:11px;color:var(--text-tertiary);margin-top:6px;display:none"></div>
       </div>
       <!-- Other assets -->
       <div class="card nw-subcard">
@@ -1741,6 +1823,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;font-weight:500">Monthly burn</div>
         <div id="subsTotal" style="font-size:28px;font-weight:700;color:var(--text-primary);line-height:1.1;margin-top:2px">CHF 0 <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">/ mo</span></div>
         <div id="subsYearly" style="font-size:11px;color:var(--text-tertiary);margin-top:2px"></div>
+        <div id="subsCreepTotal" style="font-size:11px;color:#F2C063;margin-top:2px"></div>
       </div>
       <div id="subsCount" style="font-size:11px;color:var(--text-tertiary)"></div>
     </div>
@@ -1750,10 +1833,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       <input type="text" placeholder="Service (e.g. Netflix)" id="subName" style="flex:1.5;min-width:120px" />
       <input type="number" placeholder="Amount" id="subAmount" step="0.01" style="flex:1;max-width:100px" />
       <select id="subCurrency" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);max-width:90px">
-        <option value="CHF">CHF</option>
         <option value="USD">USD</option>
-        <option value="EUR">EUR</option>
-        <option value="GBP">GBP</option>
+        <option value="DOP">DOP</option>
       </select>
       <select id="subPeriod" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);max-width:100px">
         <option value="monthly">Monthly</option>
@@ -1787,10 +1868,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       <input type="text"   id="ordName"   placeholder="Item (e.g. New iPhone)" class="ord-input ord-input-name">
       <input type="number" id="ordCost"   placeholder="Cost" step="0.01" class="ord-input ord-input-cost">
       <select id="ordCurrency" class="ord-input ord-input-ccy">
-        <option value="CHF">CHF</option>
         <option value="USD">USD</option>
-        <option value="EUR">EUR</option>
-        <option value="GBP">GBP</option>
+        <option value="DOP">DOP</option>
       </select>
       <select id="ordFromCat" class="ord-input ord-input-from" title="Which net worth account this comes out of">
         <option value="">No accounts yet</option>
@@ -1814,6 +1893,73 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   </div>
 </div>
 
+<!-- ===== PURCHASES ===== -->
+<div class="section" data-section="purchases">
+  <div class="section-title">
+    <span class="section-title-text">PURCHASES</span>
+  </div>
+
+  <div class="ord-section-h" style="margin-bottom:14px">
+    <span class="ord-section-label">SPENDING</span>
+    <span class="ord-section-count" id="purStats">This month — · This year —</span>
+  </div>
+
+  <!-- Bank-suggested purchases (Plaid) -->
+  <div class="card ord-add-card" id="plaidSuggestCard" style="display:none">
+    <div class="ord-add-eyebrow" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span>🏦 SUGGESTED FROM BANK</span>
+      <span style="display:flex;gap:6px">
+        <button class="ord-add-btn" id="plaidConnectBtn" type="button" style="padding:7px 14px;font-size:11px;white-space:nowrap">Connect Bank</button>
+        <button class="ord-add-btn" id="plaidSyncBtn" type="button" style="padding:7px 14px;font-size:11px;white-space:nowrap;display:none">🔄 Sync Bank</button>
+      </span>
+    </div>
+    <div id="plaidStatus" style="font-size:11.5px;color:var(--text-tertiary);margin-top:8px"></div>
+    <div id="plaidSuggestList" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Gmail-suggested purchases -->
+  <div class="card ord-add-card" id="gmailSuggestCard">
+    <div class="ord-add-eyebrow" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span>📧 SUGGESTED FROM GMAIL</span>
+      <button class="ord-add-btn" id="gmailScanBtn" type="button" style="padding:7px 14px;font-size:11px;white-space:nowrap">🔍 Scan Gmail</button>
+    </div>
+    <div id="gmailScanStatus" style="font-size:11.5px;color:var(--text-tertiary);margin-top:8px"></div>
+    <div id="gmailSuggestList" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Add card -->
+  <div class="card ord-add-card">
+    <div class="ord-add-eyebrow">+ LOG A PURCHASE</div>
+    <div class="ord-add-grid">
+      <input type="text"   id="purName"   placeholder="What did you buy?" class="ord-input ord-input-name">
+      <input type="number" id="purCost"   placeholder="Cost" step="0.01" class="ord-input ord-input-cost">
+      <select id="purCurrency" class="ord-input ord-input-ccy">
+        <option value="USD">USD</option>
+        <option value="DOP">DOP</option>
+      </select>
+      <select id="purCategory" class="ord-input ord-input-ccy"></select>
+      <select id="purFromCat" class="ord-input ord-input-from" title="Which net worth account this came out of (optional)">
+        <option value="">Don't deduct from net worth</option>
+      </select>
+      <label class="date-field ord-input-date" title="Purchase date"><span class="date-emoji" aria-hidden="true">📅</span><input type="date" id="purDate" /></label>
+      <button class="ord-add-btn" id="purAddBtn">+ Log Purchase</button>
+    </div>
+    <div class="ord-add-preview" id="purAddPreview">Type a cost — preview will show what % of net worth it takes.</div>
+  </div>
+
+  <!-- Items list -->
+  <div class="ord-section-h">
+    <span class="ord-section-label">RECENT PURCHASES</span>
+    <span class="ord-section-count" id="purCount">0 items</span>
+  </div>
+  <div id="purList"></div>
+  <div class="ord-empty-card" id="purEmpty">
+    <div class="ord-empty-icon">🛍️</div>
+    <div class="ord-empty-title">No purchases logged yet</div>
+    <div class="ord-empty-sub">Log what you actually bought — optionally pick the account it came out of and it'll deduct immediately, unlike Orders which wait until they arrive.</div>
+  </div>
+</div>
+
 <!-- ===== WISHLIST ===== -->
 <div class="section" data-section="wish">
   <div class="section-title">
@@ -1824,7 +1970,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     <div class="wish-hero-top">
       <div>
         <div class="wish-hero-eyebrow">WISHLIST TOTAL</div>
-        <div class="wish-hero-num" id="wishTotal">CHF 0</div>
+        <div class="wish-hero-num" id="wishTotal">USD 0</div>
       </div>
       <div class="wish-hero-pct-wrap">
         <div class="wish-hero-pct-label">% OF NET WORTH</div>
@@ -1844,10 +1990,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       <input type="text"   id="wishName"   placeholder="Item name (e.g. New iPhone Pro Max)" class="wish-input wish-input-name">
       <input type="number" id="wishAmount" placeholder="Cost" step="0.01" class="wish-input wish-input-amt">
       <select id="wishCurrency" class="wish-input wish-input-ccy">
-        <option value="CHF">CHF</option>
         <option value="USD">USD</option>
-        <option value="EUR">EUR</option>
-        <option value="GBP">GBP</option>
+        <option value="DOP">DOP</option>
       </select>
       <button class="wish-add-btn" id="wishAddBtn" onclick="window.__addWish && window.__addWish()">+ Add</button>
     </div>
@@ -1863,6 +2007,53 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     <div class="wish-empty-icon">🎯</div>
     <div class="wish-empty-title">No wishes yet</div>
     <div class="wish-empty-sub">Add anything you're saving for — the dashboard will calculate what % of your net worth it'd cost.</div>
+  </div>
+</div>
+
+<!-- ===== DEBTS + PAYOFF CALCULATOR ===== -->
+<div class="section" data-section="debts" hidden>
+  <div class="section-title">
+    <span class="section-title-text">DEBTS</span>
+  </div>
+  <div class="card" style="background:linear-gradient(135deg, rgba(255,138,138,0.07), rgba(216,90,48,0.05));border:1px solid rgba(255,138,138,0.20)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:12px">
+      <div>
+        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;font-weight:500">Total owed</div>
+        <div id="debtsTotal" style="font-size:28px;font-weight:700;color:var(--text-primary);line-height:1.1;margin-top:2px">USD 0</div>
+        <div id="debtsAvgApr" style="font-size:11px;color:var(--text-tertiary);margin-top:2px"></div>
+      </div>
+      <div id="debtsCount" style="font-size:11px;color:var(--text-tertiary)"></div>
+    </div>
+    <div id="debtsList"></div>
+    <div class="empty-state" id="debtsEmpty">No debts tracked — nice, or just haven't added any yet</div>
+    <div class="quick-add" style="flex-wrap:wrap;gap:6px">
+      <input type="text" placeholder="Debt (e.g. Car loan)" id="debtName" style="flex:1.5;min-width:120px" />
+      <input type="number" placeholder="Balance" id="debtBalance" step="0.01" style="flex:1;max-width:100px" />
+      <select id="debtCurrency" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);max-width:90px">
+        <option value="USD">USD</option>
+        <option value="DOP">DOP</option>
+      </select>
+      <input type="number" placeholder="APR %" id="debtApr" step="0.01" style="flex:1;max-width:90px" />
+      <input type="number" placeholder="Min payment" id="debtMinPayment" step="0.01" style="flex:1;max-width:110px" />
+      <button class="quick-add-btn" id="debtAddBtn" onclick="window.__addDebt && window.__addDebt()">+ Add</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="section-title" style="margin-bottom:10px">
+      <span class="section-title-text">PAYOFF CALCULATOR</span>
+    </div>
+    <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px">
+      How much extra can you throw at these every month, on top of the minimums? Compares two payoff orders:
+      <b>avalanche</b> (highest interest rate first — mathematically optimal) and <b>snowball</b> (smallest balance
+      first — faster early wins).
+    </div>
+    <div class="quick-add" style="flex-wrap:wrap;gap:6px;margin-bottom:14px">
+      <input type="number" placeholder="Extra monthly payment" id="debtExtraPayment" step="0.01" style="flex:1;min-width:160px" />
+      <button class="quick-add-btn" id="debtCalcBtn" onclick="window.__calcPayoff && window.__calcPayoff()">Calculate</button>
+    </div>
+    <div id="debtPayoffResults"></div>
+    <div class="empty-state" id="debtPayoffEmpty">Add at least one debt (with an APR and minimum payment) to run the calculator</div>
   </div>
 </div>
 
@@ -1882,9 +2073,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     <span class="bot-tab-icon">📦</span>
     <span class="bot-tab-label">Orders</span>
   </button>
+  <button class="bot-tab" data-tab="purchases">
+    <span class="bot-tab-icon">🛍️</span>
+    <span class="bot-tab-label">Purchases</span>
+  </button>
   <button class="bot-tab" data-tab="wish">
     <span class="bot-tab-icon">🎯</span>
     <span class="bot-tab-label">Wishlist</span>
+  </button>
+  <button class="bot-tab" data-tab="debts">
+    <span class="bot-tab-icon">📉</span>
+    <span class="bot-tab-label">Debts</span>
   </button>
 </nav>
 
@@ -1911,11 +2110,177 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   // and ORD_FROM_META hasn't been initialized yet.
   // ============================================================
   const ORD_FROM_META = {
+    cash:   { name: 'Cash',   color: '#F472B6' },
     bank:   { name: 'Bank',   color: '#7DD3FC' },
     stocks: { name: 'Stocks', color: '#6EE7B7' },
     crypto: { name: 'Crypto', color: '#FBBF24' },
     other:  { name: 'Other',  color: '#B794F4' }
   };
+
+  // PURCHASE_CATS — same TDZ constraint as ORD_FROM_META: renderPurchases
+  // runs as part of the first renderAllNetWorth() call, so this must be
+  // defined before that, not down near the rest of the Purchases code.
+  const PURCHASE_CATS = [
+    { key: 'food',          label: 'Food',          color: '#FDBA74' },
+    { key: 'shopping',      label: 'Shopping',      color: '#F472B6' },
+    { key: 'bills',         label: 'Bills',         color: '#93C5FD' },
+    { key: 'transport',     label: 'Transport',     color: '#67E8F9' },
+    { key: 'health',        label: 'Health',        color: '#6EE7B7' },
+    { key: 'entertainment', label: 'Entertainment', color: '#C4B5FD' },
+    { key: 'travel',        label: 'Travel',        color: '#FCD34D' },
+    { key: 'other',         label: 'Other',         color: '#B794F4' },
+  ];
+  function purCatMeta(key) { return PURCHASE_CATS.find(c => c.key === key) || PURCHASE_CATS[PURCHASE_CATS.length - 1]; }
+
+  // ============================================================
+  // WALLET_CHAINS — auto-detected chains for the "paste an address"
+  // crypto tracker. Same TDZ constraint as ORD_FROM_META above: must
+  // be defined before the first renderAllNetWorth() call, since a
+  // saved tracked wallet renders through renderNetWorthCategory
+  // immediately, and that references this map.
+  //
+  // Only chains with a free, no-signup, browser-callable (CORS-open)
+  // balance API are supported. Bitcoin-style addresses are verified
+  // via base58check before being accepted as Bitcoin — otherwise a
+  // Solana address that happens to start with the same characters
+  // would be misread as Bitcoin.
+  // ============================================================
+  const B58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function base58Decode(str) {
+    let bytes = [0];
+    for (const c of str) {
+      const idx = B58_ALPHABET.indexOf(c);
+      if (idx < 0) return null;
+      let carry = idx;
+      for (let i = 0; i < bytes.length; i++) {
+        carry += bytes[i] * 58;
+        bytes[i] = carry & 0xff;
+        carry >>= 8;
+      }
+      while (carry > 0) { bytes.push(carry & 0xff); carry >>= 8; }
+    }
+    for (let i = 0; i < str.length && str[i] === '1'; i++) bytes.push(0);
+    return bytes.reverse();
+  }
+  async function sha256Bytes(bytes) {
+    const buf = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
+    return new Uint8Array(buf);
+  }
+  async function isValidBase58Check(str) {
+    try {
+      const decoded = base58Decode(str);
+      if (!decoded || decoded.length < 5) return false;
+      const payload = decoded.slice(0, -4);
+      const checksum = decoded.slice(-4);
+      const hash1 = await sha256Bytes(payload);
+      const hash2 = await sha256Bytes(Array.from(hash1));
+      return checksum.every((b, i) => b === hash2[i]);
+    } catch (e) { return false; }
+  }
+  const WALLET_CHAINS = {
+    bitcoin: {
+      ticker: 'BTC', coingeckoId: 'bitcoin',
+      async fetchNativeBalance(addr) {
+        const res = await fetch('https://blockstream.info/api/address/' + addr);
+        if (!res.ok) throw new Error('lookup failed');
+        const d = await res.json();
+        const sats = (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum)
+          + (d.mempool_stats.funded_txo_sum - d.mempool_stats.spent_txo_sum);
+        return sats / 1e8;
+      }
+    },
+    ethereum: {
+      ticker: 'ETH', coingeckoId: 'ethereum',
+      async fetchNativeBalance(addr) {
+        const res = await fetch('https://ethereum-rpc.publicnode.com', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [addr, 'latest'] })
+        });
+        const d = await res.json();
+        if (!d.result) throw new Error('lookup failed');
+        return parseInt(d.result, 16) / 1e18;
+      }
+    },
+    solana: {
+      ticker: 'SOL', coingeckoId: 'solana',
+      async fetchNativeBalance(addr) {
+        const res = await fetch('https://api.mainnet-beta.solana.com', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [addr] })
+        });
+        const d = await res.json();
+        if (!d.result) throw new Error('lookup failed');
+        return d.result.value / 1e9;
+      }
+    }
+  };
+  // Returns a chain key from WALLET_CHAINS, or null if unrecognized.
+  async function detectWalletChain(addr) {
+    const a = String(addr || '').trim();
+    if (/^0x[a-fA-F0-9]{40}$/.test(a)) return 'ethereum';
+    if (/^bc1[a-z0-9]{14,74}$/.test(a)) return 'bitcoin';
+    if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(a) && await isValidBase58Check(a)) return 'bitcoin';
+    if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a)) return 'solana';
+    return null;
+  }
+  const WALLET_PRICE_CACHE = {}; // coingeckoId -> { usd, ts }
+  async function fetchUsdPrice(coingeckoId) {
+    const cached = WALLET_PRICE_CACHE[coingeckoId];
+    if (cached && Date.now() - cached.ts < 120000) return cached.usd;
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + coingeckoId + '&vs_currencies=usd');
+    if (!res.ok) throw new Error('price lookup failed');
+    const d = await res.json();
+    const usd = d && d[coingeckoId] && d[coingeckoId].usd;
+    if (typeof usd !== 'number') throw new Error('price lookup failed');
+    WALLET_PRICE_CACHE[coingeckoId] = { usd, ts: Date.now() };
+    return usd;
+  }
+  function usdToCHF(usd) {
+    const rate = exchangeRates.USD || 1; // exchangeRates is CHF-based: 1 CHF = rate USD
+    return usd / rate;
+  }
+  function shortAddr(addr) {
+    return addr.length > 12 ? addr.slice(0, 6) + '…' + addr.slice(-4) : addr;
+  }
+  // Re-fetches balance + price for one tracked wallet (by index into
+  // nw:crypto) and updates its stored amount. Used both by the manual
+  // per-row refresh button and the on-load staleness sweep below.
+  async function refreshTrackedWallet(idx) {
+    const items = storeGet('nw:crypto') || [];
+    const it = items[idx];
+    if (!it || !it.walletAddress || !it.chain || !WALLET_CHAINS[it.chain]) return;
+    const chain = WALLET_CHAINS[it.chain];
+    try {
+      const [native, usd] = await Promise.all([
+        chain.fetchNativeBalance(it.walletAddress),
+        fetchUsdPrice(chain.coingeckoId)
+      ]);
+      const newCHF = usdToCHF(native * usd);
+      const deltaCHF = newCHF - (Number(it.amount) || 0);
+      items[idx] = { ...it, amount: newCHF, nativeBalance: native, lastFetchedAt: Date.now() };
+      storeSet('nw:crypto', items);
+      if (Math.abs(deltaCHF) > 0.0001) logActivity('crypto', it.name, deltaCHF, 'edit');
+      if (typeof renderAllNetWorth === 'function') renderAllNetWorth();
+    } catch (e) {
+      const statusEl = document.getElementById('cryptoWalletStatus');
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#FF8A8A';
+        statusEl.textContent = "Couldn't refresh " + it.name + ' — try again in a bit.';
+      }
+    }
+  }
+  // Silently re-pulls any tracked wallet not refreshed in the last 15
+  // minutes, once on load, so balances stay reasonably current without
+  // hammering the free public APIs on every render.
+  async function refreshStaleTrackedWallets() {
+    const items = storeGet('nw:crypto') || [];
+    const staleIdxs = [];
+    items.forEach((it, i) => {
+      if (it.walletAddress && (!it.lastFetchedAt || Date.now() - it.lastFetchedAt > 15 * 60 * 1000)) staleIdxs.push(i);
+    });
+    for (const i of staleIdxs) { await refreshTrackedWallet(i); }
+  }
 
   // ============================================================
   // BOTTOM TABS — switch between Net Worth / Subs / Orders.
@@ -1935,13 +2300,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
   const savedTab = storeGet(TAB_KEY);
-  setActiveTab(savedTab && ['net','subs','incoming','wish'].includes(savedTab) ? savedTab : 'net');
+  setActiveTab(savedTab && ['net','subs','incoming','purchases','wish','debts'].includes(savedTab) ? savedTab : 'net');
 
   // ============================================================
   // NET WORTH (copied from the main dashboard, verbatim logic)
   // ============================================================
   const CURRENCY_KEY = 'nw_currency';
   const NW_CATS = [
+    { key: 'cash',   listId: 'cashList',   totalId: 'cashTotal',   nameId: 'cashName',   amtId: 'cashAmount',   addId: 'cashAddBtn' },
     { key: 'bank',   listId: 'bankList',   totalId: 'bankTotal',   nameId: 'bankName',   amtId: 'bankAmount',   addId: 'bankAddBtn' },
     { key: 'stocks', listId: 'stocksList', totalId: 'stocksTotal', nameId: 'stocksName', amtId: 'stocksAmount', addId: 'stocksAddBtn' },
     { key: 'crypto', listId: 'cryptoList', totalId: 'cryptoTotal', nameId: 'cryptoName', amtId: 'cryptoAmount', addId: 'cryptoAddBtn' },
@@ -1951,7 +2317,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   const netWorthTotal = document.getElementById('netWorthTotal');
   const netWorthBreakdown = document.getElementById('netWorthBreakdown');
 
-  let exchangeRates = { CHF: 1, USD: 1, EUR: 1, GBP: 1 };
+  // CHF is the invisible internal base unit every stored amount (amountCHF,
+  // account balances, etc.) is denominated in — that's purely historical
+  // plumbing at this point, not something shown to the user anymore. USD is
+  // now the only default/primary DISPLAY currency, with DOP as the one
+  // alternate; CHF/EUR/GBP stay in this rates table (never offered in any
+  // dropdown going forward) only so existing items that were entered in one
+  // of them before this change still render their original "entered as X"
+  // amount correctly instead of that hint silently going wrong.
+  let exchangeRates = { CHF: 1, USD: 1, EUR: 1, GBP: 1, DOP: 1 };
   async function loadExchangeRates() {
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/CHF');
@@ -1961,7 +2335,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
           CHF: 1,
           USD: data.rates.USD || 1,
           EUR: data.rates.EUR || 1,
-          GBP: data.rates.GBP || 1
+          GBP: data.rates.GBP || 1,
+          DOP: data.rates.DOP || 1
         };
         renderAllNetWorth();
         if (typeof renderSubs === 'function') renderSubs();
@@ -1971,7 +2346,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   loadExchangeRates();
 
   function fmtMoney(amountCHF) {
-    const symbol = currencyEl ? currencyEl.value : 'CHF';
+    const symbol = currencyEl ? currencyEl.value : 'USD';
     const rate = exchangeRates[symbol] || 1;
     const num = (Number(amountCHF) || 0) * rate;
     return symbol + ' ' + num.toLocaleString('en-US', { minimumFractionDigits: num % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
@@ -2004,7 +2379,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         if (removed) logActivity(cat.key, removed.name, -(Number(removed.amount) || 0), 'delete');
         renderAllNetWorth();
       });
-      row.appendChild(name); row.appendChild(amt); row.appendChild(del);
+      row.appendChild(name);
+      if (cat.key === 'crypto' && it.walletAddress) {
+        const badge = document.createElement('button');
+        badge.className = 'nw-wallet-refresh';
+        badge.type = 'button';
+        badge.textContent = '🔄';
+        badge.title = 'Live-tracked · ' + (WALLET_CHAINS[it.chain] ? WALLET_CHAINS[it.chain].ticker : it.chain)
+          + ' ' + it.walletAddress + (it.lastFetchedAt ? ' · updated ' + fmtActivityDate(it.lastFetchedAt) : '');
+        badge.addEventListener('click', (e) => { e.stopPropagation(); refreshTrackedWallet(idx); });
+        row.appendChild(badge);
+      }
+      row.appendChild(amt); row.appendChild(del);
       list.appendChild(row);
     });
     document.getElementById(cat.totalId).textContent = fmtMoney(total);
@@ -2013,7 +2399,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   function beginNwAmountEdit(amtEl, items, idx, catKey) {
     if (amtEl.querySelector('input')) return;
-    const symbol = currencyEl ? currencyEl.value : 'CHF';
+    const symbol = currencyEl ? currencyEl.value : 'USD';
     const rate = exchangeRates[symbol] || 1;
     const curCHF = Number(items[idx].amount) || 0;
     const curDisplay = curCHF * rate;
@@ -2021,7 +2407,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     input.type = 'text';
     input.inputMode = 'decimal';
     input.value = String(curDisplay.toFixed(curDisplay % 1 === 0 ? 0 : 2));
-    input.style.cssText = 'width:110px;padding:4px 8px;font-family:var(--font-mono);font-size:12px;background:rgba(0,0,0,0.30);border:1px solid rgba(255,255,255,0.10);color:var(--text-primary);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;outline:none;';
+    input.style.cssText = 'width:110px;padding:4px 8px;font-family:var(--font-mono);font-size:12px;background:rgba(0,0,0,0.30);border:1px solid rgba(34,211,245,0.10);color:var(--text-primary);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;outline:none;';
     amtEl.textContent = '';
     amtEl.appendChild(input);
     setTimeout(() => { input.focus(); input.select(); }, 0);
@@ -2061,7 +2447,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = cur;
-    input.style.cssText = 'width:100%;padding:4px 8px;font-family:inherit;font-size:13px;background:rgba(0,0,0,0.30);border:1px solid rgba(255,255,255,0.10);color:var(--text-primary);border-radius:6px;outline:none;';
+    input.style.cssText = 'width:100%;padding:4px 8px;font-family:inherit;font-size:13px;background:rgba(0,0,0,0.30);border:1px solid rgba(34,211,245,0.10);color:var(--text-primary);border-radius:6px;outline:none;';
     nameEl.textContent = '';
     nameEl.appendChild(input);
     setTimeout(() => { input.focus(); input.select(); }, 0);
@@ -2095,9 +2481,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     renderNetWorthChart();
     renderAllocationDonut(sliceTotals, grand);
     renderActivity();
+    if (typeof populateIncomeAccountSelect === 'function') populateIncomeAccountSelect();
+    if (typeof renderIncomeStats === 'function') renderIncomeStats();
     if (typeof renderWishlist === 'function') renderWishlist();
+    if (typeof renderDebts === 'function') renderDebts();
     if (typeof renderOrders   === 'function') renderOrders();
     if (typeof updateOrdPreview === 'function') updateOrdPreview();
+    if (typeof renderPurchases === 'function') renderPurchases();
+    if (typeof updatePurPreview === 'function') updatePurPreview();
   }
 
   // ============================================================
@@ -2145,11 +2536,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const sign = e.delta >= 0 ? '+' : '—';
       const cls = e.delta >= 0 ? 'up' : 'down';
       const amt = fmtMoney(Math.abs(e.delta));
-      const kind = e.kind === 'edit' ? 'EDIT' : (e.kind === 'delete' ? 'DELETE' : 'ADD');
+      const kind = e.kind === 'income' ? 'INCOME' : e.kind === 'purchase' ? 'PURCHASE' : e.kind === 'edit' ? 'EDIT' : (e.kind === 'delete' ? 'DELETE' : 'ADD');
+      const barColor = e.kind === 'income' ? '#6EE7B7' : e.kind === 'purchase' ? '#FF8A8A' : meta.color;
+      const prefix = e.kind === 'income' ? '💰 ' : e.kind === 'purchase' ? '🛍️ ' : '';
       return '<div class="nw-activity-row" style="color:' + meta.color + '">'
-        + '<span class="nw-activity-bar" style="background:' + meta.color + '"></span>'
+        + '<span class="nw-activity-bar" style="background:' + barColor + '"></span>'
         + '<div class="nw-activity-info">'
-        +   '<div class="nw-activity-name">' + escapeHtml(e.name || '(unnamed)') + '</div>'
+        +   '<div class="nw-activity-name">' + prefix + escapeHtml(e.name || '(unnamed)') + '</div>'
         +   '<div class="nw-activity-meta">' + meta.name + ' · ' + kind + '</div>'
         + '</div>'
         + '<span class="nw-activity-amt ' + cls + '">' + sign + amt + '</span>'
@@ -2159,11 +2552,96 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 
   // ============================================================
+  // ADD INCOME — a quick, clearly-labeled deposit into any existing
+  // NW account (cash/bank/stocks/crypto/other), logged as its own 'income'
+  // activity kind so it's distinguishable from ordinary edits and can
+  // be summed into "income this month/year" below.
+  // ============================================================
+  function populateIncomeAccountSelect() {
+    const sel = document.getElementById('incomeAccount');
+    if (!sel) return;
+    const accounts = listAllNwAccounts();
+    const prev = sel.value;
+    const ICONS = { cash: '💵', bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    const addBtn = document.getElementById('incomeAddBtn');
+    if (!accounts.length) {
+      sel.innerHTML = '<option value="">No accounts yet</option>';
+      sel.disabled = true;
+      if (addBtn) addBtn.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    if (addBtn) addBtn.disabled = false;
+    sel.innerHTML = accounts.map(a => {
+      const value = a.catKey + '::' + a.itemName;
+      return '<option value="' + value + '">' + ICONS[a.catKey] + ' ' + escapeHtml(a.itemName) + '</option>';
+    }).join('');
+    if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  function renderIncomeStats() {
+    const statsEl = document.getElementById('nwIncomeStats');
+    if (!statsEl) return;
+    const arr = storeGet(ACTIVITY_KEY) || [];
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+    let month = 0, year = 0;
+    arr.forEach(e => {
+      if (e.kind !== 'income') return;
+      if (e.ts >= yearStart) year += e.delta;
+      if (e.ts >= monthStart) month += e.delta;
+    });
+    statsEl.textContent = 'This month ' + fmtMoney(month) + ' · This year ' + fmtMoney(year);
+  }
+
+  function doAddIncome() {
+    const labelInput = document.getElementById('incomeLabel');
+    const amtInput = document.getElementById('incomeAmount');
+    const sel = document.getElementById('incomeAccount');
+    const status = document.getElementById('nwIncomeStatus');
+    if (!labelInput || !amtInput || !sel) return;
+    const label = labelInput.value.trim() || 'Income';
+    const amt = parseFloat(amtInput.value);
+    const target = sel.value;
+    if (!target) {
+      status.style.display = 'block';
+      status.textContent = 'Add a bank account below first, then you can log income into it.';
+      return;
+    }
+    if (isNaN(amt) || amt <= 0) { amtInput.focus(); return; }
+    const sepIdx = target.indexOf('::');
+    const catKey = target.slice(0, sepIdx);
+    const accountName = target.slice(sepIdx + 2);
+    const items = storeGet('nw:' + catKey) || [];
+    const idx = items.findIndex(x => String(x.name) === accountName);
+    if (idx < 0) return;
+    // Amount is entered in the currently selected display currency —
+    // convert to CHF for storage, same as every other NW input.
+    const symbol = currencyEl ? currencyEl.value : 'USD';
+    const rate = exchangeRates[symbol] || 1;
+    const deltaCHF = amt / rate;
+    items[idx].amount = (Number(items[idx].amount) || 0) + deltaCHF;
+    storeSet('nw:' + catKey, items);
+    logActivity(catKey, label + ' → ' + accountName, deltaCHF, 'income');
+    labelInput.value = ''; amtInput.value = '';
+    status.style.display = 'none';
+    renderAllNetWorth();
+  }
+  const incomeAddBtnEl = document.getElementById('incomeAddBtn');
+  if (incomeAddBtnEl) {
+    incomeAddBtnEl.addEventListener('click', doAddIncome);
+    document.getElementById('incomeLabel').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAddIncome(); });
+    document.getElementById('incomeAmount').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAddIncome(); });
+  }
+
+  // ============================================================
   // ALLOCATION DONUT — pie chart of where money lives + annual subs
   // burn (so you can see how much subs are eating vs your assets).
   // Each NW category gets a fixed color; subs get red because outflow.
   // ============================================================
   const NW_SLICE_META = {
+    cash:   { name: 'Cash',     color: '#F472B6' },
     bank:   { name: 'Bank',     color: '#7DD3FC' },
     stocks: { name: 'Stocks',   color: '#6EE7B7' },
     crypto: { name: 'Crypto',   color: '#FBBF24' },
@@ -2225,7 +2703,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const sliceTotal = slices.reduce((s, x) => s + x.value, 0);
 
     if (!slices.length || sliceTotal <= 0) {
-      svg.innerHTML = '<circle cx="70" cy="70" r="60" fill="rgba(255,255,255,0.025)"/>'
+      svg.innerHTML = '<circle cx="70" cy="70" r="60" fill="rgba(34,211,245,0.025)"/>'
                     + '<circle cx="70" cy="70" r="44" fill="#0A0A0B"/>';
       total.textContent = '—';
       empty.classList.remove('hidden');
@@ -2306,6 +2784,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       areaPath.setAttribute('d', '');
       if (deltaEl) { deltaEl.textContent = '—'; deltaEl.classList.remove('up', 'down'); }
       renderChartStats([]);
+      if (typeof renderNetWorthForecast === 'function') renderNetWorthForecast();
       return;
     }
     wrap.classList.add('has-data');
@@ -2356,6 +2835,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const firstPt = points[0];
     areaPath.setAttribute('d', lineD + ' L' + lastPt.x + ',' + H + ' L' + firstPt.x + ',' + H + ' Z');
     renderChartStats(hist);
+    if (typeof renderNetWorthForecast === 'function') renderNetWorthForecast();
   }
 
   // Stats overlay — what 1% is worth, all-time high/low, snapshot count.
@@ -2383,6 +2863,245 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     countEl.textContent = String(hist.length);
   }
 
+  // ============================================================
+  // FORECAST — trend-based projection from nw:history (already recorded by
+  // logNetWorthSnapshot on every real change), a custom goal amount, and a
+  // "what would this purchase cost my timeline" impact preview.
+  // ============================================================
+  const FORECAST_WINDOW_DAYS = 180; // only recent history drives "current trend" — a multi-year-old pattern shouldn't dominate a fresh projection
+  // Simple least-squares linear regression over {t, v} points restricted to
+  // the trailing window. Returns null (rather than a misleading number) when
+  // there isn't enough data to fit a line.
+  function computeNetWorthTrend(history, windowDays) {
+    if (!Array.isArray(history) || history.length < 2) return null;
+    const cutoff = windowDays ? Date.now() - windowDays * 86400000 : -Infinity;
+    const pts = history.filter(p => p.t >= cutoff);
+    if (pts.length < 2) return null;
+    const t0 = pts[0].t;
+    const xs = pts.map(p => (p.t - t0) / 86400000);
+    const ys = pts.map(p => p.v);
+    const n = xs.length;
+    const sumX = xs.reduce((a, b) => a + b, 0), sumY = ys.reduce((a, b) => a + b, 0);
+    const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0), sumXX = xs.reduce((a, x) => a + x * x, 0);
+    const denom = n * sumXX - sumX * sumX;
+    if (denom === 0) return null; // all sample points landed at the same x (e.g. duplicate timestamps) — can't fit a slope
+    const slopePerDay = (n * sumXY - sumX * sumY) / denom;
+    return { slopePerDay, monthlyRate: slopePerDay * 30.44, currentValue: ys[ys.length - 1], samples: n, windowStartT: pts[0].t };
+  }
+  function projectDateToReach(currentValue, monthlyRate, targetValue) {
+    if (!(monthlyRate > 0)) return null;
+    if (targetValue <= currentValue) return { months: 0, date: new Date() };
+    const monthsNeeded = (targetValue - currentValue) / monthlyRate;
+    const d = new Date();
+    d.setDate(d.getDate() + Math.round(monthsNeeded * 30.44));
+    return { months: monthsNeeded, date: d };
+  }
+  // Picks a "nice" round number just above the current value, scaled to its
+  // own magnitude (so 47,000 suggests 50,000; 470,000 suggests 500,000).
+  function nextRoundMilestone(currentValue) {
+    if (!(currentValue > 0)) return 10000;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(currentValue)));
+    const step = magnitude / 2;
+    return Math.ceil((currentValue + 1) / step) * step;
+  }
+  function purchaseImpactDays(amount, monthlyRate) {
+    if (!(monthlyRate > 0) || !(amount > 0)) return null;
+    const dailyRate = monthlyRate / 30.44;
+    return Math.round(amount / dailyRate);
+  }
+
+  // ============================================================
+  // NET WORTH TRAJECTORY — Slow/Typical/Fast scenario fan, the same
+  // percentile-based approach as gym.html's Weight Trajectory: instead of
+  // trusting one linear-regression slope, sample the real monthly rate of
+  // change between every consecutive pair of snapshots and take
+  // percentiles of THAT distribution. The median is "Typical"; whichever
+  // side sits closer to zero becomes "Slow" and the side further from
+  // zero becomes "Fast", regardless of whether the overall trend is
+  // growing or shrinking.
+  // ============================================================
+  const NW_TRAJ_MIN_SNAPSHOTS = 3;
+
+  function nwPercentile(sorted, p) {
+    if (!sorted.length) return null;
+    const idx = (sorted.length - 1) * p;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+
+  function nwMonthlyRates(points) {
+    const rates = [];
+    for (let i = 1; i < points.length; i++) {
+      const days = (points[i].t - points[i - 1].t) / 86400000;
+      if (days <= 0) continue;
+      rates.push(((points[i].v - points[i - 1].v) / days) * 30.44);
+    }
+    return rates;
+  }
+
+  function computeNwScenarios(history, windowDays, goal) {
+    if (!Array.isArray(history) || history.length < NW_TRAJ_MIN_SNAPSHOTS) return null;
+    const cutoff = windowDays ? Date.now() - windowDays * 86400000 : -Infinity;
+    const windowed = history.filter(p => p.t >= cutoff).sort((a, b) => a.t - b.t);
+    if (windowed.length < NW_TRAJ_MIN_SNAPSHOTS) return null;
+
+    const rates = nwMonthlyRates(windowed).sort((a, b) => a - b);
+    if (!rates.length) return null;
+    const median = nwPercentile(rates, 0.5);
+    const p25 = nwPercentile(rates, 0.25);
+    const p75 = nwPercentile(rates, 0.75);
+    const isShrinking = median <= 0;
+    const slowRate = isShrinking ? p75 : p25;
+    const fastRate = isShrinking ? p25 : p75;
+    const current = windowed[windowed.length - 1].v;
+
+    const scenarios = { slow: slowRate, typical: median, fast: fastRate };
+    const etas = {};
+    if (goal != null && !isNaN(goal)) {
+      Object.keys(scenarios).forEach(key => {
+        const rate = scenarios[key];
+        const diff = goal - current;
+        if (rate === 0 || Math.sign(rate) !== Math.sign(diff)) { etas[key] = null; return; }
+        const monthsNeeded = diff / rate;
+        etas[key] = new Date(Date.now() + monthsNeeded * 30.44 * 86400000);
+      });
+    }
+    return { windowed, current, scenarios, etas, goal };
+  }
+
+  const NW_TRAJ_PROJECT_DAYS = 240;
+
+  function renderNwTrajectory(goal) {
+    const bodyEl = document.getElementById('nwTrajBody');
+    if (!bodyEl) return;
+    const history = storeGet(NW_HISTORY_KEY) || [];
+    const result = computeNwScenarios(history, FORECAST_WINDOW_DAYS, goal);
+    if (!result) { bodyEl.style.display = 'none'; return; }
+    bodyEl.style.display = 'block';
+
+    const w = 320, h = 140, padTop = 8, padBottom = 8;
+    const histStart = result.windowed[0].t;
+    const projectEnd = Date.now() + NW_TRAJ_PROJECT_DAYS * 86400000;
+    const totalSpan = projectEnd - histStart;
+    const allVals = result.windowed.map(p => p.v).concat(result.goal != null && !isNaN(result.goal) ? [result.goal] : []);
+    Object.keys(result.scenarios).forEach(key => {
+      allVals.push(result.current + result.scenarios[key] * (NW_TRAJ_PROJECT_DAYS / 30.44));
+    });
+    const yMin = Math.min.apply(null, allVals), yMax = Math.max.apply(null, allVals);
+    const pad = Math.max((yMax - yMin) * 0.08, 1);
+    function X(t) { return ((t - histStart) / totalSpan) * w; }
+    function Y(v) { return h - padBottom - ((v - (yMin - pad)) / ((yMax + pad) - (yMin - pad))) * (h - padTop - padBottom); }
+
+    const histPts = result.windowed.map(p => X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1));
+    const nowX = X(Date.now());
+    let svg = '';
+    if (result.goal != null && !isNaN(result.goal)) {
+      const gy = Y(result.goal).toFixed(1);
+      svg += '<line x1="0" y1="' + gy + '" x2="' + w + '" y2="' + gy + '" stroke="rgba(34,211,245,0.5)" stroke-width="1" stroke-dasharray="4,4"/>';
+    }
+    svg += '<line x1="' + nowX.toFixed(1) + '" y1="0" x2="' + nowX.toFixed(1) + '" y2="' + h + '" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>';
+    svg += '<polyline points="' + histPts.join(' ') + '" fill="none" stroke="#22D3F5" stroke-width="2"/>';
+    const scenarioColor = { slow: '#FF5470', typical: '#FBBF24', fast: '#3FE0A8' };
+    Object.keys(result.scenarios).forEach(key => {
+      const rate = result.scenarios[key];
+      const endVal = result.current + rate * (NW_TRAJ_PROJECT_DAYS / 30.44);
+      svg += '<line x1="' + nowX.toFixed(1) + '" y1="' + Y(result.current).toFixed(1) + '" x2="' + X(projectEnd).toFixed(1)
+        + '" y2="' + Y(endVal).toFixed(1) + '" stroke="' + scenarioColor[key] + '" stroke-width="1.5" stroke-dasharray="5,3"/>';
+    });
+    document.getElementById('nwTrajSvg').innerHTML = svg;
+
+    document.getElementById('nwTrajRateGrid').innerHTML = ['slow', 'typical', 'fast'].map(key => {
+      const rate = result.scenarios[key];
+      const sign = rate >= 0 ? '+' : '−';
+      return '<div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:9px 8px;text-align:center">'
+        + '<div style="font-family:var(--font-mono);font-size:12.5px;font-weight:700;color:' + scenarioColor[key] + '">' + sign + fmtMoney(Math.abs(rate)) + '</div>'
+        + '<div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-top:3px">' + key + ' /mo</div></div>';
+    }).join('');
+
+    const etaEl = document.getElementById('nwGoalEtaTable');
+    if (etaEl) {
+      if (result.goal == null || isNaN(result.goal)) {
+        etaEl.textContent = '';
+      } else if (!result.etas.typical) {
+        etaEl.textContent = '';
+      } else {
+        etaEl.textContent = 'Slow: ' + result.etas.slow.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+          + ' · Typical: ' + result.etas.typical.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+          + ' · Fast: ' + result.etas.fast.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      }
+    }
+  }
+
+  // Auto-updating summary — called from renderNetWorthChart() every time
+  // net worth actually changes. DOM refs are looked up fresh each call
+  // (not cached at module scope) — this function is invoked from
+  // renderNetWorthChart(), which itself fires as part of the very first
+  // renderAllNetWorth() call, well before a script-position-based const
+  // declared down here would have been evaluated. Same caution already
+  // documented for ORD_FROM_META/the Debts section above.
+  function renderNetWorthForecast() {
+    const trendEl = document.getElementById('nwForecastTrend');
+    const milestoneEl = document.getElementById('nwForecastMilestone');
+    const emptyEl = document.getElementById('nwForecastEmpty');
+    if (!trendEl) return;
+    const history = storeGet(NW_HISTORY_KEY) || [];
+    const trend = computeNetWorthTrend(history, FORECAST_WINDOW_DAYS);
+    if (!trend) {
+      trendEl.textContent = '';
+      if (milestoneEl) milestoneEl.textContent = '';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    const spanDays = Math.max(1, Math.round((Date.now() - trend.windowStartT) / 86400000));
+    const rateLabel = trend.monthlyRate >= 0
+      ? '+' + fmtMoney(trend.monthlyRate) + '/mo'
+      : '−' + fmtMoney(Math.abs(trend.monthlyRate)) + '/mo';
+    trendEl.textContent = 'Trending ' + rateLabel + ' over the last ' + spanDays + ' day' + (spanDays === 1 ? '' : 's') + ' (' + trend.samples + ' data points)';
+    if (milestoneEl) {
+      if (trend.monthlyRate > 0) {
+        const milestone = nextRoundMilestone(trend.currentValue);
+        const proj = projectDateToReach(trend.currentValue, trend.monthlyRate, milestone);
+        milestoneEl.textContent = proj ? ('At this rate: ' + fmtMoney(milestone) + ' by ' + proj.date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })) : '';
+      } else {
+        milestoneEl.textContent = 'Net worth is flat or declining recently — no forward projection.';
+      }
+    }
+    const goalEl = document.getElementById('nwGoalAmount');
+    const currentGoal = goalEl && goalEl.value !== '' ? parseFloat(goalEl.value) : null;
+    renderNwTrajectory(currentGoal != null && !isNaN(currentGoal) ? currentGoal : null);
+  }
+
+  function renderGoalProjection() {
+    const resultEl = document.getElementById('nwGoalResult');
+    const goalEl = document.getElementById('nwGoalAmount');
+    if (!resultEl || !goalEl) return;
+    const target = parseFloat(goalEl.value);
+    if (isNaN(target)) { resultEl.textContent = ''; renderNwTrajectory(null); return; }
+    const history = storeGet(NW_HISTORY_KEY) || [];
+    const trend = computeNetWorthTrend(history, FORECAST_WINDOW_DAYS);
+    if (!trend) { resultEl.textContent = 'Not enough tracked history yet to project — add or edit a few net worth entries over a few days first.'; return; }
+    if (target <= trend.currentValue) { resultEl.textContent = 'Already past that — nice.'; return; }
+    if (!(trend.monthlyRate > 0)) { resultEl.textContent = 'Net worth isn\'t currently trending upward, so this can\'t be projected forward.'; return; }
+    const proj = projectDateToReach(trend.currentValue, trend.monthlyRate, target);
+    resultEl.textContent = 'At the current rate, you\'d hit ' + fmtMoney(target) + ' around ' + proj.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' (~' + Math.round(proj.months) + ' months).';
+    renderNwTrajectory(target);
+  }
+
+  function renderPurchaseImpact() {
+    const resultEl = document.getElementById('nwImpactResult');
+    const amtEl = document.getElementById('nwImpactAmount');
+    if (!resultEl || !amtEl) return;
+    const amount = parseFloat(amtEl.value);
+    if (isNaN(amount) || amount <= 0) { resultEl.textContent = ''; return; }
+    const history = storeGet(NW_HISTORY_KEY) || [];
+    const trend = computeNetWorthTrend(history, FORECAST_WINDOW_DAYS);
+    if (!trend || !(trend.monthlyRate > 0)) { resultEl.textContent = 'Net worth isn\'t currently trending upward, so a delay can\'t be estimated.'; return; }
+    const days = purchaseImpactDays(amount, trend.monthlyRate);
+    resultEl.textContent = 'Spending ' + fmtMoney(amount) + ' would set your trajectory back roughly ' + days + ' day' + (days === 1 ? '' : 's') + ' at your current savings rate.';
+  }
+
   NW_CATS.forEach(cat => {
     const addBtn = document.getElementById(cat.addId);
     const nameInput = document.getElementById(cat.nameId);
@@ -2395,7 +3114,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       // Interpret the input in the CURRENTLY SELECTED display currency, then
       // convert to CHF for storage. So if USD is selected and user types 40000,
       // we store 40000 / USD-per-CHF rate — 31,400 CHF; displays as $40,000.
-      const symbol = currencyEl ? currencyEl.value : 'CHF';
+      const symbol = currencyEl ? currencyEl.value : 'USD';
       const rate = exchangeRates[symbol] || 1;
       const amountCHF = a / rate;
       const items = storeGet('nw:' + cat.key) || [];
@@ -2410,9 +3129,76 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     amtInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
   });
 
+  // ============================================================
+  // CRYPTO WALLET TRACKER — paste an address, auto-detect the chain
+  // (Bitcoin / Ethereum / Solana), pull the live balance + USD price,
+  // and add/update it as a crypto NW entry. Manual crypto entries are
+  // unaffected — this is purely an alternate way to add/refresh one.
+  // ============================================================
+  const cryptoWalletAddrInput = document.getElementById('cryptoWalletAddr');
+  const cryptoWalletAddBtnEl = document.getElementById('cryptoWalletAddBtn');
+  const cryptoWalletStatusEl = document.getElementById('cryptoWalletStatus');
+  function setWalletStatus(text, isError) {
+    if (!cryptoWalletStatusEl) return;
+    cryptoWalletStatusEl.style.display = text ? 'block' : 'none';
+    cryptoWalletStatusEl.style.color = isError ? '#FF8A8A' : 'var(--text-tertiary)';
+    cryptoWalletStatusEl.textContent = text || '';
+  }
+  async function doAddCryptoWallet() {
+    const addr = (cryptoWalletAddrInput.value || '').trim();
+    if (!addr) return;
+    cryptoWalletAddBtnEl.disabled = true;
+    setWalletStatus('Detecting chain…', false);
+    try {
+      const chainKey = await detectWalletChain(addr);
+      if (!chainKey) {
+        setWalletStatus("Couldn't detect the chain from that address. Supported: Bitcoin, Ethereum, Solana.", true);
+        return;
+      }
+      const chain = WALLET_CHAINS[chainKey];
+      setWalletStatus('Fetching ' + chain.ticker + ' balance…', false);
+      const [native, usd] = await Promise.all([
+        chain.fetchNativeBalance(addr),
+        fetchUsdPrice(chain.coingeckoId)
+      ]);
+      const amountCHF = usdToCHF(native * usd);
+      const items = storeGet('nw:crypto') || [];
+      const existingIdx = items.findIndex(x => x.walletAddress === addr);
+      if (existingIdx >= 0) {
+        const deltaCHF = amountCHF - (Number(items[existingIdx].amount) || 0);
+        items[existingIdx] = { ...items[existingIdx], amount: amountCHF, nativeBalance: native, lastFetchedAt: Date.now() };
+        storeSet('nw:crypto', items);
+        logActivity('crypto', items[existingIdx].name, deltaCHF, 'edit');
+        setWalletStatus('Already tracking that address — refreshed its balance.', false);
+      } else {
+        const label = chain.ticker + ' · ' + shortAddr(addr);
+        items.push({ name: label, amount: amountCHF, walletAddress: addr, chain: chainKey, nativeBalance: native, lastFetchedAt: Date.now() });
+        storeSet('nw:crypto', items);
+        logActivity('crypto', label, amountCHF, 'add');
+        cryptoWalletAddrInput.value = '';
+        setWalletStatus('Now tracking ' + label + '.', false);
+      }
+      renderAllNetWorth();
+    } catch (e) {
+      setWalletStatus("Couldn't fetch that wallet's balance. Double-check the address and try again.", true);
+    } finally {
+      cryptoWalletAddBtnEl.disabled = false;
+    }
+  }
+  if (cryptoWalletAddBtnEl) {
+    cryptoWalletAddBtnEl.addEventListener('click', doAddCryptoWallet);
+    cryptoWalletAddrInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAddCryptoWallet(); });
+  }
+  refreshStaleTrackedWallets();
+
   if (currencyEl) {
     const savedCur = storeGet(CURRENCY_KEY);
-    if (savedCur) currencyEl.value = savedCur;
+    // Only honor a saved preference if it's still a real option (USD/DOP) —
+    // a stale 'CHF'/'EUR'/'GBP' preference from before those were removed as
+    // display choices just falls through to the <select>'s own default
+    // (USD, the first option) instead of being force-set to a value that no
+    // longer exists in the dropdown.
+    if (savedCur === 'USD' || savedCur === 'DOP') currencyEl.value = savedCur;
     currencyEl.addEventListener('change', () => {
       storeSet(CURRENCY_KEY, currencyEl.value);
       renderAllNetWorth();
@@ -2428,6 +3214,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   const subsEmpty = document.getElementById('subsEmpty');
   const subsTotal = document.getElementById('subsTotal');
   const subsYearly = document.getElementById('subsYearly');
+  const subsCreepTotal = document.getElementById('subsCreepTotal');
   const subsCount = document.getElementById('subsCount');
   const subAddBtn = document.getElementById('subAddBtn');
   const subName = document.getElementById('subName');
@@ -2439,6 +3226,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (item.period === 'yearly') return a / 12;
     if (item.period === 'weekly') return a * 4.345;
     return a;
+  }
+  // Compares the current CHF-normalized amount against the earliest
+  // recorded priceHistory point. Returns null when there's nothing to
+  // compare (no history yet, or the price hasn't actually moved) — a badge
+  // only shows up once there's a real increase to report, never a decrease
+  // (going down isn't "creep" and doesn't need flagging the same way).
+  const PRICE_CREEP_MIN_PCT = 3; // ignore noise-level drift under this
+  function priceCreepInfo(it) {
+    if (!Array.isArray(it.priceHistory) || it.priceHistory.length < 1) return null;
+    const first = it.priceHistory[0];
+    if (!first || !(first.amountCHF > 0)) return null;
+    const deltaCHF = it.amount - first.amountCHF;
+    const pct = (deltaCHF / first.amountCHF) * 100;
+    if (pct < PRICE_CREEP_MIN_PCT) return null;
+    return { pct, deltaCHF, sinceTs: first.ts };
   }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2468,19 +3270,38 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     // Keep the From-account dropdown synced with current NW accounts
     populateSubFromSelect();
     const items = storeGet('subs') || [];
+    // Backfill priceHistory for subscriptions added before this feature
+    // existed — seeds a baseline at their CURRENT price so future increases
+    // have something to compare against, rather than ever fabricating a past.
+    let backfilled = false;
+    items.forEach(it => {
+      if (!Array.isArray(it.priceHistory) || !it.priceHistory.length) {
+        it.priceHistory = [{ amountCHF: it.amount, enteredAmount: it.entered_amount != null ? it.entered_amount : it.amount, enteredCurrency: it.entered_currency || 'CHF', ts: Date.now() }];
+        backfilled = true;
+      }
+    });
+    if (backfilled) storeSet('subs', items);
     subsList.innerHTML = '';
     if (!items.length) {
       subsEmpty.style.display = 'flex';
       subsTotal.innerHTML = fmtMoney(0) + ' <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">/ mo</span>';
       subsYearly.textContent = '';
       subsCount.textContent = '';
+      if (subsCreepTotal) subsCreepTotal.textContent = '';
       return;
     }
     subsEmpty.style.display = 'none';
     let monthly = 0;
+    let creepMonthly = 0; // sum of monthly-equivalent price creep across all subs with a tracked increase
     items.forEach((it, idx) => {
       const m = monthlyEquivalent(it);
       monthly += m;
+      const creepForTotal = priceCreepInfo(it);
+      // Assumes the billing period hasn't changed since the first tracked
+      // price (comparing CHF amounts across different periods would be
+      // apples-to-oranges) — true for the overwhelming common case of "same
+      // subscription, price went up."
+      if (creepForTotal) creepMonthly += monthlyEquivalent({ amount: it.amount, period: it.period }) - monthlyEquivalent({ amount: it.priceHistory[0].amountCHF, period: it.period });
       // Days until next renewal (rolls past dates forward by the period so
       // a "Renews Apr 28 · monthly" sub shows the *next* upcoming renewal).
       let daysToRenew = null;
@@ -2495,7 +3316,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const isUrgent = daysToRenew != null && daysToRenew <= 5;
       const row = document.createElement('div');
       row.className = 'sub-row' + (isUrgent ? ' is-urgent' : '');
-      row.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;align-items:center;padding:12px 14px;background:rgba(255,255,255,0.025);border-radius:var(--radius-md);margin-bottom:8px;gap:12px;';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;align-items:center;padding:12px 14px;background:rgba(34,211,245,0.025);border-radius:var(--radius-md);margin-bottom:8px;gap:12px;';
       const renewLine = it.renewal
         ? '<div class="sub-renew-line" style="font-size:10px;color:#F2C063;margin-top:3px">↻ Renews ' + formatRenewal(it.renewal) + '</div>'
         : '';
@@ -2504,6 +3325,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const pills = [];
       if (it.fromCat && it.fromAccount) {
         pills.push('<span class="sub-from-pill">from · ' + escapeHtml(it.fromAccount) + '</span>');
+      }
+      const creep = priceCreepInfo(it);
+      if (creep) {
+        const sinceLabel = new Date(creep.sinceTs).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        pills.push(
+          '<span class="sub-from-pill" style="color:#F2C063;border-color:rgba(242,192,99,0.35)" title="Was '
+          + fmtMoney(it.priceHistory[0].amountCHF) + '/mo when first tracked in ' + sinceLabel + '">'
+          + '⬆ +' + creep.pct.toFixed(0) + '% since ' + sinceLabel + '</span>'
+        );
       }
       pills.push(
         '<button class="sub-row-toggle' + (it.autoDeduct ? ' is-on' : '') + '" data-sub-toggle="' + idx + '" type="button" title="Auto-deduct from the linked account on each renewal">'
@@ -2522,7 +3352,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const cost = document.createElement('div');
       cost.style.cssText = 'text-align:right;line-height:1.1';
       const bigNum = fmtMoney(m);
-      const origHint = (it.entered_currency && it.entered_currency !== 'CHF' && it.entered_amount != null)
+      // USD is the boring/implicit default now (not CHF) — only show the
+      // "originally entered as X" hint when it's genuinely a different
+      // currency, which now includes legacy CHF-denominated entries that
+      // predate this change (worth surfacing, not hiding).
+      const origHint = (it.entered_currency && it.entered_currency !== 'USD' && it.entered_amount != null)
         ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">billed ' + it.entered_currency + ' ' + Number(it.entered_amount).toLocaleString('en-US', { minimumFractionDigits: it.entered_amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 }) + ' / ' + it.period + '</div>'
         : (it.period !== 'monthly'
             ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">billed ' + fmtMoney(it.amount) + ' / ' + it.period + '</div>'
@@ -2534,12 +3368,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       actions.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:center';
       const editBtn = document.createElement('button');
       editBtn.title = 'Edit';
-      editBtn.style.cssText = 'background:transparent;border:1px solid rgba(255,255,255,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:3px 7px;border-radius:5px;font-family:inherit;line-height:1';
+      editBtn.style.cssText = 'background:transparent;border:1px solid rgba(34,211,245,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:3px 7px;border-radius:5px;font-family:inherit;line-height:1';
       editBtn.textContent = '✏';
       editBtn.addEventListener('click', () => editSubInline(idx));
       const del = document.createElement('button');
       del.title = 'Delete';
-      del.style.cssText = 'background:transparent;border:1px solid rgba(255,255,255,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:3px 7px;border-radius:5px;font-family:inherit;line-height:1';
+      del.style.cssText = 'background:transparent;border:1px solid rgba(34,211,245,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:3px 7px;border-radius:5px;font-family:inherit;line-height:1';
       del.textContent = '×';
       del.addEventListener('click', () => {
         if (!confirm('Delete "' + it.name + '"?')) return;
@@ -2568,6 +3402,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     });
     subsTotal.innerHTML = fmtMoney(monthly) + ' <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">/ mo</span>';
     subsYearly.textContent = '~' + fmtMoney(monthly * 12) + ' per year';
+    if (subsCreepTotal) {
+      subsCreepTotal.textContent = creepMonthly > 0.01 ? '⬆ +' + fmtMoney(creepMonthly) + '/mo from price increases since you started tracking' : '';
+    }
     subsCount.textContent = items.length + (items.length === 1 ? ' subscription' : ' subscriptions');
     // Re-render the donut so the subs slice updates with the latest annualized total
     if (typeof renderAllNetWorth === 'function') renderAllNetWorth();
@@ -2582,7 +3419,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (!sel) return;
     const prev = sel.value;
     const accounts = (typeof listAllNwAccounts === 'function') ? listAllNwAccounts() : [];
-    const ICONS = { bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    const ICONS = { cash: '💵', bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
     if (!accounts.length) {
       sel.innerHTML = '<option value="">No accounts yet</option>';
       sel.disabled = true;
@@ -2655,12 +3492,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const periodOpts = ['monthly','yearly','weekly'].map(p =>
       '<option value="' + p + '"' + (p === it.period ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>'
     ).join('');
-    const ccyOpts = ['CHF','USD','EUR','GBP'].map(c =>
+    // Only USD/DOP are offered for a fresh pick, but if this item was
+    // entered in a legacy currency (CHF/EUR/GBP, from before those were
+    // removed as options) that value is kept in the list too — otherwise
+    // simply opening this edit form and hitting Save, without touching
+    // currency at all, would silently relabel it to USD.
+    const ccyBase = ['USD', 'DOP'];
+    const ccyOpts = (ccyBase.includes(enteredCcy) ? ccyBase : ccyBase.concat(enteredCcy)).map(c =>
       '<option value="' + c + '"' + (c === enteredCcy ? ' selected' : '') + '>' + c + '</option>'
     ).join('');
     // Build From-account options from the live NW accounts
     const accounts = (typeof listAllNwAccounts === 'function') ? listAllNwAccounts() : [];
-    const ICONS = { bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    const ICONS = { cash: '💵', bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
     const currentFrom = (it.fromCat && it.fromAccount) ? (it.fromCat + '::' + it.fromAccount) : '';
     const fromOpts = '<option value="">No account linked</option>' + accounts.map(a => {
       const v = a.catKey + '::' + a.itemName;
@@ -2672,15 +3515,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     const form = document.createElement('div');
     form.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center';
     form.innerHTML =
-      '<input type="text" class="se-name" value="' + escapeHtml(it.name) + '" style="flex:1.5;min-width:120px;padding:6px 10px;border:0.5px solid rgba(255,255,255,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
-      '<input type="number" step="0.01" class="se-amt" value="' + Number(enteredAmt).toFixed(2) + '" style="width:90px;padding:6px 10px;border:0.5px solid rgba(255,255,255,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
-      '<select class="se-ccy" style="padding:6px 10px;border:0.5px solid rgba(255,255,255,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)">' + ccyOpts + '</select>' +
-      '<select class="se-per" style="padding:6px 10px;border:0.5px solid rgba(255,255,255,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)">' + periodOpts + '</select>' +
+      '<input type="text" class="se-name" value="' + escapeHtml(it.name) + '" style="flex:1.5;min-width:120px;padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
+      '<input type="number" step="0.01" class="se-amt" value="' + Number(enteredAmt).toFixed(2) + '" style="width:90px;padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
+      '<select class="se-ccy" style="padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)">' + ccyOpts + '</select>' +
+      '<select class="se-per" style="padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)">' + periodOpts + '</select>' +
       '<label class="date-field" style="min-width:140px"><span class="date-emoji" aria-hidden="true">📅</span><input type="date" class="se-ren" value="' + (it.renewal && /^\d{4}-\d{2}-\d{2}/.test(it.renewal) ? it.renewal.slice(0,10) : '') + '" /></label>' +
-      '<select class="se-from" style="padding:6px 10px;border:0.5px solid rgba(255,255,255,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);min-width:130px">' + fromOpts + '</select>' +
+      '<select class="se-from" style="padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);min-width:130px">' + fromOpts + '</select>' +
       '<label class="sub-auto-toggle" style="padding:6px 10px"><input type="checkbox" class="se-auto"' + (it.autoDeduct ? ' checked' : '') + ' /><span class="sub-auto-track"><span class="sub-auto-thumb"></span></span><span class="sub-auto-label">Auto-deduct</span></label>' +
       '<button class="se-save quick-add-btn">Save</button>' +
-      '<button class="se-cancel" style="background:transparent;border:1px solid rgba(255,255,255,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:6px 10px;border-radius:var(--radius-md);font-family:inherit">Cancel</button>';
+      '<button class="se-cancel" style="background:transparent;border:1px solid rgba(34,211,245,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:6px 10px;border-radius:var(--radius-md);font-family:inherit">Cancel</button>';
     row.appendChild(form);
     const save = () => {
       const newName = row.querySelector('.se-name').value.trim();
@@ -2701,7 +3544,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       }
       if (!newName || isNaN(newAmtRaw)) return;
       const rate = exchangeRates[newCcy] || 1;
-      items[idx] = { ...it, name: newName, amount: newAmtRaw / rate, period: newPer, renewal: newRen, entered_amount: newAmtRaw, entered_currency: newCcy, fromCat: newFromCat, fromAccount: newFromAccount, autoDeduct: newAuto };
+      const newAmountCHF = newAmtRaw / rate;
+      // Record a price-history point whenever the CHF-normalized amount
+      // actually moved (comparing in CHF sidesteps ambiguity from a
+      // currency switch — 0.005 tolerance avoids float-rounding noise
+      // registering as a "change"). A name/period/renewal-only edit
+      // doesn't append anything.
+      const priceChanged = Math.abs(newAmountCHF - it.amount) > 0.005;
+      const history = Array.isArray(it.priceHistory) && it.priceHistory.length
+        ? it.priceHistory.slice()
+        : [{ amountCHF: it.amount, enteredAmount: it.entered_amount != null ? it.entered_amount : it.amount, enteredCurrency: it.entered_currency || 'CHF', ts: it.ts || Date.now() }];
+      if (priceChanged) history.push({ amountCHF: newAmountCHF, enteredAmount: newAmtRaw, enteredCurrency: newCcy, ts: Date.now() });
+      items[idx] = { ...it, name: newName, amount: newAmountCHF, period: newPer, renewal: newRen, entered_amount: newAmtRaw, entered_currency: newCcy, fromCat: newFromCat, fromAccount: newFromAccount, autoDeduct: newAuto, priceHistory: history };
       storeSet('subs', items); renderSubs();
     };
     const cancel = () => renderSubs();
@@ -2729,7 +3583,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const n = (nEl.value || '').trim();
       const aRaw = parseFloat(aEl.value);
       if (!n || isNaN(aRaw)) { nEl.focus(); return; }
-      const enteredCcy = ccEl ? ccEl.value : 'CHF';
+      const enteredCcy = ccEl ? ccEl.value : 'USD';
       const rate = exchangeRates[enteredCcy] || 1;
       const amountCHF = aRaw / rate;
       // Parse "From" selection — value is "catKey::accountName"
@@ -2754,7 +3608,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         fromCat: fromCat,
         fromAccount: fromAccount,
         autoDeduct: autoDeduct,
-        lastDeductedAt: null
+        lastDeductedAt: null,
+        // Seeds the price-creep baseline — the first recorded price this
+        // subscription was added at, so a later increase has something to
+        // compare against. See priceCreepInfo().
+        priceHistory: [{ amountCHF: amountCHF, enteredAmount: aRaw, enteredCurrency: enteredCcy, ts: Date.now() }]
       });
       storeSet('subs', items);
       nEl.value = ''; aEl.value = '';
@@ -2871,7 +3729,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const n = (nEl.value || '').trim();
       const aRaw = parseFloat(aEl.value);
       if (!n || isNaN(aRaw)) { nEl.focus(); return; }
-      const enteredCcy = cEl ? cEl.value : 'CHF';
+      const enteredCcy = cEl ? cEl.value : 'USD';
       const rate = exchangeRates[enteredCcy] || 1;
       const amountCHF = aRaw / rate;
       const arr = storeGet('wishlist') || [];
@@ -2892,6 +3750,298 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   renderWishlist();
 
   // ============================================================
+  // DEBTS + PAYOFF CALCULATOR — full-spec: name, balance (CHF base),
+  // entered_balance/entered_currency for display, apr (%), minPayment (CHF
+  // base). Stored under 'debts'. Deliberately its own top-level total — NOT
+  // folded into NW_CATS/nwGrandCHF()/the net worth hero figure, since that
+  // number feeds the net-worth trend snapshot history and the allocation
+  // donut, and this avoids risking any change to that established
+  // arithmetic. A separate "net worth after debts" line is shown instead.
+  // ============================================================
+  // Looked up fresh inside each function (not cached as top-level consts) —
+  // renderAllNetWorth() fires for the first time at the bottom of the NET
+  // WORTH section further up this same IIFE, well before this block is
+  // textually reached, so a `const` declared here would still be in the
+  // temporal dead zone on that first call and crash the whole script (same
+  // hazard already documented above for ORD_FROM_META).
+  function debtsTotalCHF() {
+    const items = storeGet('debts') || [];
+    return items.reduce((sum, d) => sum + (Number(d.balance) || 0), 0);
+  }
+  function renderNetWorthAfterDebt() {
+    const netWorthAfterDebtEl = document.getElementById('netWorthAfterDebt');
+    if (!netWorthAfterDebtEl) return;
+    const debt = debtsTotalCHF();
+    if (debt <= 0) { netWorthAfterDebtEl.textContent = ''; return; }
+    netWorthAfterDebtEl.textContent = 'Net of ' + fmtMoney(debt) + ' debt: ' + fmtMoney(nwGrandCHF() - debt);
+  }
+
+  function renderDebts() {
+    const debtsListEl = document.getElementById('debtsList');
+    const debtsEmptyEl = document.getElementById('debtsEmpty');
+    const debtsTotalEl = document.getElementById('debtsTotal');
+    const debtsAvgAprEl = document.getElementById('debtsAvgApr');
+    const debtsCountEl = document.getElementById('debtsCount');
+    if (!debtsListEl) return;
+    const items = storeGet('debts') || [];
+    debtsListEl.innerHTML = '';
+    if (!items.length) {
+      debtsEmptyEl.style.display = 'flex';
+      debtsTotalEl.textContent = fmtMoney(0);
+      debtsAvgAprEl.textContent = '';
+      debtsCountEl.textContent = '';
+      renderNetWorthAfterDebt();
+      renderPayoffCalculator();
+      return;
+    }
+    debtsEmptyEl.style.display = 'none';
+    let total = 0, weightedApr = 0;
+    items.forEach((it, idx) => {
+      total += Number(it.balance) || 0;
+      weightedApr += (Number(it.balance) || 0) * (Number(it.apr) || 0);
+      const row = document.createElement('div');
+      row.className = 'sub-row';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;align-items:center;padding:12px 14px;background:rgba(34,211,245,0.025);border-radius:var(--radius-md);margin-bottom:8px;gap:12px;';
+      const left = document.createElement('div');
+      left.style.cssText = 'min-width:0';
+      left.innerHTML = '<div style="font-weight:600;color:var(--text-primary);font-size:14px">' + escapeHtml(it.name) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">' + (Number(it.apr) || 0).toFixed(2) + '% APR · min ' + fmtMoney(it.minPayment || 0) + '/mo</div>';
+      const bal = document.createElement('div');
+      bal.style.cssText = 'text-align:right;line-height:1.1';
+      // Same reasoning as the subscriptions hint above: USD is the implicit
+      // default now, so a legacy CHF-denominated debt is worth flagging too.
+      const origHint = (it.entered_currency && it.entered_currency !== 'USD' && it.entered_balance != null)
+        ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">' + it.entered_currency + ' ' + Number(it.entered_balance).toLocaleString('en-US', { minimumFractionDigits: it.entered_balance % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 }) + '</div>'
+        : '';
+      bal.innerHTML = '<div style="font-size:18px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums">' + fmtMoney(it.balance) + '</div>' + origHint;
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:center';
+      const editBtn = document.createElement('button');
+      editBtn.title = 'Edit';
+      editBtn.style.cssText = 'background:transparent;border:1px solid rgba(34,211,245,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:3px 7px;border-radius:5px;font-family:inherit;line-height:1';
+      editBtn.textContent = '✏';
+      editBtn.addEventListener('click', () => editDebtInline(idx));
+      const del = document.createElement('button');
+      del.title = 'Delete';
+      del.style.cssText = editBtn.style.cssText;
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        if (!confirm('Delete "' + it.name + '"?')) return;
+        items.splice(idx, 1); storeSet('debts', items); renderDebts();
+      });
+      actions.appendChild(editBtn);
+      actions.appendChild(del);
+      row.appendChild(left); row.appendChild(bal); row.appendChild(actions);
+      debtsListEl.appendChild(row);
+    });
+    debtsTotalEl.textContent = fmtMoney(total);
+    debtsAvgAprEl.textContent = total > 0 ? (weightedApr / total).toFixed(2) + '% weighted avg APR' : '';
+    debtsCountEl.textContent = items.length + (items.length === 1 ? ' debt' : ' debts');
+    renderNetWorthAfterDebt();
+    renderPayoffCalculator();
+  }
+
+  function editDebtInline(idx) {
+    const items = storeGet('debts') || [];
+    const it = items[idx];
+    if (!it) return;
+    const rows = document.getElementById('debtsList').querySelectorAll('.sub-row');
+    const row = rows[idx];
+    if (!row) return;
+    const enteredCcy = it.entered_currency || 'CHF';
+    const enteredAmt = it.entered_balance != null ? it.entered_balance : it.balance;
+    // Same legacy-preserve reasoning as editSubInline above: don't let
+    // opening this form silently relabel an old CHF/EUR/GBP debt to USD.
+    const ccyBase = ['USD', 'DOP'];
+    const ccyOpts = (ccyBase.includes(enteredCcy) ? ccyBase : ccyBase.concat(enteredCcy)).map(c =>
+      '<option value="' + c + '"' + (c === enteredCcy ? ' selected' : '') + '>' + c + '</option>'
+    ).join('');
+    row.innerHTML = '';
+    row.style.gridTemplateColumns = '1fr';
+    row.style.padding = '14px';
+    const form = document.createElement('div');
+    form.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center';
+    form.innerHTML =
+      '<input type="text" class="de-name" value="' + escapeHtml(it.name) + '" style="flex:1.5;min-width:120px;padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
+      '<input type="number" step="0.01" class="de-bal" value="' + Number(enteredAmt).toFixed(2) + '" style="width:90px;padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
+      '<select class="de-ccy" style="padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)">' + ccyOpts + '</select>' +
+      '<input type="number" step="0.01" class="de-apr" value="' + (Number(it.apr) || 0) + '" placeholder="APR %" style="width:80px;padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
+      '<input type="number" step="0.01" class="de-min" value="' + (Number(it.minPayment) || 0) + '" placeholder="Min payment" style="width:100px;padding:6px 10px;border:0.5px solid rgba(34,211,245,0.10);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary)" />' +
+      '<button class="de-save quick-add-btn">Save</button>' +
+      '<button class="de-cancel" style="background:transparent;border:1px solid rgba(34,211,245,0.10);color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:6px 10px;border-radius:var(--radius-md);font-family:inherit">Cancel</button>';
+    row.appendChild(form);
+    const save = () => {
+      const newName = row.querySelector('.de-name').value.trim();
+      const newBalRaw = parseFloat(row.querySelector('.de-bal').value);
+      const newCcy = row.querySelector('.de-ccy').value;
+      const newApr = parseFloat(row.querySelector('.de-apr').value) || 0;
+      const newMin = parseFloat(row.querySelector('.de-min').value) || 0;
+      if (!newName || isNaN(newBalRaw)) return;
+      const rate = exchangeRates[newCcy] || 1;
+      items[idx] = { ...it, name: newName, balance: newBalRaw / rate, entered_balance: newBalRaw, entered_currency: newCcy, apr: newApr, minPayment: newMin / rate };
+      storeSet('debts', items); renderDebts();
+    };
+    const cancel = () => renderDebts();
+    row.querySelector('.de-save').addEventListener('click', save);
+    row.querySelector('.de-cancel').addEventListener('click', cancel);
+    row.querySelectorAll('input').forEach(i => {
+      i.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') save();
+        else if (e.key === 'Escape') cancel();
+      });
+    });
+    row.querySelector('.de-name').focus();
+  }
+
+  function doDebtAdd() {
+    try {
+      const nEl = document.getElementById('debtName');
+      const bEl = document.getElementById('debtBalance');
+      const ccEl = document.getElementById('debtCurrency');
+      const aEl = document.getElementById('debtApr');
+      const mEl = document.getElementById('debtMinPayment');
+      if (!nEl || !bEl) return;
+      const n = (nEl.value || '').trim();
+      const bRaw = parseFloat(bEl.value);
+      if (!n || isNaN(bRaw)) { nEl.focus(); return; }
+      const enteredCcy = ccEl ? ccEl.value : 'USD';
+      const rate = exchangeRates[enteredCcy] || 1;
+      const balanceCHF = bRaw / rate;
+      const aprRaw = aEl && aEl.value ? parseFloat(aEl.value) : 0;
+      const minPaymentRaw = mEl && mEl.value ? parseFloat(mEl.value) : 0;
+      const items = storeGet('debts') || [];
+      items.push({
+        name: n, balance: balanceCHF,
+        entered_balance: bRaw, entered_currency: enteredCcy,
+        apr: isNaN(aprRaw) ? 0 : aprRaw,
+        minPayment: (isNaN(minPaymentRaw) ? 0 : minPaymentRaw) / rate,
+        ts: Date.now(),
+      });
+      storeSet('debts', items);
+      nEl.value = ''; bEl.value = ''; if (aEl) aEl.value = ''; if (mEl) mEl.value = '';
+      renderDebts();
+    } catch (e) { console.error('debtAdd failed', e); }
+  }
+
+  // ---------- payoff simulation (pure) ----------
+  // Simulates month-by-month amortization under a given strategy: minimum
+  // payments go to every open debt each month, any FREED-UP minimum from an
+  // already-paid-off debt rolls into the extra pool (real snowball/avalanche
+  // behavior — not just a fixed extra amount split at random), and the full
+  // extra pool goes to whichever debt is highest-priority under the chosen
+  // ordering. Capped at PAYOFF_MAX_MONTHS so a configuration that can never
+  // pay itself off (minimums below monthly interest, no extra) terminates
+  // instead of looping forever.
+  const PAYOFF_MAX_MONTHS = 600;
+  function simulatePayoff(debts, extraMonthly, strategy) {
+    const working = debts.map(d => ({ id: d.id, balance: Number(d.balance) || 0, apr: Number(d.apr) || 0, minPayment: Number(d.minPayment) || 0 }))
+      .filter(d => d.balance > 0.01);
+    if (!working.length) return { months: 0, totalInterest: 0, payoffOrder: [], maxedOut: false };
+    const order = (strategy === 'avalanche')
+      ? working.slice().sort((a, b) => b.apr - a.apr)
+      : working.slice().sort((a, b) => a.balance - b.balance);
+    let months = 0, totalInterest = 0;
+    const payoffOrder = [];
+    const extra = Math.max(0, Number(extraMonthly) || 0);
+    while (working.some(d => d.balance > 0.01) && months < PAYOFF_MAX_MONTHS) {
+      months++;
+      order.forEach(refD => {
+        const d = working.find(w => w.id === refD.id);
+        if (!d || d.balance <= 0.01) return;
+        const interest = d.balance * (d.apr / 100 / 12);
+        totalInterest += interest;
+        d.balance += interest;
+      });
+      let slack = extra;
+      order.forEach(refD => {
+        const d = working.find(w => w.id === refD.id);
+        if (!d) return;
+        if (d.balance <= 0.01) { slack += refD.minPayment; return; }
+        const pay = Math.min(refD.minPayment, d.balance);
+        d.balance -= pay;
+      });
+      for (const refD of order) {
+        if (slack <= 0) break;
+        const d = working.find(w => w.id === refD.id);
+        if (!d || d.balance <= 0.01) continue;
+        const pay = Math.min(slack, d.balance);
+        d.balance -= pay;
+        slack -= pay;
+      }
+      order.forEach(refD => {
+        const d = working.find(w => w.id === refD.id);
+        if (d && d.balance <= 0.01 && !payoffOrder.includes(refD.id)) payoffOrder.push(refD.id);
+      });
+    }
+    return { months, totalInterest, payoffOrder, maxedOut: months >= PAYOFF_MAX_MONTHS };
+  }
+
+  function monthsToLabel(months) {
+    const y = Math.floor(months / 12), m = months % 12;
+    const parts = [];
+    if (y) parts.push(y + (y === 1 ? ' year' : ' years'));
+    if (m || !y) parts.push(m + (m === 1 ? ' month' : ' months'));
+    return parts.join(', ');
+  }
+
+  function renderPayoffCalculator() {
+    const resultsEl = document.getElementById('debtPayoffResults');
+    const emptyEl = document.getElementById('debtPayoffEmpty');
+    if (!resultsEl) return;
+    const items = (storeGet('debts') || []).filter(d => (Number(d.balance) || 0) > 0.01);
+    if (!items.length) {
+      resultsEl.innerHTML = ''; if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    const extraEl = document.getElementById('debtExtraPayment');
+    const extraRaw = extraEl && extraEl.value ? parseFloat(extraEl.value) : 0;
+    const extra = isNaN(extraRaw) ? 0 : extraRaw;
+    const debtsForSim = items.map((d, i) => ({ id: 'd' + i, balance: d.balance, apr: d.apr, minPayment: d.minPayment, name: d.name }));
+    const missingMin = debtsForSim.some(d => !(d.minPayment > 0)) && extra <= 0;
+    if (missingMin) {
+      resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary)">At least one debt has no minimum payment set — add one, or enter an extra monthly payment above, so the calculator has something to pay down with.</div>';
+      return;
+    }
+    const avalanche = simulatePayoff(debtsForSim, extra, 'avalanche');
+    const snowball = simulatePayoff(debtsForSim, extra, 'snowball');
+    const nameFor = (id) => { const d = debtsForSim.find(x => x.id === id); return d ? d.name : id; };
+    const card = (label, result) => {
+      if (result.maxedOut) {
+        return '<div style="flex:1;min-width:200px;background:rgba(34,211,245,0.025);border-radius:var(--radius-md);padding:12px">' +
+          '<div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em">' + label + '</div>' +
+          '<div style="font-size:13px;color:#FF8A8A;margin-top:6px">Won\'t pay off within 50 years at this rate — increase the extra payment or minimums.</div></div>';
+      }
+      const freeMonths = new Date();
+      freeMonths.setMonth(freeMonths.getMonth() + result.months);
+      const freeLabel = freeMonths.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      return '<div style="flex:1;min-width:200px;background:rgba(34,211,245,0.025);border-radius:var(--radius-md);padding:12px">' +
+        '<div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em">' + label + '</div>' +
+        '<div style="font-size:20px;font-weight:700;color:var(--text-primary);margin-top:4px">' + monthsToLabel(result.months) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">debt-free ~' + freeLabel + '</div>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">' + fmtMoney(result.totalInterest) + ' total interest</div>' +
+        '<div style="font-size:10px;color:var(--text-tertiary);margin-top:6px">Order: ' + result.payoffOrder.map(nameFor).join(' → ') + '</div>' +
+        '</div>';
+    };
+    let winner = '';
+    if (!avalanche.maxedOut && !snowball.maxedOut) {
+      const interestSaved = snowball.totalInterest - avalanche.totalInterest;
+      if (interestSaved > 1) {
+        winner = '<div style="font-size:11px;color:#6BE3A4;margin-top:10px">Avalanche saves ' + fmtMoney(interestSaved) + ' in interest vs snowball' +
+          (avalanche.months < snowball.months ? ', and pays off ' + (snowball.months - avalanche.months) + ' month(s) sooner.' : '.') + '</div>';
+      }
+    }
+    resultsEl.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap">' + card('Avalanche', avalanche) + card('Snowball', snowball) + '</div>' + winner;
+  }
+  const _debtName = document.getElementById('debtName');
+  const _debtBalance = document.getElementById('debtBalance');
+  const _debtExtraPayment = document.getElementById('debtExtraPayment');
+  if (_debtName)     _debtName.addEventListener('keydown', (e) => { if (e.key === 'Enter') doDebtAdd(); });
+  if (_debtBalance)  _debtBalance.addEventListener('keydown', (e) => { if (e.key === 'Enter') doDebtAdd(); });
+  if (_debtExtraPayment) _debtExtraPayment.addEventListener('input', () => renderPayoffCalculator());
+  renderDebts();
+
+  // ============================================================
   // ADD-BUTTON BULLETPROOFING — three independent paths:
   //   1. inline onclick attribute (in the HTML) calls window.__addX
   //   2. document-level click delegation matches by id
@@ -2900,6 +4050,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   // ============================================================
   window.__addSub  = doSubAdd;
   window.__addWish = doWishAdd;
+  window.__addDebt = doDebtAdd;
+  window.__calcPayoff = renderPayoffCalculator;
+  window.__calcGoal = renderGoalProjection;
+  window.__calcImpact = renderPurchaseImpact;
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button');
     if (!t) return;
@@ -2907,7 +4061,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (t.hasAttribute('onclick')) return;
     if (t.id === 'subAddBtn')  { e.preventDefault(); doSubAdd();  }
     if (t.id === 'wishAddBtn') { e.preventDefault(); doWishAdd(); }
+    if (t.id === 'debtAddBtn') { e.preventDefault(); doDebtAdd(); }
+    if (t.id === 'debtCalcBtn') { e.preventDefault(); renderPayoffCalculator(); }
+    if (t.id === 'nwGoalCalcBtn') { e.preventDefault(); renderGoalProjection(); }
+    if (t.id === 'nwImpactCalcBtn') { e.preventDefault(); renderPurchaseImpact(); }
   });
+  const _nwGoalAmount = document.getElementById('nwGoalAmount');
+  const _nwImpactAmount = document.getElementById('nwImpactAmount');
+  if (_nwGoalAmount)   _nwGoalAmount.addEventListener('keydown', (e) => { if (e.key === 'Enter') renderGoalProjection(); });
+  if (_nwImpactAmount) _nwImpactAmount.addEventListener('keydown', (e) => { if (e.key === 'Enter') renderPurchaseImpact(); });
 
   // ============================================================
   // INCOMING ORDERS — full-spec: name, cost (CHF base), currency,
@@ -2940,7 +4102,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     else if (diffDays <= 7)  { cls = 'soon';  prefix = 'in ' + diffDays + 'd · '; }
     return { cls, label: prefix + dateLabel };
   }
-  // Build the flat list of every NW account (across all 4 categories) so
+  // Build the flat list of every NW account (across all 5 categories) so
   // both the "From" dropdown on the add form AND the deduct chooser share
   // the same source of truth.
   function listAllNwAccounts() {
@@ -2965,7 +4127,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (!sel) return;
     const accounts = listAllNwAccounts();
     const prev = sel.value;
-    const ICONS = { bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    const ICONS = { cash: '💵', bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
     if (!accounts.length) {
       sel.innerHTML = '<option value="">No accounts yet</option>';
       sel.disabled = true;
@@ -3083,7 +4245,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       alert('Add at least one net worth account before deducting.');
       return;
     }
-    const ICONS = { bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    const ICONS = { cash: '💵', bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
     const cost = Number(order.amount) || 0;
     const optsHtml = accounts.map(a => {
       const insufficient = a.amountCHF < cost - 0.005;
@@ -3183,7 +4345,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       prev.className = 'ord-add-preview';
       return;
     }
-    const ccy = ccyEl ? ccyEl.value : 'CHF';
+    const ccy = ccyEl ? ccyEl.value : 'USD';
     const rate = exchangeRates[ccy] || 1;
     const amountCHF = aRaw / rate;
     const grand = nwGrandCHF();
@@ -3210,10 +4372,48 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       const n = (nEl.value || '').trim();
       const aRaw = parseFloat(aEl.value);
       if (!n || isNaN(aRaw)) { nEl.focus(); return; }
-      const ccy = cEl ? cEl.value : 'CHF';
+      const ccy = cEl ? cEl.value : 'USD';
       const rate = exchangeRates[ccy] || 1;
       const amountCHF = aRaw / rate;
       const parsed = parseFromValue(fEl ? fEl.value : '');
+
+      // Auto-deduct from the chosen account immediately, same as the
+      // manual "Deduct from net worth" flow, so placing an order affects
+      // net worth right away instead of requiring a second click.
+      let deductedAt = null, pctAtDeduction = null, deductedFrom = null;
+      const items = parsed.name ? (storeGet('nw:' + parsed.cat) || []) : [];
+      const itemIdx = parsed.name ? items.findIndex(it => String(it.name) === String(parsed.name)) : -1;
+      if (itemIdx >= 0) {
+        const current = Number(items[itemIdx].amount) || 0;
+        if (current < amountCHF - 0.005) {
+          if (!confirm('"' + items[itemIdx].name + '" doesn\'t have enough — deduct anyway? (it will go negative)')) {
+            // User declined the overdraw — add the order without deducting,
+            // same as before, so they can deduct manually once funded.
+            const arr = storeGet('incoming_orders') || [];
+            arr.push({
+              id: 'o_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+              name: n, amount: amountCHF, entered_amount: aRaw, entered_currency: ccy,
+              fromCat: parsed.cat || 'bank', fromAccount: parsed.name || null,
+              date: dEl && dEl.value ? dEl.value : null, ts: Date.now(),
+              deductedAt: null, pctAtDeduction: null, deductedFrom: null
+            });
+            storeSet('incoming_orders', arr);
+            nEl.value = ''; aEl.value = '';
+            if (dEl) dEl.value = '';
+            updateOrdPreview();
+            renderOrders();
+            return;
+          }
+        }
+        const grandBefore = nwGrandCHF();
+        pctAtDeduction = grandBefore > 0 ? (amountCHF / grandBefore) * 100 : 0;
+        items[itemIdx].amount = current - amountCHF;
+        storeSet('nw:' + parsed.cat, items);
+        logActivity(parsed.cat, items[itemIdx].name, -amountCHF, 'edit');
+        deductedAt = Date.now();
+        deductedFrom = { cat: parsed.cat, name: items[itemIdx].name };
+      }
+
       const arr = storeGet('incoming_orders') || [];
       arr.push({
         id: 'o_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
@@ -3225,15 +4425,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         fromAccount: parsed.name || null,    // the actual NW item the user picked
         date: dEl && dEl.value ? dEl.value : null,
         ts: Date.now(),
-        deductedAt: null,
-        pctAtDeduction: null,
-        deductedFrom: null
+        deductedAt: deductedAt,
+        pctAtDeduction: pctAtDeduction,
+        deductedFrom: deductedFrom
       });
       storeSet('incoming_orders', arr);
       nEl.value = ''; aEl.value = '';
       if (dEl) dEl.value = '';
       updateOrdPreview();
-      renderOrders();
+      if (deductedAt) { renderAllNetWorth(); } else { renderOrders(); }
     } catch (e) { console.error('ordAdd failed', e); }
   }
   window.__addOrder = doOrdAdd;
@@ -3249,6 +4449,667 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   });
   renderOrders();
   updateOrdPreview();
+
+  // ============================================================
+  // PURCHASES — a plain spending log, distinct from Orders: no arrival
+  // date/countdown (these already happened), organized by spending
+  // category instead of by account, and the "from account" is optional
+  // — picking one deducts immediately (it already happened, unlike an
+  // order that hasn't shipped yet), leaving it blank just logs the
+  // record for tracking without touching net worth. Stored under
+  // 'purchases'. (PURCHASE_CATS is declared at the top of this IIFE for
+  // the same TDZ reason as ORD_FROM_META — see that comment.)
+  // ============================================================
+  function populatePurCategorySelect() {
+    const sel = document.getElementById('purCategory');
+    if (!sel || sel.options.length) return; // fixed list, populate once
+    sel.innerHTML = PURCHASE_CATS.map(c => '<option value="' + c.key + '">' + c.label + '</option>').join('');
+  }
+  populatePurCategorySelect();
+
+  function populatePurFromSelect() {
+    const sel = document.getElementById('purFromCat');
+    if (!sel) return;
+    const prev = sel.value;
+    const accounts = listAllNwAccounts();
+    const ICONS = { cash: '💵', bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    sel.innerHTML = '<option value="">Don\'t deduct from net worth</option>' + accounts.map(a => {
+      const value = a.catKey + '::' + a.itemName;
+      return '<option value="' + value + '">' + ICONS[a.catKey] + ' ' + escapeHtml(a.itemName) + '</option>';
+    }).join('');
+    if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  // Unlike parseFromValue (Orders), an empty selection here is a real,
+  // meaningful choice — "don't deduct" — not a fallback to "bank".
+  function parsePurFromValue(v) {
+    const s = String(v || '');
+    if (!s) return null;
+    const ix = s.indexOf('::');
+    if (ix < 0) return null;
+    return { cat: s.slice(0, ix), name: s.slice(ix + 2) };
+  }
+
+  function purFmtDate(iso) {
+    if (!iso) return null;
+    const isoSafe = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso + 'T00:00' : iso;
+    const d = new Date(isoSafe);
+    if (isNaN(d)) return null;
+    const now = new Date();
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (dayStart === todayStart) return 'today';
+    if (dayStart === todayStart - 86400000) return 'yesterday';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function updatePurPreview() {
+    const costEl = document.getElementById('purCost');
+    const ccyEl  = document.getElementById('purCurrency');
+    const fromEl = document.getElementById('purFromCat');
+    const prev   = document.getElementById('purAddPreview');
+    if (!prev) return;
+    const aRaw = parseFloat(costEl && costEl.value);
+    if (!costEl || isNaN(aRaw) || aRaw <= 0) {
+      prev.textContent = 'Type a cost — preview will show what % of net worth it takes.';
+      prev.className = 'ord-add-preview';
+      return;
+    }
+    const ccy = ccyEl ? ccyEl.value : 'USD';
+    const rate = exchangeRates[ccy] || 1;
+    const amountCHF = aRaw / rate;
+    const grand = nwGrandCHF();
+    const parsed = parsePurFromValue(fromEl ? fromEl.value : '');
+    const fromSuffix = parsed && parsed.name ? ' from ' + parsed.name : '';
+    if (grand > 0) {
+      const pct = (amountCHF / grand) * 100;
+      const cls = ordPctClass(pct);
+      prev.textContent = fmtMoney(amountCHF) + fromSuffix + ' · ' + pct.toFixed(2) + '% of your ' + fmtMoney(grand) + ' net worth';
+      prev.className = 'ord-add-preview ' + (cls === 'good' ? '' : cls);
+    } else {
+      prev.textContent = fmtMoney(amountCHF) + fromSuffix + ' · add net worth first to see %';
+      prev.className = 'ord-add-preview';
+    }
+  }
+
+  function renderPurchases() {
+    const list = document.getElementById('purList');
+    const empty = document.getElementById('purEmpty');
+    const count = document.getElementById('purCount');
+    const statsEl = document.getElementById('purStats');
+    if (!list) return;
+    populatePurFromSelect();
+    const items = storeGet('purchases') || [];
+    if (count) count.textContent = items.length + (items.length === 1 ? ' item' : ' items');
+
+    if (statsEl) {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+      let month = 0, year = 0;
+      items.forEach(it => {
+        const isoSafe = it.date && /^\d{4}-\d{2}-\d{2}$/.test(it.date) ? it.date + 'T00:00' : null;
+        const t = isoSafe ? new Date(isoSafe).getTime() : (it.ts || 0);
+        const amt = Number(it.amount) || 0;
+        if (t >= yearStart) year += amt;
+        if (t >= monthStart) month += amt;
+      });
+      statsEl.textContent = 'This month ' + fmtMoney(month) + ' · This year ' + fmtMoney(year);
+    }
+
+    list.innerHTML = '';
+    if (!items.length) {
+      if (empty) empty.classList.remove('hidden');
+      return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    // Newest purchase date first (falls back to entry time for same-day ties)
+    items.slice().sort((a, b) => {
+      const ad = a.date || '', bd = b.date || '';
+      if (ad !== bd) return bd.localeCompare(ad);
+      return (b.ts || 0) - (a.ts || 0);
+    }).forEach(it => {
+      const cost = Number(it.amount) || 0;
+      const catMeta = purCatMeta(it.category);
+      const dateLabel = purFmtDate(it.date) || 'no date';
+      const row = document.createElement('div');
+      row.className = 'ord-card pcat-' + catMeta.key;
+      row.innerHTML =
+          '<div class="ord-card-h">'
+        +   '<div class="ord-card-name">' + escapeHtml(it.name) + '</div>'
+        +   '<div class="ord-card-amt">' + fmtMoney(cost) + '</div>'
+        +   '<button class="ord-card-x" data-id="' + it.id + '" aria-label="Remove" title="Removes this record only — doesn\'t undo any account deduction">×</button>'
+        + '</div>'
+        + '<div class="ord-card-meta">'
+        +   '<span class="ord-meta-pill" style="color:' + catMeta.color + '">' + catMeta.label + '</span>'
+        +   (it.fromAccount ? '<span class="ord-meta-pill from">from · ' + escapeHtml(it.fromAccount) + '</span>' : '')
+        +   '<span class="ord-meta-pill date">' + dateLabel + '</span>'
+        + '</div>';
+      list.appendChild(row);
+    });
+    list.querySelectorAll('.ord-card-x').forEach(b => {
+      b.addEventListener('click', () => {
+        const id = b.dataset.id;
+        const arr = (storeGet('purchases') || []).filter(x => x.id !== id);
+        storeSet('purchases', arr);
+        renderPurchases();
+      });
+    });
+  }
+
+  function doPurAdd() {
+    try {
+      const nEl = document.getElementById('purName');
+      const aEl = document.getElementById('purCost');
+      const cEl = document.getElementById('purCurrency');
+      const catEl = document.getElementById('purCategory');
+      const fEl = document.getElementById('purFromCat');
+      const dEl = document.getElementById('purDate');
+      if (!nEl || !aEl) return;
+      const n = (nEl.value || '').trim();
+      const aRaw = parseFloat(aEl.value);
+      if (!n || isNaN(aRaw)) { nEl.focus(); return; }
+      const ccy = cEl ? cEl.value : 'USD';
+      const rate = exchangeRates[ccy] || 1;
+      const amountCHF = aRaw / rate;
+      const category = catEl && catEl.value ? catEl.value : 'other';
+      const parsed = parsePurFromValue(fEl ? fEl.value : '');
+      const date = dEl && dEl.value ? dEl.value : new Date().toISOString().slice(0, 10);
+
+      // Deduct immediately if an account was picked — a purchase already
+      // happened, unlike an order that hasn't arrived, so there's no
+      // separate "mark as deducted" step to defer to.
+      let fromCat = null, fromAccount = null;
+      if (parsed) {
+        const items = storeGet('nw:' + parsed.cat) || [];
+        const itemIdx = items.findIndex(i => String(i.name) === String(parsed.name));
+        if (itemIdx >= 0) {
+          const current = Number(items[itemIdx].amount) || 0;
+          if (current < amountCHF - 0.005 && !confirm('"' + items[itemIdx].name + '" doesn\'t have enough — deduct anyway? (it will go negative)')) {
+            // Declined the overdraw — log the purchase without deducting.
+          } else {
+            items[itemIdx].amount = current - amountCHF;
+            storeSet('nw:' + parsed.cat, items);
+            logActivity(parsed.cat, items[itemIdx].name, -amountCHF, 'purchase');
+            fromCat = parsed.cat;
+            fromAccount = items[itemIdx].name;
+          }
+        }
+      }
+
+      const arr = storeGet('purchases') || [];
+      arr.push({
+        id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+        name: n,
+        amount: amountCHF,
+        entered_amount: aRaw,
+        entered_currency: ccy,
+        category: category,
+        fromCat: fromCat,
+        fromAccount: fromAccount,
+        date: date,
+        ts: Date.now(),
+      });
+      storeSet('purchases', arr);
+      nEl.value = ''; aEl.value = '';
+      updatePurPreview();
+      if (fromCat) { renderAllNetWorth(); } else { renderPurchases(); }
+    } catch (e) { console.error('purAdd failed', e); }
+  }
+  window.__addPurchase = doPurAdd;
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (t && t.id === 'purAddBtn') { e.preventDefault(); doPurAdd(); }
+  });
+  ['purCost','purCurrency','purFromCat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updatePurPreview);
+    if (el) el.addEventListener('change', updatePurPreview);
+  });
+  ['purName','purCost'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doPurAdd(); });
+  });
+  (function initPurDateDefault() {
+    const dEl = document.getElementById('purDate');
+    if (dEl && !dEl.value) dEl.value = new Date().toISOString().slice(0, 10);
+  })();
+  renderPurchases();
+  updatePurPreview();
+
+  // ============================================================
+  // GMAIL-SUGGESTED PURCHASES — scans Gmail's built-in "Purchases"
+  // category (the same bucket Google Pay's purchase tracker uses) for
+  // receipt/order-confirmation emails, has Claude pull merchant/amount/
+  // date/category out of each one, and surfaces them here as a review
+  // queue. Nothing touches net worth until you tap "Add" on a specific
+  // suggestion — money data is too easy to get wrong to auto-insert
+  // silently. Reuses the Google tokens from google.html (same origin,
+  // same localStorage) and the Anthropic key already saved for Nova.
+  // ============================================================
+  const GMAIL_TOKENS_KEY = 'google_tokens_v1';
+  const GMAIL_SEEN_KEY = 'google:purchaseSeen';
+  const GMAIL_SUGGEST_KEY = 'google:purchaseSuggestions';
+  const NOVA_KEY_LS = 'nova_lite_api_key';
+
+  function loadGoogleTokens() { try { return JSON.parse(localStorage.getItem(GMAIL_TOKENS_KEY)); } catch (e) { return null; } }
+  function saveGoogleTokens(t) { try { localStorage.setItem(GMAIL_TOKENS_KEY, JSON.stringify(t)); } catch (e) {} }
+  async function refreshGoogleTok(t) {
+    if (!t.refresh) return null;
+    try {
+      const r = await fetch('/api/google-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: t.refresh }) });
+      const j = await r.json();
+      if (j.access_token) {
+        const next = { access: j.access_token, refresh: t.refresh, expires: Date.now() + (j.expires_in || 3500) * 1000 };
+        saveGoogleTokens(next); return next;
+      }
+    } catch (e) {}
+    return null;
+  }
+  async function gmailFetch(url, t) {
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + t.access, Accept: 'application/json' } });
+    if (r.status === 401) { const n = await refreshGoogleTok(t); if (n) return gmailFetch(url, n); throw new Error('unauthorized — reconnect Google'); }
+    if (!r.ok) throw new Error('Gmail ' + r.status + ': ' + (await r.text()));
+    return await r.json();
+  }
+
+  function b64urlDecode(s) {
+    try { return decodeURIComponent(escape(atob(String(s || '').replace(/-/g, '+').replace(/_/g, '/')))); }
+    catch (e) { return ''; }
+  }
+  function stripHtml(html) {
+    return String(html || '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function extractPlainText(payload) {
+    if (!payload) return '';
+    if (payload.mimeType === 'text/plain' && payload.body && payload.body.data) return b64urlDecode(payload.body.data);
+    if (Array.isArray(payload.parts)) {
+      const plain = payload.parts.find(p => p.mimeType === 'text/plain' && p.body && p.body.data);
+      if (plain) return b64urlDecode(plain.body.data);
+      for (const part of payload.parts) {
+        const nested = extractPlainText(part);
+        if (nested) return nested;
+      }
+      const html = payload.parts.find(p => p.mimeType === 'text/html' && p.body && p.body.data);
+      if (html) return stripHtml(b64urlDecode(html.body.data));
+    }
+    if (payload.body && payload.body.data) {
+      const decoded = b64urlDecode(payload.body.data);
+      return payload.mimeType === 'text/html' ? stripHtml(decoded) : decoded;
+    }
+    return '';
+  }
+
+  function parseJsonLoose(raw) {
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (e) {}
+    const match = String(raw).match(/\{[\s\S]*\}/);
+    if (match) { try { return JSON.parse(match[0]); } catch (e2) {} }
+    return null;
+  }
+
+  const PUR_CAT_KEYS = PURCHASE_CATS.map(c => c.key);
+  // Only USD/DOP are real options anywhere in this app now. A receipt that's
+  // genuinely in some third currency gets forced into whichever of these two
+  // is the closer guess by the model — an accepted tradeoff for keeping the
+  // currency picker down to just the two that are actually used, not a bug.
+  const PUR_CCY_KEYS = ['USD', 'DOP'];
+  async function aiParseReceipt(subject, from, dateHeader, bodyText, apiKey) {
+    const prompt = 'Subject: ' + subject + '\nFrom: ' + from + '\nDate: ' + dateHeader + '\nBody:\n' + bodyText.slice(0, 3000);
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        system: 'You extract purchase details from an email so they can be logged in a budget app. '
+          + 'Reply with ONLY compact JSON, no prose, no markdown fences: '
+          + '{"isPurchase":bool,"merchant":string,"amount":number,"currency":string,"date":"YYYY-MM-DD","category":string}. '
+          + 'Set isPurchase to false if this is not actually an order/purchase/payment receipt with a charged total '
+          + '(e.g. a shipping-only update, newsletter, promo, or a subscription notice with no amount charged). '
+          + 'amount must be the TOTAL charged, a plain number, no currency symbol or thousands separators. '
+          + 'currency must be one of: ' + PUR_CCY_KEYS.join(', ') + ' (best guess if unclear, default USD). '
+          + 'category must be one of: ' + PUR_CAT_KEYS.join(', ') + '. '
+          + 'date must be the purchase/charge date in YYYY-MM-DD (use the email date if no other date is given).',
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message || 'Anthropic API error');
+    const text = json.content && json.content[0] && json.content[0].text;
+    return parseJsonLoose(text);
+  }
+
+  function loadSeenIds() { try { return new Set(JSON.parse(localStorage.getItem(GMAIL_SEEN_KEY)) || []); } catch (e) { return new Set(); } }
+  function saveSeenIds(set) { try { localStorage.setItem(GMAIL_SEEN_KEY, JSON.stringify([...set])); } catch (e) {} }
+  function loadSuggestions() { try { return JSON.parse(localStorage.getItem(GMAIL_SUGGEST_KEY)) || []; } catch (e) { return []; } }
+  function saveSuggestions(arr) { try { localStorage.setItem(GMAIL_SUGGEST_KEY, JSON.stringify(arr)); } catch (e) {} }
+
+  function setGmailScanStatus(text, isError) {
+    const el = document.getElementById('gmailScanStatus');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = isError ? '#FF8A8A' : 'var(--text-tertiary)';
+  }
+
+  function renderGmailSuggestions() {
+    const list = document.getElementById('gmailSuggestList');
+    if (!list) return;
+    const suggestions = loadSuggestions();
+    if (!suggestions.length) { list.innerHTML = ''; return; }
+    list.innerHTML = suggestions.map(s => {
+      const catMeta = purCatMeta(s.category);
+      return '<div class="ord-card pcat-' + catMeta.key + '" style="margin-top:8px">'
+        + '<div class="ord-card-h">'
+        +   '<div class="ord-card-name">' + escapeHtml(s.merchant) + '</div>'
+        +   '<div class="ord-card-amt">' + s.currency + ' ' + Number(s.amount).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div>'
+        + '</div>'
+        + '<div class="ord-card-meta">'
+        +   '<span class="ord-meta-pill" style="color:' + catMeta.color + '">' + catMeta.label + '</span>'
+        +   '<span class="ord-meta-pill date">' + escapeHtml(s.date || '') + '</span>'
+        + '</div>'
+        + '<div class="ord-card-foot" style="display:flex;gap:8px;margin-top:10px">'
+        +   '<button class="ord-deduct-btn" data-add-id="' + s.gmailId + '">+ Add to Purchases</button>'
+        +   '<button class="ord-deduct-undo" data-dismiss-id="' + s.gmailId + '">Dismiss</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+    list.querySelectorAll('[data-add-id]').forEach(b => {
+      b.addEventListener('click', () => addSuggestion(b.dataset.addId));
+    });
+    list.querySelectorAll('[data-dismiss-id]').forEach(b => {
+      b.addEventListener('click', () => dismissSuggestion(b.dataset.dismissId));
+    });
+  }
+
+  function addSuggestion(gmailId) {
+    const suggestions = loadSuggestions();
+    const idx = suggestions.findIndex(s => s.gmailId === gmailId);
+    if (idx < 0) return;
+    const s = suggestions[idx];
+    const rate = exchangeRates[s.currency] || 1;
+    const amountCHF = (Number(s.amount) || 0) / rate;
+    const arr = storeGet('purchases') || [];
+    arr.push({
+      id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+      name: s.merchant,
+      amount: amountCHF,
+      entered_amount: s.amount,
+      entered_currency: s.currency,
+      category: s.category,
+      fromCat: null,
+      fromAccount: null,
+      date: s.date,
+      ts: Date.now(),
+    });
+    storeSet('purchases', arr);
+    suggestions.splice(idx, 1);
+    saveSuggestions(suggestions);
+    renderGmailSuggestions();
+    renderPurchases();
+  }
+  function dismissSuggestion(gmailId) {
+    const suggestions = loadSuggestions().filter(s => s.gmailId !== gmailId);
+    saveSuggestions(suggestions);
+    renderGmailSuggestions();
+  }
+
+  async function scanGmailForPurchases() {
+    const tokens = loadGoogleTokens();
+    if (!tokens || !tokens.access) {
+      setGmailScanStatus('Not connected — open the Google tile (Today hub) and Connect Google first.', true);
+      return;
+    }
+    const apiKey = (() => { try { return localStorage.getItem(NOVA_KEY_LS); } catch (e) { return null; } })();
+    if (!apiKey) {
+      setGmailScanStatus('Paste your Anthropic API key on the Nova tile first — it\'s reused here to read receipts.', true);
+      return;
+    }
+    const scanBtn = document.getElementById('gmailScanBtn');
+    if (scanBtn) scanBtn.disabled = true;
+    try {
+      let t = tokens;
+      if (t.expires && Date.now() > t.expires - 60000) { const n = await refreshGoogleTok(t); if (n) t = n; }
+      setGmailScanStatus('Searching Gmail…', false);
+      const listData = await gmailFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=' + encodeURIComponent('category:purchases newer_than:30d') + '&maxResults=20', t);
+      const ids = ((listData && listData.messages) || []).map(m => m.id);
+      const seen = loadSeenIds();
+      const newIds = ids.filter(id => !seen.has(id));
+      if (!newIds.length) {
+        setGmailScanStatus('No new purchase emails found.', false);
+        return;
+      }
+      const suggestions = loadSuggestions();
+      let found = 0;
+      for (let i = 0; i < newIds.length; i++) {
+        const id = newIds[i];
+        setGmailScanStatus('Scanning ' + (i + 1) + ' of ' + newIds.length + '…', false);
+        seen.add(id); // mark seen regardless of outcome — never reconsider it
+        try {
+          const msg = await gmailFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/' + id + '?format=full', t);
+          const headers = (msg.payload && msg.payload.headers) || [];
+          const subject = (headers.find(h => h.name === 'Subject') || {}).value || '';
+          const from = (headers.find(h => h.name === 'From') || {}).value || '';
+          const dateHeader = (headers.find(h => h.name === 'Date') || {}).value || '';
+          const bodyText = extractPlainText(msg.payload) || msg.snippet || '';
+          const parsed = await aiParseReceipt(subject, from, dateHeader, bodyText, apiKey);
+          if (parsed && parsed.isPurchase && parsed.amount > 0) {
+            const currency = PUR_CCY_KEYS.includes(parsed.currency) ? parsed.currency : 'USD';
+            const category = PUR_CAT_KEYS.includes(parsed.category) ? parsed.category : 'other';
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(parsed.date || '') ? parsed.date : new Date().toISOString().slice(0, 10);
+            suggestions.push({
+              gmailId: id,
+              merchant: String(parsed.merchant || from.replace(/<.*>/, '').trim() || '(unknown)').slice(0, 80),
+              amount: parsed.amount,
+              currency,
+              category,
+              date,
+            });
+            found++;
+          }
+        } catch (e) { console.error('[gmail-purchases] failed to parse message', id, e.message); }
+      }
+      saveSeenIds(seen);
+      saveSuggestions(suggestions);
+      renderGmailSuggestions();
+      setGmailScanStatus(found ? ('Found ' + found + ' new ' + (found === 1 ? 'purchase' : 'purchases') + ' to review.') : 'Scanned ' + newIds.length + ' new emails — nothing looked like a purchase.', false);
+    } catch (e) {
+      setGmailScanStatus((e && e.message) || 'Something went wrong scanning Gmail.', true);
+    } finally {
+      if (scanBtn) scanBtn.disabled = false;
+    }
+  }
+  const gmailScanBtnEl = document.getElementById('gmailScanBtn');
+  if (gmailScanBtnEl) gmailScanBtnEl.addEventListener('click', scanGmailForPurchases);
+  renderGmailSuggestions();
+
+  // ============================================================
+  // PLAID BANK SYNC — connects a real bank account via Plaid Link and
+  // pulls new transactions as review-before-logging suggestions, the
+  // exact same UX pattern as the Gmail-scanned receipts above. Plaid
+  // access tokens live server-side only (see api/plaid.js) — this page
+  // never sees or stores
+  // a real bank credential, only the resulting transaction suggestions
+  // (and a non-sensitive "connected to <bank>" display flag).
+  // ============================================================
+  const PLAID_CONNECTION_KEY = 'plaid_connection';
+  const PLAID_SUGGEST_KEY = 'plaid_suggestions';
+
+  function plaidConfigured() { return !!(window.DASH_PLAID_SYNC_SECRET); }
+  async function plaidCall(path, body) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + window.DASH_PLAID_SYNC_SECRET },
+      body: JSON.stringify(body || {}),
+    });
+    return await res.json();
+  }
+
+  function loadPlaidConnection() { try { return JSON.parse(localStorage.getItem(PLAID_CONNECTION_KEY)); } catch (e) { return null; } }
+  function savePlaidConnection(v) { try { localStorage.setItem(PLAID_CONNECTION_KEY, JSON.stringify(v)); } catch (e) {} }
+  function loadPlaidSuggestions() { try { return JSON.parse(localStorage.getItem(PLAID_SUGGEST_KEY)) || []; } catch (e) { return []; } }
+  function savePlaidSuggestions(arr) { try { localStorage.setItem(PLAID_SUGGEST_KEY, JSON.stringify(arr)); } catch (e) {} }
+
+  function setPlaidStatus(text, isError) {
+    const el = document.getElementById('plaidStatus');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = isError ? '#FF8A8A' : 'var(--text-tertiary)';
+  }
+
+  function renderPlaidSuggestions() {
+    const list = document.getElementById('plaidSuggestList');
+    if (!list) return;
+    const suggestions = loadPlaidSuggestions();
+    if (!suggestions.length) { list.innerHTML = ''; return; }
+    list.innerHTML = suggestions.map(s => {
+      const catMeta = purCatMeta(s.category);
+      return '<div class="ord-card pcat-' + catMeta.key + '" style="margin-top:8px">'
+        + '<div class="ord-card-h">'
+        +   '<div class="ord-card-name">' + escapeHtml(s.merchant) + '</div>'
+        +   '<div class="ord-card-amt">' + s.currency + ' ' + Number(s.amount).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div>'
+        + '</div>'
+        + '<div class="ord-card-meta">'
+        +   '<span class="ord-meta-pill" style="color:' + catMeta.color + '">' + catMeta.label + '</span>'
+        +   '<span class="ord-meta-pill date">' + escapeHtml(s.date || '') + '</span>'
+        + '</div>'
+        + '<div class="ord-card-foot" style="display:flex;gap:8px;margin-top:10px">'
+        +   '<button class="ord-deduct-btn" data-plaid-add-id="' + s.plaidId + '">+ Add to Purchases</button>'
+        +   '<button class="ord-deduct-undo" data-plaid-dismiss-id="' + s.plaidId + '">Dismiss</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+    list.querySelectorAll('[data-plaid-add-id]').forEach(b => b.addEventListener('click', () => addPlaidSuggestion(b.dataset.plaidAddId)));
+    list.querySelectorAll('[data-plaid-dismiss-id]').forEach(b => b.addEventListener('click', () => dismissPlaidSuggestion(b.dataset.plaidDismissId)));
+  }
+
+  function addPlaidSuggestion(plaidId) {
+    const suggestions = loadPlaidSuggestions();
+    const idx = suggestions.findIndex(s => s.plaidId === plaidId);
+    if (idx < 0) return;
+    const s = suggestions[idx];
+    const rate = exchangeRates[s.currency] || 1;
+    const amountCHF = (Number(s.amount) || 0) / rate;
+    const arr = storeGet('purchases') || [];
+    arr.push({
+      id: 'p_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+      name: s.merchant,
+      amount: amountCHF,
+      entered_amount: s.amount,
+      entered_currency: s.currency,
+      category: s.category,
+      fromCat: null,
+      fromAccount: null,
+      date: s.date,
+      ts: Date.now(),
+    });
+    storeSet('purchases', arr);
+    suggestions.splice(idx, 1);
+    savePlaidSuggestions(suggestions);
+    renderPlaidSuggestions();
+    renderPurchases();
+  }
+  function dismissPlaidSuggestion(plaidId) {
+    const suggestions = loadPlaidSuggestions().filter(s => s.plaidId !== plaidId);
+    savePlaidSuggestions(suggestions);
+    renderPlaidSuggestions();
+  }
+
+  function renderPlaidCard() {
+    const card = document.getElementById('plaidSuggestCard');
+    const connectBtn = document.getElementById('plaidConnectBtn');
+    const syncBtn = document.getElementById('plaidSyncBtn');
+    if (!card) return;
+    // Hidden entirely when not configured, same reasoning as the
+    // Semantic-search button in notes.html — never show a feature that
+    // would just fail every time on a fresh install.
+    if (!plaidConfigured()) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const conn = loadPlaidConnection();
+    if (conn && conn.connected) {
+      connectBtn.style.display = 'none';
+      syncBtn.style.display = '';
+      setPlaidStatus(conn.institutionName ? ('Connected to ' + conn.institutionName + '.') : 'Connected.');
+    } else {
+      connectBtn.style.display = '';
+      syncBtn.style.display = 'none';
+      setPlaidStatus('Not connected yet.');
+    }
+  }
+
+  async function connectPlaidBank() {
+    const connectBtn = document.getElementById('plaidConnectBtn');
+    if (connectBtn) connectBtn.disabled = true;
+    setPlaidStatus('Preparing connection…');
+    try {
+      const tokenResult = await plaidCall('/api/plaid-link-token');
+      if (!tokenResult || !tokenResult.ok) throw new Error((tokenResult && tokenResult.error) || 'Could not start connection.');
+      if (typeof Plaid === 'undefined') throw new Error('Plaid Link failed to load — check your connection and try again.');
+      const plaidHandler = Plaid.create({
+        token: tokenResult.linkToken,
+        onSuccess: async (publicToken, metadata) => {
+          setPlaidStatus('Finishing connection…');
+          const institutionName = (metadata && metadata.institution && metadata.institution.name) || '';
+          const exchangeResult = await plaidCall('/api/plaid-exchange-token', { publicToken: publicToken, institutionName: institutionName });
+          if (!exchangeResult || !exchangeResult.ok) {
+            setPlaidStatus((exchangeResult && exchangeResult.error) || 'Could not finish connecting.', true);
+            return;
+          }
+          savePlaidConnection({ connected: true, institutionName: exchangeResult.institutionName || institutionName || null });
+          renderPlaidCard();
+          syncPlaidTransactions();
+        },
+        onExit: (err) => {
+          if (err) setPlaidStatus(err.error_message || 'Connection cancelled.', true);
+          else setPlaidStatus('Not connected yet.');
+        },
+      });
+      plaidHandler.open();
+    } catch (e) {
+      setPlaidStatus((e && e.message) || 'Something went wrong connecting your bank.', true);
+    } finally {
+      if (connectBtn) connectBtn.disabled = false;
+    }
+  }
+
+  async function syncPlaidTransactions() {
+    const syncBtn = document.getElementById('plaidSyncBtn');
+    if (syncBtn) syncBtn.disabled = true;
+    setPlaidStatus('Syncing…');
+    try {
+      const result = await plaidCall('/api/plaid-sync-transactions');
+      if (!result || !result.ok) {
+        setPlaidStatus((result && result.error) || 'Could not sync just now.', true);
+        return;
+      }
+      const existing = loadPlaidSuggestions();
+      const seenIds = new Set(existing.map(s => s.plaidId));
+      let added = 0;
+      (result.suggestions || []).forEach(s => { if (!seenIds.has(s.plaidId)) { existing.push(s); seenIds.add(s.plaidId); added++; } });
+      savePlaidSuggestions(existing);
+      renderPlaidSuggestions();
+      setPlaidStatus(added ? ('Found ' + added + ' new ' + (added === 1 ? 'transaction' : 'transactions') + ' to review.') : 'Synced — nothing new.');
+    } catch (e) {
+      setPlaidStatus((e && e.message) || 'Something went wrong syncing.', true);
+    } finally {
+      if (syncBtn) syncBtn.disabled = false;
+    }
+  }
+
+  const plaidConnectBtnEl = document.getElementById('plaidConnectBtn');
+  if (plaidConnectBtnEl) plaidConnectBtnEl.addEventListener('click', connectPlaidBank);
+  const plaidSyncBtnEl = document.getElementById('plaidSyncBtn');
+  if (plaidSyncBtnEl) plaidSyncBtnEl.addEventListener('click', syncPlaidTransactions);
+  renderPlaidCard();
+  renderPlaidSuggestions();
 
   // ============================================================
   // FINANCE TICKER — rotates through upcoming subscription renewals
@@ -3385,7 +5246,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (typeof initCloudSync !== 'function') return;
   initCloudSync({
     appKey: 'finance',
-    syncedKeys: ['subs', 'wishlist', 'incoming_orders', 'nw_currency', 'nw:activity', 'nw:history'],
+    syncedKeys: ['subs', 'wishlist', 'incoming_orders', 'purchases', 'nw_currency', 'nw:activity', 'nw:history', 'plaid_connection', 'plaid_suggestions'],
     syncedPrefixes: ['nw:'],
     onApplied: function () {
       window.dispatchEvent(new Event('storage'));

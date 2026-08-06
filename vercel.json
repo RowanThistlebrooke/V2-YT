@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/api/whoop-callback", "destination": "/api/whoop" },
+    { "source": "/api/whoop-refresh", "destination": "/api/whoop" },
+    { "source": "/api/whoop-data", "destination": "/api/whoop" },
+    { "source": "/api/google-callback", "destination": "/api/google" },
+    { "source": "/api/google-refresh", "destination": "/api/google?action=refresh" },
+    { "source": "/api/google-token-sync", "destination": "/api/google?action=token-sync" },
+    { "source": "/api/plaid-link-token", "destination": "/api/plaid?action=link-token" },
+    { "source": "/api/plaid-exchange-token", "destination": "/api/plaid?action=exchange-token" },
+    { "source": "/api/plaid-sync-transactions", "destination": "/api/plaid?action=sync-transactions" }
+  ]
+}

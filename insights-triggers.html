@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Emotional Triggers · Insights</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.pe-headline { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.pe-detail { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+.pe-empty { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+.pattern-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; margin-bottom: 6px;
+  background: rgba(var(--hud-rgb), 0.03); border: 1px solid var(--hud-line-soft);
+  border-radius: 10px; font-size: 13px; line-height: 1.5;
+}
+.pattern-row:last-child { margin-bottom: 0; }
+.pattern-icon { flex-shrink: 0; font-size: 15px; line-height: 1.4; }
+.pattern-row.bad { border-color: rgba(255,84,112,0.22); }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ---- Radar chart ---- */
+.radar-wrap { display: flex; justify-content: center; margin-bottom: 10px; }
+.radar-caption { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.5; }
+.radar-axis-label { font-size: 9.5px; fill: var(--text-tertiary); }
+
+/* ---- Timing heatmap ---- */
+.timing-callout { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 12px; }
+.timing-callout b { color: var(--hud); }
+.timing-grid-wrap { overflow-x: auto; }
+.timing-grid {
+  display: grid; grid-template-columns: 34px repeat(6, 1fr); gap: 3px; min-width: 340px;
+}
+.timing-hour-label { font-size: 9px; color: var(--text-tertiary); text-align: center; padding-bottom: 3px; }
+.timing-day-label { font-size: 10px; color: var(--text-tertiary); display: flex; align-items: center; }
+.timing-cell { aspect-ratio: 1; border-radius: 4px; background: rgba(var(--hud-rgb), 0.06); }
+.timing-legend { display: flex; gap: 14px; align-items: center; margin-top: 12px; font-size: 10.5px; color: var(--text-tertiary); }
+.timing-legend-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-insights.html">← Insights</a>
+  <h1 class="dash-title">Emotional Triggers</h1>
+
+  <div class="section two-col">
+    <div class="gm-card">
+      <div class="section-title" style="margin-bottom:14px">Trigger Shape</div>
+      <div class="radar-wrap"><svg id="radarSvg" width="280" height="230" viewBox="0 0 280 230"></svg></div>
+      <div class="radar-caption" id="radarCaption">Gathering data…</div>
+    </div>
+    <div class="gm-card">
+      <div class="section-title" style="margin-bottom:14px">Trigger Timing Pattern</div>
+      <div class="timing-callout" id="timingCallout">Gathering data…</div>
+      <div class="timing-grid-wrap"><div class="timing-grid" id="timingGrid"></div></div>
+      <div class="timing-legend" id="timingLegend"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">What's actually triggering it</div>
+    <div class="gm-card">
+      <ul class="pattern-list" id="triggerList" style="list-style:none;margin:0;padding:0"></ul>
+      <div class="empty-state" id="triggerEmpty" style="display:none">Not enough history yet to spot a real day-ahead trigger — check back after a few more weeks of logging.</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { dateKeyFromDate, lastNDateKeys, buildDayRows } from './correlation-lab.js';
+
+(function () {
+  'use strict';
+
+  // ============================================================
+  // Emotional Trigger Mapping — passively inferred, never self-tagged.
+  // Reuses the exact day-shifted bucket-comparison approach from the
+  // original Insights page (does YESTERDAY's factor predict TODAY's
+  // feeling/stress?), now presented two ways instead of 3 bullet
+  // sentences:
+  //   1. A radar of fixed "risk factor" axes sized by how hard each one
+  //      predicts a worse next day — the overall "shape" of what gets you.
+  //   2. A day-of-week x time-of-day heatmap of how you've actually FELT,
+  //      built straight from peak.html's checkin timestamps (each
+  //      check-in already carries a real ms `ts`, not just a date), same
+  //      idea as a "when do struggles happen" chart.
+  // ============================================================
+
+  const WINDOW_DAYS = 60;
+  const MIN_SAMPLES = 5;
+  const MEANINGFUL_DIFF = 0.4;
+  const RADAR_MAX_DIFF = 2.0;
+  const TIMING_MIN_SAMPLES = 2;
+
+  function avg(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+
+  const FACTOR_LABELS = {
+    poorSleepQuality: 'poor sleep quality',
+    lowSleepHours: 'under 6.5h sleep',
+    lateCaffeine: 'late caffeine',
+    lowHabitRate: 'low habit completion',
+    lowTodoRate: 'low to-do completion',
+  };
+  const RADAR_AXES = ['poorSleepQuality', 'lowSleepHours', 'lateCaffeine', 'lowHabitRate', 'lowTodoRate'];
+
+  function computeFactorEffect(dayRows, factorKey, outcomeKey) {
+    const withF = [], withoutF = [];
+    dayRows.forEach(d => {
+      const f = d.factors[factorKey], o = d[outcomeKey];
+      if (f == null || o == null) return;
+      (f ? withF : withoutF).push(o);
+    });
+    if (withF.length < MIN_SAMPLES || withoutF.length < MIN_SAMPLES) return null;
+    const avgWith = avg(withF), avgWithout = avg(withoutF);
+    const rawDiff = avgWith - avgWithout;
+    const goodnessDiff = outcomeKey === 'outcomeStress' ? -rawDiff : rawDiff;
+    return {
+      factorKey, outcome: outcomeKey === 'outcomeStress' ? 'stress' : 'feeling',
+      avgWith, avgWithout, goodnessDiff, nWith: withF.length, nWithout: withoutF.length,
+    };
+  }
+
+  function computeAllEffects(dayRows) {
+    const results = [];
+    Object.keys(FACTOR_LABELS).forEach(factorKey => {
+      ['outcomeFeeling', 'outcomeStress'].forEach(outcomeKey => {
+        const effect = computeFactorEffect(dayRows, factorKey, outcomeKey);
+        if (effect && Math.abs(effect.goodnessDiff) >= MEANINGFUL_DIFF) results.push(effect);
+      });
+    });
+    results.sort((a, b) => Math.abs(b.goodnessDiff) - Math.abs(a.goodnessDiff));
+    return results;
+  }
+
+  // dayRows must be most-recent-first (array adjacency == calendar
+  // adjacency, since lastNDateKeys() steps back one day at a time).
+  function buildLaggedDayRows(dayRows) {
+    const out = [];
+    for (let i = 0; i < dayRows.length - 1; i++) {
+      out.push({
+        dateKey: dayRows[i].dateKey,
+        outcomeFeeling: dayRows[i].outcomeFeeling,
+        outcomeStress: dayRows[i].outcomeStress,
+        factors: dayRows[i + 1].factors,
+      });
+    }
+    return out;
+  }
+
+  function computeEmotionalTriggers(dayRows) {
+    return computeAllEffects(buildLaggedDayRows(dayRows)).filter(e => e.goodnessDiff < 0);
+  }
+
+  // A worst-per-axis picker: for the radar we want ONE magnitude per
+  // factor even though computeAllEffects can return both a feeling- and
+  // stress-based effect for the same factor — take whichever is stronger.
+  function radarMagnitudes(triggers) {
+    const best = {};
+    triggers.forEach(t => {
+      const mag = Math.abs(t.goodnessDiff);
+      if (!best[t.factorKey] || mag > best[t.factorKey]) best[t.factorKey] = mag;
+    });
+    return RADAR_AXES.map(key => Math.max(0, Math.min(1, (best[key] || 0) / RADAR_MAX_DIFF)));
+  }
+
+  // Time-of-day bucketing straight from raw check-in timestamps (not
+  // day-shifted — this is "when do rough moments land", not "what
+  // predicts tomorrow"). 6 four-hour buckets, Sun-Sat rows.
+  const HOUR_BUCKETS = [
+    { label: '12A', from: 0, to: 4 }, { label: '4A', from: 4, to: 8 }, { label: '8A', from: 8, to: 12 },
+    { label: '12P', from: 12, to: 16 }, { label: '4P', from: 16, to: 20 }, { label: '8P', from: 20, to: 24 },
+  ];
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function bucketIndexForHour(hour) {
+    return HOUR_BUCKETS.findIndex(b => hour >= b.from && hour < b.to);
+  }
+
+  function computeTimingGrid(checkins, windowStartMs) {
+    // grid[day][bucket] = array of feeling values (1-5)
+    const grid = DAY_LABELS.map(() => HOUR_BUCKETS.map(() => []));
+    (checkins || []).forEach(c => {
+      if (!c || c.feeling == null || !c.ts || c.ts < windowStartMs) return;
+      const d = new Date(c.ts);
+      grid[d.getDay()][bucketIndexForHour(d.getHours())].push(c.feeling);
+    });
+    return grid;
+  }
+
+  window.__insightsTriggersLogic = {
+    dateKeyFromDate, lastNDateKeys, buildDayRows, buildLaggedDayRows, computeAllEffects,
+    computeEmotionalTriggers, radarMagnitudes, computeTimingGrid, bucketIndexForHour,
+    FACTOR_LABELS, RADAR_AXES, HOUR_BUCKETS, DAY_LABELS,
+  };
+
+  // ---- Rendering ----
+  function describeTrigger(effect) {
+    const label = FACTOR_LABELS[effect.factorKey];
+    const outcomeName = effect.outcome === 'stress' ? 'stress' : 'feeling';
+    return 'The day after ' + label + ', your ' + outcomeName + ' averaged '
+      + effect.avgWith.toFixed(1) + '/5 vs ' + effect.avgWithout.toFixed(1) + '/5 otherwise ('
+      + effect.nWith + ' vs ' + effect.nWithout + ' days).';
+  }
+
+  function renderTriggerList(dayRows) {
+    const listEl = document.getElementById('triggerList');
+    const emptyEl = document.getElementById('triggerEmpty');
+    const triggers = computeEmotionalTriggers(dayRows);
+    listEl.innerHTML = '';
+    if (!triggers.length) { emptyEl.style.display = 'block'; return triggers; }
+    emptyEl.style.display = 'none';
+    triggers.slice(0, 5).forEach(e => {
+      const li = document.createElement('li');
+      li.className = 'pattern-row bad';
+      li.innerHTML = '<span class="pattern-icon">⚡</span><span><b>' + FACTOR_LABELS[e.factorKey]
+        + '</b> tends to trigger a worse next day — ' + describeTrigger(e) + '</span>';
+      listEl.appendChild(li);
+    });
+    return triggers;
+  }
+
+  function renderRadar(triggers) {
+    const svg = document.getElementById('radarSvg');
+    const caption = document.getElementById('radarCaption');
+    const cx = 140, cy = 105, r = 66;
+    const n = RADAR_AXES.length;
+    const mags = radarMagnitudes(triggers);
+    const hasAny = mags.some(m => m > 0);
+
+    function pt(i, frac) {
+      const angle = (Math.PI * 2 * i / n) - Math.PI / 2;
+      return [cx + Math.cos(angle) * r * frac, cy + Math.sin(angle) * r * frac];
+    }
+
+    let svgHtml = '';
+    // grid rings
+    [0.25, 0.5, 0.75, 1].forEach(frac => {
+      const pts = RADAR_AXES.map((_, i) => pt(i, frac).join(',')).join(' ');
+      svgHtml += '<polygon points="' + pts + '" fill="none" stroke="rgba(34,211,245,0.15)" stroke-width="1"/>';
+    });
+    // axis lines + labels
+    RADAR_AXES.forEach((key, i) => {
+      const [x, y] = pt(i, 1);
+      svgHtml += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x + '" y2="' + y + '" stroke="rgba(34,211,245,0.15)" stroke-width="1"/>';
+      const [lx, ly] = pt(i, 1.32);
+      svgHtml += '<text x="' + lx + '" y="' + ly + '" text-anchor="middle" class="radar-axis-label">' + FACTOR_LABELS[key] + '</text>';
+    });
+    // data shape
+    const shapePts = mags.map((m, i) => pt(i, Math.max(0.04, m)).join(',')).join(' ');
+    svgHtml += '<polygon points="' + shapePts + '" fill="rgba(255,84,112,0.22)" stroke="#FF5470" stroke-width="2"/>';
+    mags.forEach((m, i) => {
+      const [x, y] = pt(i, Math.max(0.04, m));
+      svgHtml += '<circle cx="' + x + '" cy="' + y + '" r="3" fill="#FF5470"/>';
+    });
+    svg.innerHTML = svgHtml;
+
+    caption.textContent = hasAny
+      ? 'A bigger spike toward an edge means that factor hits harder the next day. Flat center means nothing tracked is a strong trigger right now.'
+      : 'Not enough history yet to size any trigger — check back after a few more weeks of logging.';
+  }
+
+  function renderTiming(grid) {
+    const gridEl = document.getElementById('timingGrid');
+    const legendEl = document.getElementById('timingLegend');
+    const calloutEl = document.getElementById('timingCallout');
+    gridEl.innerHTML = '';
+
+    // header row
+    gridEl.appendChild(document.createElement('div'));
+    HOUR_BUCKETS.forEach(b => {
+      const h = document.createElement('div');
+      h.className = 'timing-hour-label';
+      h.textContent = b.label;
+      gridEl.appendChild(h);
+    });
+
+    let worst = null; // { day, bucket, avgFeeling, n }
+    DAY_LABELS.forEach((dayLabel, dayIdx) => {
+      const dLabel = document.createElement('div');
+      dLabel.className = 'timing-day-label';
+      dLabel.textContent = dayLabel;
+      gridEl.appendChild(dLabel);
+
+      HOUR_BUCKETS.forEach((bucket, bucketIdx) => {
+        const vals = grid[dayIdx][bucketIdx];
+        const cell = document.createElement('div');
+        cell.className = 'timing-cell';
+        if (vals.length >= TIMING_MIN_SAMPLES) {
+          const a = avg(vals);
+          const color = a <= 2.4 ? '#FF5470' : a < 3.6 ? '#FFB84D' : '#3FE0A8';
+          cell.style.background = color;
+          cell.title = dayLabel + ' ' + bucket.label + ' — avg feeling ' + a.toFixed(1) + '/5 (' + vals.length + ' check-ins)';
+          if (!worst || a < worst.avgFeeling) worst = { day: dayLabel, bucket: bucket.label, avgFeeling: a, n: vals.length };
+        } else if (vals.length) {
+          cell.title = dayLabel + ' ' + bucket.label + ' — only ' + vals.length + ' check-in, not enough yet';
+        }
+        gridEl.appendChild(cell);
+      });
+    });
+
+    legendEl.innerHTML =
+      '<span><span class="timing-legend-dot" style="background:#FF5470"></span>Low</span>' +
+      '<span><span class="timing-legend-dot" style="background:#FFB84D"></span>Neutral</span>' +
+      '<span><span class="timing-legend-dot" style="background:#3FE0A8"></span>High</span>';
+
+    calloutEl.innerHTML = worst
+      ? 'Peak difficulty: <b>' + worst.day + ' around ' + worst.bucket + '</b> — worth planning something lighter around then.'
+      : 'Not enough check-ins logged at consistent times yet to spot a pattern.';
+  }
+
+  // ---- Wiring ----
+  const SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+  async function loadAndRender() {
+    if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+      document.getElementById('radarCaption').textContent = 'Cloud sync isn\'t configured on this device.';
+      return;
+    }
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+      });
+      if (!res.ok) throw new Error('fetch failed: ' + res.status);
+      const rows = await res.json();
+      const rowsByKey = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.key) rowsByKey[r.key] = r.data; });
+      const dateKeys = lastNDateKeys(WINDOW_DAYS);
+      const dayRows = buildDayRows(rowsByKey, dateKeys);
+      const triggers = renderTriggerList(dayRows);
+      renderRadar(triggers);
+
+      const checkins = ((rowsByKey.peak || {})['peak:checkins']) || [];
+      const windowStart = Date.now() - WINDOW_DAYS * 86400000;
+      renderTiming(computeTimingGrid(checkins, windowStart));
+    } catch (e) {
+      document.getElementById('radarCaption').textContent = "Couldn't load your data — check your connection.";
+    }
+  }
+
+  loadAndRender();
+})();
+</script>
+</body>
+</html>

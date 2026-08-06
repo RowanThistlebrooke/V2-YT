@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Money & Growth · Dashboard</title>
+
+<link rel="stylesheet" href="design-system.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="index.html">← Dashboard</a>
+  <h1 class="dash-title">Money & Growth</h1>
+
+  <div class="bento">
+    <!-- Wide tile -->
+    <a class="tile wide" href="finance.html" style="--accent:#F2C063">
+      <div class="tile-top">
+        <span class="tile-num">·01</span>
+        <span class="tile-emoji">📊</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Finance</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Net worth & spending</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Wide tile -->
+    <a class="tile wide" href="business.html" style="--accent:#EAB308">
+      <div class="tile-top">
+        <span class="tile-num">·02</span>
+        <span class="tile-emoji">💼</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Businesses</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Side hustles & revenue</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Small tile -->
+    <a class="tile" href="reading.html" style="--accent:#FDBA74">
+      <div class="tile-top">
+        <span class="tile-num">·03</span>
+        <span class="tile-emoji">📚</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Learning</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Books, courses & more</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function activeDate6am() { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); return d; }
+  function activeDateKey6am() { return dateToKey(activeDate6am()); }
+
+  function setTileSub(href, text) {
+    const el = document.querySelector('.tile[href="' + href + '"] .tile-sub');
+    if (el && text) el.textContent = text;
+  }
+
+  // Every nw:<cat> "amount" is stored in CHF-equivalent base units (matching
+  // finance.html's internal engine — invisible plumbing, not shown to the
+  // user). USD is the only default/primary display currency now (DOP the
+  // one alternate), so this tile needs the real exchange rate applied, not
+  // just a relabeled raw CHF number — showing the CHF figure with a "USD"
+  // label next to it would be a real (wrong) number, not a cosmetic slip.
+  let hubMoneyRates = { CHF: 1, USD: 1, DOP: 1 };
+  async function loadHubMoneyRates() {
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/CHF');
+      const data = await res.json();
+      if (data && data.rates) {
+        hubMoneyRates = { CHF: 1, USD: data.rates.USD || 1, DOP: data.rates.DOP || 1 };
+        renderFinanceTile();
+      }
+    } catch (e) {}
+  }
+  loadHubMoneyRates();
+
+  function renderFinanceTile() {
+    const cats = ['cash', 'bank', 'stocks', 'crypto', 'other'];
+    let totalCHF = 0, any = false;
+    cats.forEach(c => {
+      const arr = storeGet('nw:' + c);
+      if (Array.isArray(arr) && arr.length) { any = true; arr.forEach(it => { totalCHF += Number(it.amount) || 0; }); }
+    });
+    if (!any) return;
+    // Only USD/DOP are real display options anywhere in this app now — a
+    // stale CHF/EUR/GBP preference from before those were removed falls
+    // through to USD here too, same guard as finance.html's own dropdown.
+    const savedCcy = storeGet('nw_currency');
+    const currency = (savedCcy === 'USD' || savedCcy === 'DOP') ? savedCcy : 'USD';
+    const total = totalCHF * (hubMoneyRates[currency] || 1);
+    setTileSub('finance.html', 'Net worth: ' + currency + ' ' + Math.round(total).toLocaleString());
+  }
+
+  function renderReadingTile() {
+    const items = storeGet('reading:items') || [];
+    if (!items.length) return;
+    // reading.html logs sessions keyed by a UTC-ISO date string, not the
+    // local-date helpers used elsewhere in this file — match it exactly.
+    const todayK = new Date().toISOString().slice(0, 10);
+    let pagesToday = 0, minutesToday = 0, any = false;
+    items.forEach(it => {
+      const sessions = (it.sessions || []).slice().sort((a, b) => a.date < b.date ? -1 : 1);
+      const idx = sessions.findIndex(s => s.date === todayK);
+      if (idx === -1) return;
+      any = true;
+      // An audiobook logs minutes listened instead of a page number — same
+      // day-over-day delta math, just a different field to diff.
+      if (it.audiobook) {
+        const priorMin = idx > 0 ? (sessions[idx - 1].minutes || 0) : 0;
+        const delta = (sessions[idx].minutes || 0) - priorMin;
+        if (delta > 0) minutesToday += delta;
+      } else {
+        const priorPage = idx > 0 ? (sessions[idx - 1].page || 0) : 0;
+        const delta = (sessions[idx].page || 0) - priorPage;
+        if (delta > 0) pagesToday += delta;
+      }
+    });
+    if (any) {
+      const bits = [];
+      if (pagesToday > 0) bits.push(pagesToday + ' page' + (pagesToday === 1 ? '' : 's'));
+      if (minutesToday > 0) bits.push(minutesToday + ' min listened');
+      setTileSub('reading.html', (bits.length ? bits.join(' + ') : 'reading logged') + ' today');
+      return;
+    }
+    const inProgress = items.find(it => it.status === 'in-progress');
+    if (inProgress && inProgress.title) setTileSub('reading.html', 'Reading: ' + inProgress.title);
+  }
+
+  function renderBusinessTile() {
+    const commitments = storeGet('biz:affiliate:commitments') || [];
+    const commitLog = storeGet('biz:affiliate:commitLog') || {};
+    const clients = storeGet('biz:editing:clients') || [];
+    const delivery = storeGet('biz:editing:deliveryLog') || {};
+    const todayK = activeDateKey6am();
+    let total = 0, done = 0;
+    commitments.forEach(c => { total++; if (commitLog[c.id] && commitLog[c.id][todayK]) done++; });
+    clients.forEach(c => {
+      if (c.billingType === 'retainer' && c.dailyDeliverables > 0) {
+        total++;
+        const doneToday = (delivery[c.id] && delivery[c.id][todayK]) || 0;
+        if (doneToday >= c.dailyDeliverables) done++;
+      }
+    });
+    if (!total) return;
+    setTileSub('business.html', done + '/' + total + ' commitments done today');
+  }
+
+  function renderSnapshot() { renderFinanceTile(); renderBusinessTile(); renderReadingTile(); }
+
+  // These captions only pull fresh data from Supabase when
+  // finance.html/business.html/reading.html themselves load — this page has
+  // no cloud sync of its own, so it was reading whatever already happened
+  // to be in this browser's localStorage. Pull each domain's row directly
+  // (same plain REST call api/send-reminders.js already makes server-side)
+  // before rendering, so it's correct on the very first visit.
+  const SNAP_SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SNAP_SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+  const SNAP_SOURCE_APP_KEYS = ['finance', 'business', 'reading'];
+  async function pullFreshSnapshotSources() {
+    if (SNAP_SUPABASE_URL.indexOf('PASTE-') === 0 || SNAP_SUPABASE_KEY.indexOf('PASTE-') === 0) return;
+    try {
+      const rows = await Promise.all(SNAP_SOURCE_APP_KEYS.map(k =>
+        fetch(SNAP_SUPABASE_URL + '/rest/v1/app_state?key=eq.' + encodeURIComponent(k) + '&select=data', {
+          headers: { apikey: SNAP_SUPABASE_KEY, Authorization: 'Bearer ' + SNAP_SUPABASE_KEY },
+        }).then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      rows.forEach(r => {
+        const data = r && r[0] && r[0].data;
+        if (!data) return;
+        Object.keys(data).forEach(k => { try { localStorage.setItem(k, JSON.stringify(data[k])); } catch (e) {} });
+      });
+    } catch (e) {}
+  }
+
+  renderSnapshot();
+  pullFreshSnapshotSources().then(renderSnapshot);
+  window.addEventListener('pageshow', function () { pullFreshSnapshotSources().then(renderSnapshot); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') pullFreshSnapshotSources().then(renderSnapshot);
+  });
+  window.addEventListener('storage', renderSnapshot);
+})();
+</script>
+</body>
+</html>

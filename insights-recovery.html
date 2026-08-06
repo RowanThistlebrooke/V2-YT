@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Recovery · Body</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.pe-headline { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.pe-detail { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+.pe-empty { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+
+.gauge-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .gauge-row { grid-template-columns: 1fr; } }
+.gauge-card { display: flex; align-items: center; gap: 18px; }
+.gauge-body { min-width: 0; }
+.gauge-title { font-size: 11px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px; }
+.gauge-num { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.gauge-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.5; }
+.ring-num-lg { font-size: 22px; }
+.ring-num-sm { font-size: 15px; }
+
+.br-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+}
+.br-low { background: rgba(63,224,168,0.14); color: #3FE0A8; }
+.br-moderate { background: rgba(251,191,36,0.14); color: #FBBF24; }
+.br-elevated { background: rgba(255,84,112,0.14); color: #FF5470; }
+
+/* ---- this-week-vs-last-week comparison bars ---- */
+.cmp-row { margin-bottom: 14px; }
+.cmp-row:last-child { margin-bottom: 0; }
+.cmp-label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 5px; }
+.cmp-track { position: relative; height: 8px; border-radius: 4px; background: rgba(var(--hud-rgb), 0.08); overflow: visible; }
+.cmp-bar-prior { position: absolute; top: 0; left: 0; height: 100%; border-radius: 4px; background: rgba(var(--hud-rgb), 0.28); }
+.cmp-bar-recent { position: absolute; top: -3px; height: 14px; width: 2px; background: var(--text-primary); border-radius: 1px; }
+.cmp-legend { font-size: 10.5px; color: var(--text-tertiary); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-body.html">← Body</a>
+  <h1 class="dash-title">Recovery</h1>
+
+  <div class="section">
+    <div class="section-title">Sleep</div>
+    <div class="gauge-row">
+      <div class="gm-card gauge-card">
+        <div class="hud-ring" id="nightRing" style="--ring-pct:0"><div class="hud-ring-track"></div><div class="hud-ring-value"><span class="ring-num-lg" id="nightRingNum">–</span></div></div>
+        <div class="gauge-body">
+          <div class="gauge-title">Night Score</div>
+          <div class="gauge-num" id="nightHeadline">Gathering data…</div>
+          <div class="gauge-sub" id="nightSub"></div>
+        </div>
+      </div>
+      <div class="gm-card gauge-card">
+        <div class="hud-ring" id="debtRing" style="--ring-pct:0"><div class="hud-ring-track"></div><div class="hud-ring-value"><span class="ring-num-sm" id="debtRingNum">–</span></div></div>
+        <div class="gauge-body">
+          <div class="gauge-title">Sleep Debt</div>
+          <div class="gauge-num" id="debtHeadline">Gathering data…</div>
+          <div class="gauge-sub" id="debtSub"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Burnout Risk</div>
+    <div class="gm-card">
+      <div class="pe-headline" id="riskHeadline">Gathering data…</div>
+      <div class="pe-detail" id="riskDetail" style="margin-bottom:14px"></div>
+      <div id="cmpBars"></div>
+      <div class="cmp-legend" id="cmpLegend"></div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import {
+  dateKeyFromDate,
+  lastNDateKeys,
+  nextDateKey,
+  lateCaffeineSleepSessionDays,
+  buildDayRows,
+} from './correlation-lab.js';
+
+(function () {
+  'use strict';
+
+  // ============================================================
+  // Recovery — merges what used to be three separate Predictive Engine
+  // cards (Night Score, Sleep Debt, Burnout Risk) into one page, since all
+  // three are really one question ("how recovered am I") viewed from
+  // different angles. Reuses the exact same day-dataset + computations as
+  // the original Insights page; only the rendering changed (rings +
+  // this-week-vs-last-week comparison bars instead of plain sentences).
+  // ============================================================
+
+  const WINDOW_DAYS = 60;
+  const SLEEP_DEBT_WINDOW_DAYS = 14;
+  const SLEEP_DEBT_MIN_NIGHTS = 5;
+  const TARGET_SLEEP_HOURS = 8;
+  const NIGHT_SCORE_TARGET_HOURS = 8;
+  const NIGHT_SCORE_WINDOW_DAYS = 7;
+  const BURNOUT_TREND_DIFF = { stress: 0.5, sleepQuality: 0.5, consistency: 0.15 };
+
+  function avg(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+
+  function computeNightScore(dayRow, caffeineTracked) {
+    if (dayRow.sleepHours == null && dayRow.sleepQuality == null) return null;
+    const parts = [];
+    if (dayRow.sleepHours != null) parts.push({ weight: 35, ratio: Math.min(1, dayRow.sleepHours / NIGHT_SCORE_TARGET_HOURS) });
+    if (dayRow.sleepQuality != null) parts.push({ weight: 35, ratio: dayRow.sleepQuality / 5 });
+    if (caffeineTracked) parts.push({ weight: 30, ratio: dayRow.factors.lateCaffeine ? 0 : 1 });
+    const weightTotal = parts.reduce((a, p) => a + p.weight, 0);
+    const weightedSum = parts.reduce((a, p) => a + p.ratio * p.weight, 0);
+    return Math.round((weightedSum / weightTotal) * 100);
+  }
+
+  function computeNightScoreTrend(dayRows, caffeineTracked, windowDays) {
+    const scores = dayRows.slice(0, windowDays).map(r => computeNightScore(r, caffeineTracked)).filter(s => s != null);
+    if (!scores.length) return null;
+    return { latest: scores[0], avg: avg(scores), n: scores.length };
+  }
+
+  function tierForNightScore(s) {
+    if (s >= 85) return 'Restorative night';
+    if (s >= 65) return 'Solid night';
+    if (s >= 45) return 'Rough night';
+    return 'Wrecked night';
+  }
+
+  function computeSleepDebt(dayRows, targetHours) {
+    targetHours = targetHours == null ? TARGET_SLEEP_HOURS : targetHours;
+    const nights = (dayRows || []).filter(r => typeof r.sleepHours === 'number');
+    if (!nights.length) return null;
+    const totalDebt = nights.reduce((a, r) => a + Math.max(0, targetHours - r.sleepHours), 0);
+    const avgHours = avg(nights.map(r => r.sleepHours));
+    return { totalDebt, nights: nights.length, targetHours, avgDebtPerNight: totalDebt / nights.length, avgHours };
+  }
+
+  function computeBurnoutRisk(dayRows) {
+    const recent = (dayRows || []).slice(0, 7);
+    const prior = (dayRows || []).slice(7, 14);
+    function avgField(rows, field) {
+      const vals = rows.map(r => r[field]).filter(v => v != null);
+      return vals.length ? avg(vals) : null;
+    }
+    const recentStress = avgField(recent, 'outcomeStress');
+    const priorStress = avgField(prior, 'outcomeStress');
+    const recentSleepQ = avgField(recent, 'sleepQuality');
+    const priorSleepQ = avgField(prior, 'sleepQuality');
+    const recentConsistency = avgField(recent, 'consistencyRate');
+    const priorConsistency = avgField(prior, 'consistencyRate');
+
+    const signals = [];
+    if (recentStress != null && priorStress != null && (recentStress - priorStress) >= BURNOUT_TREND_DIFF.stress) {
+      signals.push('stress has been trending up this week');
+    }
+    if (recentSleepQ != null && priorSleepQ != null && (priorSleepQ - recentSleepQ) >= BURNOUT_TREND_DIFF.sleepQuality) {
+      signals.push('sleep quality has been trending down this week');
+    }
+    if (recentConsistency != null && priorConsistency != null && (priorConsistency - recentConsistency) >= BURNOUT_TREND_DIFF.consistency) {
+      signals.push('habit/to-do consistency has slipped this week');
+    }
+
+    const comparisonsAvailable = [
+      recentStress != null && priorStress != null,
+      recentSleepQ != null && priorSleepQ != null,
+      recentConsistency != null && priorConsistency != null,
+    ].filter(Boolean).length;
+    if (!comparisonsAvailable) return { level: 'Unknown', signals: [], insufficientData: true };
+
+    const level = signals.length >= 2 ? 'Elevated' : signals.length === 1 ? 'Moderate' : 'Low';
+    return {
+      level, signals, insufficientData: false,
+      recentStress, priorStress, recentSleepQ, priorSleepQ, recentConsistency, priorConsistency,
+    };
+  }
+
+  window.__insightsRecoveryLogic = {
+    dateKeyFromDate, lastNDateKeys, buildDayRows, computeNightScore, computeNightScoreTrend,
+    tierForNightScore, computeSleepDebt, computeBurnoutRisk, nextDateKey, lateCaffeineSleepSessionDays,
+  };
+
+  // ---- Rendering ----
+  function renderNightGauge(dayRows, caffeineTracked) {
+    const trend = computeNightScoreTrend(dayRows, caffeineTracked, NIGHT_SCORE_WINDOW_DAYS);
+    if (!trend) {
+      document.getElementById('nightHeadline').textContent = 'Not enough sleep logs yet';
+      document.getElementById('nightSub').textContent = 'Log a morning check-in in Peak to see your Night Score.';
+      return;
+    }
+    document.getElementById('nightRing').style.setProperty('--ring-pct', trend.latest);
+    document.getElementById('nightRingNum').textContent = trend.latest;
+    document.getElementById('nightHeadline').textContent = tierForNightScore(trend.latest);
+    document.getElementById('nightSub').textContent = NIGHT_SCORE_WINDOW_DAYS + '-night average: ' + Math.round(trend.avg)
+      + '/100, based on ' + trend.n + ' logged night' + (trend.n === 1 ? '' : 's') + '.';
+  }
+
+  function renderDebtGauge(dayRows) {
+    const recentNights = dayRows.slice(0, SLEEP_DEBT_WINDOW_DAYS);
+    const debt = computeSleepDebt(recentNights, TARGET_SLEEP_HOURS);
+    if (!debt || debt.nights < SLEEP_DEBT_MIN_NIGHTS) {
+      document.getElementById('debtHeadline').textContent = 'Not enough sleep logs yet';
+      document.getElementById('debtSub').textContent = 'Log wake-ups in Peak to see your sleep debt.';
+      return;
+    }
+    const pct = Math.round(Math.min(100, (debt.avgHours / debt.targetHours) * 100));
+    document.getElementById('debtRing').style.setProperty('--ring-pct', pct);
+    document.getElementById('debtRingNum').textContent = debt.avgHours.toFixed(1) + 'h';
+    document.getElementById('debtHeadline').textContent = debt.totalDebt.toFixed(1) + ' hours behind';
+    document.getElementById('debtSub').textContent = 'Over the last ' + debt.nights + ' logged nights, you averaged '
+      + debt.avgDebtPerNight.toFixed(1) + 'h under your ' + debt.targetHours + 'h target per night.';
+  }
+
+  function cmpRow(label, recent, prior, max) {
+    const recentPct = Math.max(0, Math.min(100, (recent / max) * 100));
+    const priorPct = Math.max(0, Math.min(100, (prior / max) * 100));
+    return '<div class="cmp-row"><div class="cmp-label"><span>' + label + '</span><span>' + recent.toFixed(1) + ' vs ' + prior.toFixed(1) + '</span></div>'
+      + '<div class="cmp-track"><div class="cmp-bar-prior" style="width:' + priorPct + '%"></div><div class="cmp-bar-recent" style="left:' + recentPct + '%"></div></div></div>';
+  }
+
+  function renderRisk(dayRows) {
+    const risk = computeBurnoutRisk(dayRows);
+    const headline = document.getElementById('riskHeadline');
+    const detail = document.getElementById('riskDetail');
+    const barsEl = document.getElementById('cmpBars');
+    const legendEl = document.getElementById('cmpLegend');
+
+    if (risk.insufficientData) {
+      headline.textContent = 'Not enough recent history yet';
+      detail.textContent = 'Needs at least two comparable weeks of check-ins, sleep, or habit data.';
+      barsEl.innerHTML = '';
+      legendEl.textContent = '';
+      return;
+    }
+
+    const cls = risk.level === 'Elevated' ? 'br-elevated' : risk.level === 'Moderate' ? 'br-moderate' : 'br-low';
+    headline.innerHTML = '<span class="br-badge ' + cls + '">' + risk.level + '</span>';
+    detail.textContent = risk.signals.length
+      ? risk.signals.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('. ') + '.'
+      : 'No worrying trends this week compared to last.';
+
+    let bars = '';
+    if (risk.recentStress != null && risk.priorStress != null) bars += cmpRow('Stress (1-5)', risk.recentStress, risk.priorStress, 5);
+    if (risk.recentSleepQ != null && risk.priorSleepQ != null) bars += cmpRow('Sleep quality (1-5)', risk.recentSleepQ, risk.priorSleepQ, 5);
+    if (risk.recentConsistency != null && risk.priorConsistency != null) bars += cmpRow('Consistency (%)', risk.recentConsistency * 100, risk.priorConsistency * 100, 100);
+    barsEl.innerHTML = bars;
+    legendEl.innerHTML = '<span style="color:var(--text-primary)">▍</span> this week &nbsp; <span style="opacity:0.5">▬</span> last week';
+  }
+
+  // ---- Wiring ----
+  const SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+  async function loadAndRender() {
+    if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+      document.getElementById('nightHeadline').textContent = 'Cloud sync isn\'t configured on this device.';
+      return;
+    }
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+      });
+      if (!res.ok) throw new Error('fetch failed: ' + res.status);
+      const rows = await res.json();
+      const rowsByKey = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.key) rowsByKey[r.key] = r.data; });
+      const dateKeys = lastNDateKeys(WINDOW_DAYS);
+      const dayRows = buildDayRows(rowsByKey, dateKeys);
+      const caffeineTracked = ((rowsByKey.caffeine || {})['caf:logs'] || []).length > 0;
+      renderNightGauge(dayRows, caffeineTracked);
+      renderDebtGauge(dayRows);
+      renderRisk(dayRows);
+    } catch (e) {
+      document.getElementById('nightHeadline').textContent = "Couldn't load your data — check your connection.";
+    }
+  }
+
+  loadAndRender();
+})();
+</script>
+</body>
+</html>

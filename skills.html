@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Skill Stack · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.gm-status { font-size: 11px; color: var(--text-tertiary); min-height: 14px; margin-top: 8px; }
+.pe-empty { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+
+/* ---- Hero: most-practiced skill ---- */
+.hero-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.hero-ring-wrap { position: relative; flex-shrink: 0; }
+.hero-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; margin-right: 6px; }
+.hero-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px; }
+.hero-name { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.hero-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+.hero-stat-num { font-size: 20px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); line-height: 1; }
+.hero-stat-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); margin-top: 4px; }
+.hero-last { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; }
+
+/* ---- Secondary skill cards row ---- */
+.sec-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.sec-card { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 13px; }
+.sec-name { font-size: 13px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+.sec-hours { font-size: 18px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); margin-top: 6px; }
+.sec-streak { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+.sec-streak.hot { color: #FBBF24; }
+
+/* ---- Practice heatmap ---- */
+.heat-wrap { overflow-x: auto; padding-bottom: 4px; }
+.heat-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 13px); gap: 3px; width: max-content; }
+.heat-cell { width: 13px; height: 13px; border-radius: 3px; background: rgba(var(--hud-rgb), 0.06); }
+.heat-legend { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 10px; color: var(--text-tertiary); }
+.heat-legend .heat-cell { width: 10px; height: 10px; }
+
+/* ---- Recent sessions ---- */
+.rs-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.rs-row:first-child { border-top: 0; }
+.rs-dot { width: 8px; height: 8px; border-radius: 3px; margin-top: 5px; flex-shrink: 0; }
+.rs-body { flex: 1; min-width: 0; }
+.rs-top { display: flex; justify-content: space-between; gap: 8px; }
+.rs-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.rs-mins { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); white-space: nowrap; }
+.rs-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+.rs-time { font-size: 10.5px; color: var(--text-tertiary); margin-top: 3px; }
+
+/* ---- Manage list (full editable cards) ---- */
+.skill-card {
+  padding: 14px; margin-bottom: 10px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+.skill-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.skill-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.skill-category { font-size: 11px; color: var(--text-tertiary); }
+.skill-stage {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 3px 9px; border-radius: 999px; text-transform: uppercase;
+  margin-left: auto;
+}
+.stage-novice       { background: rgba(255,255,255,0.08); color: var(--text-tertiary); }
+.stage-beginner     { background: rgba(94,234,212,0.15); color: #5EEAD4; }
+.stage-intermediate { background: rgba(34,211,245,0.15); color: var(--hud); }
+.stage-advanced     { background: rgba(251,191,36,0.15); color: #FBBF24; }
+.stage-expert       { background: rgba(255,84,112,0.15); color: #FF5470; }
+.skill-meta { font-size: 12.5px; color: var(--text-tertiary); margin-bottom: 10px; }
+.skill-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin-bottom: 10px; }
+.skill-track-fill { height: 100%; border-radius: 3px; background: var(--hud); }
+.skill-goal-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.skill-goal-input { width: 90px; }
+.skill-goal-label { font-size: 11.5px; color: var(--text-tertiary); }
+.skill-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.skill-log-form { display: none; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.skill-log-form.open { display: flex; }
+.skill-minutes-input { width: 90px; }
+.skill-note-input { flex: 1; min-width: 140px; }
+.skill-delete {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px;
+  transition: color 0.15s;
+}
+.skill-delete:hover { color: #FF5470; }
+</style>
+</head>
+<body>
+<div class="page">
+  <a class="back-link" href="hub-reflect.html">← Reflect</a>
+  <h1 class="dash-title">Skill Stack</h1>
+
+  <div class="section" id="heroSection" style="display:none">
+    <div class="section-title">Most Practiced</div>
+    <div class="gm-card">
+      <div class="hero-row">
+        <div class="hero-ring-wrap">
+          <div class="hud-ring" id="heroRing" style="--ring-pct:0">
+            <div class="hud-ring-track"></div>
+            <div class="hud-ring-value"><span id="heroRingNum" style="font-size:22px;font-weight:700">–</span></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <div class="hero-eyebrow" id="heroGoalLabel">of weekly goal</div>
+          <div class="hero-name" id="heroName">—</div>
+          <div class="hero-stats">
+            <div><div class="hero-stat-num" id="heroTotalHours">0.0h</div><div class="hero-stat-label">Total hours</div></div>
+            <div><div class="hero-stat-num" id="heroStreak">0</div><div class="hero-stat-label">Day streak</div></div>
+          </div>
+          <div class="hero-last" id="heroLast"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="secSection" style="display:none">
+    <div class="section-title">Other Skills</div>
+    <div class="sec-row" id="secRow"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Practice Activity</div>
+    <div class="gm-card">
+      <div class="heat-wrap"><div class="heat-grid" id="heatGrid"></div></div>
+      <div class="heat-legend" id="heatLegend"></div>
+      <div class="empty-state" id="heatEmpty" style="display:none">Log a session to start building your practice calendar.</div>
+    </div>
+  </div>
+
+  <div class="section" id="recentSection" style="display:none">
+    <div class="section-title">Recent Sessions</div>
+    <div class="gm-card" id="recentCard"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Add a skill</div>
+    <div class="gm-card">
+      <div class="gm-input-wrap">
+        <input class="gm-input" id="skillNameInput" type="text" placeholder="e.g. Public Speaking, Spanish, Excel…" autocomplete="off">
+        <input class="gm-input" id="skillCategoryInput" type="text" placeholder="Category (optional)" autocomplete="off" style="max-width:180px">
+        <input class="gm-input" id="skillGoalInput" type="number" min="0" step="0.5" placeholder="Weekly goal (h, optional)" style="max-width:180px">
+        <button type="button" id="skillAddBtn" class="gm-add">+ Add</button>
+      </div>
+      <div class="gm-status" id="skillStatus"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Manage Skills</div>
+    <div id="skillList"></div>
+    <div class="empty-state" id="skillEmpty">No skills added yet — add one above, then log practice time as you put it in.</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const DEFS_KEY = 'skills:defs';
+  const SESSIONS_KEY = 'skills:sessions';
+  const HEAT_WEEKS = 18;
+
+  function load(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || []; }
+    catch (e) { return []; }
+  }
+  function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+  // Hour-based mastery staging — a deliberately different lens from the
+  // dashboard's existing global XP/level system (gamify.js): that's one
+  // overall total across every logged action; this is per-named-skill,
+  // scoped to deliberate practice time you choose to log, so a skill you
+  // haven't touched stays honestly at "Novice" regardless of how much XP
+  // you've earned doing everything else.
+  const STAGE_THRESHOLDS = [
+    { stage: 'novice', minHours: 0, label: 'Novice' },
+    { stage: 'beginner', minHours: 10, label: 'Beginner' },
+    { stage: 'intermediate', minHours: 50, label: 'Intermediate' },
+    { stage: 'advanced', minHours: 200, label: 'Advanced' },
+    { stage: 'expert', minHours: 1000, label: 'Expert' },
+  ];
+
+  function stageForHours(hours) {
+    let result = STAGE_THRESHOLDS[0];
+    for (const t of STAGE_THRESHOLDS) {
+      if (hours >= t.minHours) result = t;
+    }
+    return result;
+  }
+
+  // Progress toward the NEXT stage (0..1), or null once at the top stage —
+  // used to fill a small progress bar per skill card.
+  function progressToNextStage(hours) {
+    const idx = STAGE_THRESHOLDS.findIndex(t => t.stage === stageForHours(hours).stage);
+    const next = STAGE_THRESHOLDS[idx + 1];
+    if (!next) return null;
+    const cur = STAGE_THRESHOLDS[idx];
+    return Math.max(0, Math.min(1, (hours - cur.minHours) / (next.minHours - cur.minHours)));
+  }
+
+  function dateKeyFromTs(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function todayKey() { return dateKeyFromTs(Date.now()); }
+
+  // Consecutive days (ending today, or yesterday if today hasn't been
+  // logged yet) with at least one session logged for THIS skill —
+  // distinct from the dashboard-wide streaks elsewhere, scoped per skill.
+  function computeSkillStreak(skillId, sessions) {
+    const days = new Set((sessions || []).filter(s => s.skillId === skillId).map(s => dateKeyFromTs(s.ts)));
+    let streak = 0;
+    const cursor = new Date();
+    if (!days.has(dateKeyFromTs(cursor.getTime()))) cursor.setDate(cursor.getDate() - 1);
+    while (days.has(dateKeyFromTs(cursor.getTime()))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
+  function hoursInLastNDays(skillId, sessions, n) {
+    const cutoff = Date.now() - n * 86400000;
+    return (sessions || [])
+      .filter(s => s.skillId === skillId && s.ts >= cutoff)
+      .reduce((a, s) => a + (s.minutes || 0), 0) / 60;
+  }
+
+  // Builds one summary row per skill def, aggregating its logged sessions —
+  // skills with zero sessions still appear (0 hours, Novice), sorted with
+  // the most practiced (by total hours) first, since that's the hero slot.
+  function buildSkillSummaries(defs, sessions) {
+    return (defs || []).map(def => {
+      const own = (sessions || []).filter(s => s.skillId === def.id);
+      const totalMinutes = own.reduce((a, s) => a + (s.minutes || 0), 0);
+      const totalHours = totalMinutes / 60;
+      const lastPracticedTs = own.length ? Math.max(...own.map(s => s.ts || 0)) : null;
+      const streakDays = computeSkillStreak(def.id, sessions);
+      const weeklyGoalHours = typeof def.weeklyGoalHours === 'number' && def.weeklyGoalHours > 0 ? def.weeklyGoalHours : null;
+      const hoursLast7Days = hoursInLastNDays(def.id, sessions, 7);
+      return {
+        id: def.id,
+        name: def.name,
+        category: def.category || '',
+        totalHours,
+        sessionCount: own.length,
+        lastPracticedTs,
+        stage: stageForHours(totalHours),
+        progress: progressToNextStage(totalHours),
+        streakDays,
+        weeklyGoalHours,
+        hoursLast7Days,
+        weeklyGoalProgress: weeklyGoalHours ? Math.max(0, Math.min(1, hoursLast7Days / weeklyGoalHours)) : null,
+      };
+    }).sort((a, b) => b.totalHours - a.totalHours);
+  }
+
+  window.__skillsLogic = {
+    stageForHours, progressToNextStage, buildSkillSummaries, STAGE_THRESHOLDS,
+    computeSkillStreak, hoursInLastNDays, dateKeyFromTs,
+  };
+
+  // A deterministic accent color per skill (not user-configurable — just
+  // enough visual distinction between cards/dots without adding another
+  // input to fill out).
+  const ACCENTS = ['#22D3F5', '#A78BFA', '#FBBF24', '#5EEAD4', '#FF5470', '#3FE0A8', '#F472B6', '#67E8F9'];
+  function accentFor(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return ACCENTS[h % ACCENTS.length];
+  }
+
+  // ---- Rendering ----
+  let openLogFormId = null;
+
+  function fmtRelative(ts) {
+    if (!ts) return 'never practiced';
+    const days = Math.floor((Date.now() - ts) / 86400000);
+    if (days <= 0) return 'practiced today';
+    if (days === 1) return 'practiced yesterday';
+    return 'practiced ' + days + ' days ago';
+  }
+
+  function renderHero(summaries) {
+    const section = document.getElementById('heroSection');
+    const top = summaries[0];
+    if (!top || top.totalHours <= 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+
+    let pct, label;
+    if (top.weeklyGoalHours) {
+      pct = Math.round(top.weeklyGoalProgress * 100);
+      label = Math.round(pct) + '% of weekly goal';
+    } else if (top.progress != null) {
+      pct = Math.round(top.progress * 100);
+      label = pct + '% to ' + STAGE_THRESHOLDS[STAGE_THRESHOLDS.findIndex(t => t.stage === top.stage.stage) + 1].label;
+    } else {
+      pct = 100;
+      label = 'Max stage reached';
+    }
+    document.getElementById('heroRing').style.setProperty('--ring-pct', pct);
+    document.getElementById('heroRingNum').textContent = pct + '%';
+    document.getElementById('heroGoalLabel').innerHTML = '<span class="hero-dot" style="background:' + accentFor(top.id) + '"></span>' + label;
+    document.getElementById('heroName').textContent = top.name;
+    document.getElementById('heroTotalHours').textContent = top.totalHours.toFixed(1) + 'h';
+    document.getElementById('heroStreak').textContent = top.streakDays;
+    document.getElementById('heroLast').textContent = top.lastPracticedTs
+      ? 'Last session: ' + fmtRelative(top.lastPracticedTs).replace('practiced ', '')
+      : 'No sessions logged yet';
+  }
+
+  function renderSecondary(summaries) {
+    const section = document.getElementById('secSection');
+    const rowEl = document.getElementById('secRow');
+    const rest = summaries.slice(1);
+    rowEl.innerHTML = '';
+    if (!rest.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    rest.forEach(sum => {
+      const card = document.createElement('div');
+      card.className = 'sec-card';
+      const streakText = sum.streakDays >= 2 ? '🔥 ' + sum.streakDays + '-day streak' : (sum.streakDays === 1 ? '1-day streak' : fmtRelative(sum.lastPracticedTs));
+      card.innerHTML =
+        '<div class="sec-name"><span class="hero-dot" style="background:' + accentFor(sum.id) + '"></span>' + sum.name + '</div>' +
+        '<div class="sec-hours">' + sum.totalHours.toFixed(1) + 'h</div>' +
+        '<div class="sec-streak' + (sum.streakDays >= 2 ? ' hot' : '') + '">' + streakText + '</div>';
+      rowEl.appendChild(card);
+    });
+  }
+
+  // Aggregate minutes practiced (across ALL skills) per day, rendered as a
+  // GitHub-style contribution grid — HEAT_WEEKS weeks, oldest to newest,
+  // Sun-Sat rows, so the calendar aligns to real weekdays.
+  function renderHeatmap(sessions) {
+    const gridEl = document.getElementById('heatGrid');
+    const legendEl = document.getElementById('heatLegend');
+    const emptyEl = document.getElementById('heatEmpty');
+    gridEl.innerHTML = '';
+    if (!sessions.length) { emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+
+    const minutesByDay = {};
+    sessions.forEach(s => {
+      const k = dateKeyFromTs(s.ts);
+      minutesByDay[k] = (minutesByDay[k] || 0) + (s.minutes || 0);
+    });
+    const maxMinutes = Math.max.apply(null, Object.values(minutesByDay).concat([1]));
+
+    const totalDays = HEAT_WEEKS * 7;
+    const days = [];
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      days.push(dateKeyFromTs(d.getTime()));
+    }
+    const firstDate = new Date(days[0] + 'T00:00:00');
+    const leadingBlanks = firstDate.getDay();
+    const cells = new Array(leadingBlanks).fill(null).concat(days);
+
+    function colorFor(minutes) {
+      if (!minutes) return null;
+      const alpha = 0.15 + (minutes / maxMinutes) * 0.7;
+      return 'rgba(34,211,245,' + alpha.toFixed(2) + ')';
+    }
+
+    cells.forEach(key => {
+      const cell = document.createElement('div');
+      cell.className = 'heat-cell';
+      if (key && minutesByDay[key]) {
+        cell.style.background = colorFor(minutesByDay[key]);
+        cell.title = key + ' — ' + minutesByDay[key] + ' min practiced';
+      } else if (key) {
+        cell.title = key + ' — nothing logged';
+      } else {
+        cell.style.visibility = 'hidden';
+      }
+      gridEl.appendChild(cell);
+    });
+
+    legendEl.innerHTML = 'Less ' +
+      [0.1, 0.4, 0.7, 1].map(f => '<span class="heat-cell" style="background:' + colorFor(f * maxMinutes) + '"></span>').join('') +
+      ' More';
+  }
+
+  function fmtRecentTime(ts) {
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 60) return mins <= 1 ? 'just now' : mins + ' min ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function renderRecentSessions(defs, sessions) {
+    const section = document.getElementById('recentSection');
+    const cardEl = document.getElementById('recentCard');
+    const nameById = {};
+    defs.forEach(d => { nameById[d.id] = d.name; });
+    const recent = sessions.slice().sort((a, b) => b.ts - a.ts).slice(0, 8);
+    if (!recent.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    cardEl.innerHTML = recent.map(s => {
+      const name = nameById[s.skillId] || 'Unknown skill';
+      return '<div class="rs-row">' +
+        '<span class="rs-dot" style="background:' + accentFor(s.skillId) + '"></span>' +
+        '<div class="rs-body">' +
+          '<div class="rs-top"><span class="rs-name">' + name + '</span><span class="rs-mins">' + s.minutes + ' min</span></div>' +
+          (s.note ? '<div class="rs-note">' + s.note.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>' : '') +
+          '<div class="rs-time">' + fmtRecentTime(s.ts) + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function render() {
+    const defs = load(DEFS_KEY);
+    const sessions = load(SESSIONS_KEY);
+    const summaries = buildSkillSummaries(defs, sessions);
+
+    renderHero(summaries);
+    renderSecondary(summaries);
+    renderHeatmap(sessions);
+    renderRecentSessions(defs, sessions);
+
+    const listEl = document.getElementById('skillList');
+    const emptyEl = document.getElementById('skillEmpty');
+    listEl.innerHTML = '';
+    emptyEl.style.display = summaries.length ? 'none' : 'block';
+
+    summaries.forEach(sum => {
+      const card = document.createElement('div');
+      card.className = 'skill-card';
+
+      const top = document.createElement('div');
+      top.className = 'skill-top';
+      const name = document.createElement('span');
+      name.className = 'skill-name';
+      name.textContent = sum.name;
+      top.appendChild(name);
+      if (sum.category) {
+        const cat = document.createElement('span');
+        cat.className = 'skill-category';
+        cat.textContent = sum.category;
+        top.appendChild(cat);
+      }
+      const stageBadge = document.createElement('span');
+      stageBadge.className = 'skill-stage stage-' + sum.stage.stage;
+      stageBadge.textContent = sum.stage.label;
+      top.appendChild(stageBadge);
+      card.appendChild(top);
+
+      const meta = document.createElement('div');
+      meta.className = 'skill-meta';
+      meta.textContent = sum.totalHours.toFixed(1) + 'h logged · ' + sum.sessionCount + ' session' + (sum.sessionCount === 1 ? '' : 's') + ' · ' + fmtRelative(sum.lastPracticedTs)
+        + (sum.streakDays >= 2 ? ' · 🔥 ' + sum.streakDays + '-day streak' : '');
+      card.appendChild(meta);
+
+      if (sum.progress != null) {
+        const track = document.createElement('div');
+        track.className = 'skill-track';
+        const fill = document.createElement('div');
+        fill.className = 'skill-track-fill';
+        fill.style.width = Math.round(sum.progress * 100) + '%';
+        track.appendChild(fill);
+        card.appendChild(track);
+      }
+
+      const goalRow = document.createElement('div');
+      goalRow.className = 'skill-goal-row';
+      const goalLabel = document.createElement('span');
+      goalLabel.className = 'skill-goal-label';
+      goalLabel.textContent = 'Weekly goal (h):';
+      const goalInput = document.createElement('input');
+      goalInput.type = 'number';
+      goalInput.min = '0';
+      goalInput.step = '0.5';
+      goalInput.className = 'gm-input skill-goal-input';
+      goalInput.value = sum.weeklyGoalHours || '';
+      goalInput.placeholder = 'none';
+      goalInput.addEventListener('change', () => {
+        const v = parseFloat(goalInput.value);
+        const allDefs = load(DEFS_KEY);
+        const d = allDefs.find(x => x.id === sum.id);
+        if (d) { d.weeklyGoalHours = isNaN(v) || v <= 0 ? null : v; save(DEFS_KEY, allDefs); render(); }
+      });
+      goalRow.appendChild(goalLabel);
+      goalRow.appendChild(goalInput);
+      card.appendChild(goalRow);
+
+      const actions = document.createElement('div');
+      actions.className = 'skill-actions';
+
+      const logBtn = document.createElement('button');
+      logBtn.type = 'button';
+      logBtn.className = 'gm-add';
+      logBtn.textContent = '+ Log session';
+      logBtn.addEventListener('click', () => {
+        openLogFormId = openLogFormId === sum.id ? null : sum.id;
+        render();
+      });
+      actions.appendChild(logBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'skill-delete';
+      delBtn.setAttribute('aria-label', 'Delete skill');
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', () => {
+        if (!confirm('Delete "' + sum.name + '" and all its logged sessions?')) return;
+        save(DEFS_KEY, load(DEFS_KEY).filter(d => d.id !== sum.id));
+        save(SESSIONS_KEY, load(SESSIONS_KEY).filter(s => s.skillId !== sum.id));
+        render();
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(actions);
+
+      const form = document.createElement('div');
+      form.className = 'skill-log-form' + (openLogFormId === sum.id ? ' open' : '');
+      const minutesInput = document.createElement('input');
+      minutesInput.type = 'number';
+      minutesInput.className = 'gm-input skill-minutes-input';
+      minutesInput.placeholder = 'Minutes';
+      minutesInput.min = '1';
+      const noteInput = document.createElement('input');
+      noteInput.type = 'text';
+      noteInput.className = 'gm-input skill-note-input';
+      noteInput.placeholder = 'Note (optional)';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'gm-add';
+      saveBtn.textContent = 'Save';
+      saveBtn.addEventListener('click', () => {
+        const minutes = parseInt(minutesInput.value, 10);
+        if (!minutes || minutes <= 0) { showStatus('Enter minutes practiced.'); return; }
+        const all = load(SESSIONS_KEY);
+        all.push({ id: 'sk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), skillId: sum.id, ts: Date.now(), minutes, note: noteInput.value.trim() });
+        save(SESSIONS_KEY, all);
+        openLogFormId = null;
+        render();
+        showStatus('Session logged ✓');
+      });
+      form.appendChild(minutesInput);
+      form.appendChild(noteInput);
+      form.appendChild(saveBtn);
+      card.appendChild(form);
+
+      listEl.appendChild(card);
+    });
+  }
+
+  function showStatus(message) {
+    const el = document.getElementById('skillStatus');
+    el.textContent = message;
+    setTimeout(() => { el.textContent = ''; }, 2200);
+  }
+
+  document.getElementById('skillAddBtn').addEventListener('click', () => {
+    const nameEl = document.getElementById('skillNameInput');
+    const catEl = document.getElementById('skillCategoryInput');
+    const goalEl = document.getElementById('skillGoalInput');
+    const name = nameEl.value.trim();
+    if (!name) { showStatus('Name the skill first.'); return; }
+    const goalVal = parseFloat(goalEl.value);
+    const defs = load(DEFS_KEY);
+    defs.push({
+      id: 'skill_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      name, category: catEl.value.trim(),
+      weeklyGoalHours: isNaN(goalVal) || goalVal <= 0 ? null : goalVal,
+      createdAt: Date.now(),
+    });
+    save(DEFS_KEY, defs);
+    nameEl.value = ''; catEl.value = ''; goalEl.value = '';
+    render();
+    showStatus('Added ✓');
+  });
+
+  render();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'skills',
+      syncedKeys: [DEFS_KEY, SESSIONS_KEY],
+      onApplied: () => render(),
+    });
+  });
+})();
+</script>
+</body>
+</html>

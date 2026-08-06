@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Insights · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="index.html">← Dashboard</a>
+  <h1 class="dash-title">Insights</h1>
+
+  <div class="bento">
+    <a class="tile wide" href="insights-patterns.html" style="--accent:#22D3F5">
+      <div class="tile-top">
+        <span class="tile-num">·01</span>
+        <span class="tile-emoji">📊</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Patterns & Limiters</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">What's actually holding you back</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="insights-mode.html" style="--accent:#FBBF24">
+      <div class="tile-top">
+        <span class="tile-num">·02</span>
+        <span class="tile-emoji">🎭</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Mode Breakdown</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Alter ego, passively inferred</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="insights-triggers.html" style="--accent:#FF5470">
+      <div class="tile-top">
+        <span class="tile-num">·03</span>
+        <span class="tile-emoji">⚡</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Emotional Triggers</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">What precedes a worse day</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="insights-drift.html" style="--accent:#22D3F5">
+      <div class="tile-top">
+        <span class="tile-num">·04</span>
+        <span class="tile-emoji">🌊</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Drift Detection</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Slipped from your own baseline?</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="insights-adherence.html" style="--accent:#3FE0A8">
+      <div class="tile-top">
+        <span class="tile-num">·05</span>
+        <span class="tile-emoji">🎯</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Reality vs Plan</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">What actually got done</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="life-timeline.html" style="--accent:#A78BFA">
+      <div class="tile-top">
+        <span class="tile-num">·06</span>
+        <span class="tile-emoji">🕰️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Life Timeline</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Everything you've logged, in one feed</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="prediction-center.html" style="--accent:#3FE0A8">
+      <div class="tile-top">
+        <span class="tile-num">·07</span>
+        <span class="tile-emoji">🔮</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Prediction Center</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Weight, net worth, sleep debt — all forecasts in one place</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile wide" href="correlation-lab.html" style="--accent:#A78BFA">
+      <div class="tile-top">
+        <span class="tile-num">·08</span>
+        <span class="tile-emoji">🔗</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Correlation Lab</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">See which tracked metrics actually move together</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Reading & Learning · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+.gm-select {
+  flex: none; width: auto; cursor: pointer;
+  padding: 11px 14px;
+  border: 1px solid var(--hud-line);
+  border-radius: 10px; background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 14px; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gm-select:focus { border-color: var(--hud); background: rgba(0,0,0,0.36); }
+
+/* ---- Reading-list specific ---- */
+.filter-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.filter-pill {
+  padding: 7px 14px; border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-tertiary);
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.filter-pill:hover { color: var(--text-secondary); }
+.filter-pill.active {
+  background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.24);
+  color: var(--text-primary);
+}
+
+.item-list { list-style: none; margin: 0; padding: 0; }
+.item-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; margin-bottom: 8px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.item-row:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.item-emoji { font-size: 20px; line-height: 1.3; flex-shrink: 0; }
+.item-row-body { flex: 1; min-width: 0; }
+.item-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.item-row-title {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.status-pill {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 3px 9px; border-radius: 999px; text-transform: uppercase;
+  flex-shrink: 0;
+}
+.status-pill.want    { background: rgba(255,255,255,0.08); color: var(--text-tertiary); }
+.status-pill.progress{ background: rgba(242,192,99,0.15); color: var(--warning); }
+.status-pill.done     { background: rgba(107,227,164,0.15); color: var(--success); }
+.item-row-meta {
+  font-size: 12px; color: var(--text-tertiary); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.item-progress-track {
+  height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08);
+  margin-top: 8px; overflow: hidden; max-width: 220px;
+}
+.item-progress-fill { height: 100%; background: var(--warning); border-radius: 3px; }
+.item-stars { margin-top: 6px; font-size: 13px; letter-spacing: 2px; color: var(--warning); }
+.item-delete {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 18px; cursor: pointer; padding: 0 4px; flex-shrink: 0;
+  opacity: 0.5; transition: opacity 0.2s, color 0.2s;
+}
+.item-row:hover .item-delete { opacity: 1; }
+.item-delete:hover { color: var(--danger); }
+
+.editor-title {
+  width: 100%;
+  padding: 11px 14px; margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 16px; font-weight: 700; outline: none;
+}
+.editor-title:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
+.editor-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.editor-row .gm-input, .editor-row .gm-select { margin: 0; }
+.editor-field-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 6px;
+}
+.editor-progress-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.editor-progress-row input[type="range"] { flex: 1; accent-color: var(--warning); }
+.editor-progress-num { font-size: 13px; font-weight: 700; color: var(--text-primary); min-width: 40px; text-align: right; }
+.editor-stars { display: flex; gap: 4px; margin-bottom: 14px; }
+.editor-star {
+  font-size: 24px; cursor: pointer; color: rgba(255,255,255,0.15);
+  transition: color 0.15s; background: none; border: 0; padding: 0; line-height: 1;
+}
+.editor-star.filled { color: var(--warning); }
+.editor-body {
+  width: 100%; min-height: 140px; resize: vertical;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; background: rgba(0,0,0,0.28);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 14px; line-height: 1.6; outline: none;
+}
+.editor-body:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
+.editor-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 14px; gap: 8px; flex-wrap: wrap;
+}
+.editor-meta { font-size: 11px; color: var(--text-tertiary); }
+
+/* ---- Page-based book progress ---- */
+.pages-progress-summary {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  margin: 10px 0 8px;
+}
+.pages-progress-track {
+  height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08);
+  overflow: hidden; margin-bottom: 4px;
+}
+.pages-progress-fill { height: 100%; background: var(--warning); border-radius: 3px; transition: width 0.15s; }
+
+.chart-wrap { margin-top: 6px; margin-bottom: 14px; }
+.book-chart-svg { width: 100%; height: 70px; display: block; }
+.book-chart-line { fill: none; stroke: var(--warning); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.book-chart-fill { fill: rgba(242,192,99,0.14); stroke: none; }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+  .editor-row { flex-direction: column; }
+}
+
+/* ===== Nova reading companion (top-right avatar, bring-your-own Anthropic key) ===== */
+.page { position: relative; }
+#nvFab {
+  position: absolute; top: 16px; right: 16px; z-index: 30;
+  width: 46px; height: 46px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+  overflow: hidden; -webkit-tap-highlight-color: transparent; transition: transform 0.12s;
+  background: radial-gradient(circle at 50% 58%, #8A6CFF, #4C2EC9 80%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.14), 0 6px 22px rgba(124,92,255,0.55),
+              inset 0 -6px 14px rgba(38,10,86,0.65);
+}
+#nvFab:active { transform: scale(0.93); }
+#nvFab::before {
+  content: ''; position: absolute; inset: -28%; border-radius: 50%;
+  background: conic-gradient(from 0deg, #6D4AE0, #C9B8FF, #7C5CFF, #B98AFF, #8A6CFF, #6D4AE0);
+  filter: blur(2px); opacity: 0.92; animation: nvspin 7s linear infinite;
+}
+#nvFab::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 34% 26%, rgba(255,255,255,0.92), rgba(255,255,255,0) 40%),
+              radial-gradient(circle at 72% 82%, rgba(18,7,40,0.5), transparent 55%);
+}
+@keyframes nvspin { to { transform: rotate(360deg); } }
+#nvFab .nv-online { position: absolute; right: 1px; bottom: 1px; z-index: 2; width: 11px; height: 11px; border-radius: 50%; background: #6ee7b7; border: 2px solid #0a0a0b; box-shadow: 0 0 6px rgba(110,231,183,0.7); }
+#nvPanel {
+  position: absolute; top: 72px; right: 16px; z-index: 30;
+  width: min(340px, calc(100vw - 28px)); max-height: 66vh; display: none; flex-direction: column;
+  background: #111016; border: 1px solid rgba(255,255,255,0.10); border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.65); overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+}
+#nvPanel.open { display: flex; }
+.nv-head { display: flex; align-items: center; gap: 9px; padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.nv-head .nv-av { position: relative; overflow: hidden; width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: radial-gradient(circle at 34% 26%, rgba(255,255,255,0.85), rgba(255,255,255,0) 42%),
+             conic-gradient(from 0deg, #6D4AE0, #C9B8FF, #7C5CFF, #B98AFF, #6D4AE0); }
+.nv-head .nv-name { font-size: 14px; font-weight: 700; color: #FAFAFA; }
+.nv-head .nv-sub { font-size: 10.5px; color: #76746E; }
+.nv-head .nv-new { margin-left: auto; border: 0; background: transparent; color: #76746E; font-size: 15px; cursor: pointer; line-height: 1; padding: 4px; }
+.nv-head .nv-new:hover { color: #CBBDFF; }
+.nv-head .nv-x { border: 0; background: transparent; color: #76746E; font-size: 20px; cursor: pointer; line-height: 1; }
+.nv-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.nv-msg { font-size: 13px; line-height: 1.5; max-width: 90%; padding: 9px 12px; border-radius: 13px; }
+.nv-msg.coach { background: rgba(255,255,255,0.05); color: #E9E7E2; align-self: flex-start; border-bottom-left-radius: 4px; }
+.nv-msg.user { background: rgba(124,92,255,0.22); color: #FAFAFA; align-self: flex-end; border-bottom-right-radius: 4px; }
+.nv-msg b { color: #FAFAFA; } .nv-msg ul { margin: 4px 0; padding-left: 18px; } .nv-msg li { margin: 2px 0; } .nv-msg code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.nv-quick { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+.nv-chip { border: 1px solid rgba(124,92,255,0.35); background: rgba(124,92,255,0.12); color: #CBBDFF; font-size: 11px; font-weight: 600; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.nv-chip:active { transform: scale(0.96); }
+.nv-foot { display: flex; gap: 7px; padding: 11px 12px; border-top: 1px solid rgba(255,255,255,0.07); }
+.nv-input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.32); color: #FAFAFA; font-family: inherit; font-size: 13px; outline: none; }
+.nv-input::placeholder { color: #6c6a64; }
+.nv-send { border: 0; border-radius: 11px; padding: 0 14px; background: linear-gradient(180deg,#C9B8FF,#7C5CFF); color: #14081f; font-weight: 700; font-size: 15px; cursor: pointer; }
+.nv-dots i { display:inline-block; width:5px; height:5px; margin:0 1px; border-radius:50%; background:#9b8aff; animation: nvb 1s infinite; }
+.nv-dots i:nth-child(2){animation-delay:.15s} .nv-dots i:nth-child(3){animation-delay:.3s}
+@keyframes nvb { 0%,100%{opacity:.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">Reading & Learning</h1>
+
+  <!-- List view -->
+  <div class="section" id="listView">
+    <div class="section-title">All Items</div>
+    <div class="gm-card">
+      <div class="gm-input-wrap" style="margin-bottom:14px">
+        <input class="gm-input" id="itemSearch" type="text" placeholder="Search title or author…" autocomplete="off">
+        <select class="gm-select" id="itemNewType">
+          <option value="book">📖 Book</option>
+          <option value="course">🎓 Course</option>
+          <option value="article">📰 Article</option>
+          <option value="video">🎥 Video</option>
+        </select>
+        <button class="gm-add" id="itemNewBtn" type="button">+ Add</button>
+      </div>
+
+      <div class="filter-pills" id="filterPills">
+        <button class="filter-pill active" data-filter="all">All</button>
+        <button class="filter-pill" data-filter="want">Want to Read</button>
+        <button class="filter-pill" data-filter="progress">In Progress</button>
+        <button class="filter-pill" data-filter="done">Finished</button>
+      </div>
+
+      <ul class="item-list" id="itemsList"></ul>
+      <div class="empty-state" id="itemsEmpty" style="display:none">Nothing here yet — add your first book, course, article, or video above.</div>
+    </div>
+  </div>
+
+  <!-- Editor view -->
+  <div class="section" id="editorView" style="display:none">
+    <div class="section-title">Edit Item</div>
+    <div class="gm-card">
+      <input class="editor-title" id="editorTitle" type="text" placeholder="Title" autocomplete="off">
+
+      <div class="editor-row">
+        <div style="flex:1;min-width:140px">
+          <div class="editor-field-label">Type</div>
+          <select class="gm-select" id="editorType" style="width:100%">
+            <option value="book">📖 Book</option>
+            <option value="course">🎓 Course</option>
+            <option value="article">📰 Article</option>
+            <option value="video">🎥 Video</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div class="editor-field-label">Status</div>
+          <select class="gm-select" id="editorStatus" style="width:100%">
+            <option value="want">Want to Read</option>
+            <option value="progress">In Progress</option>
+            <option value="done">Finished</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="editor-row">
+        <div style="flex:1;min-width:140px">
+          <div class="editor-field-label">Author / Creator</div>
+          <input class="gm-input" id="editorAuthor" type="text" placeholder="Optional" style="width:100%">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div class="editor-field-label">Link</div>
+          <input class="gm-input" id="editorLink" type="url" placeholder="https://…" style="width:100%">
+        </div>
+      </div>
+
+      <div id="progressSliderWrap">
+        <div class="editor-field-label">Progress</div>
+        <div class="editor-progress-row">
+          <input type="range" id="editorProgress" min="0" max="100" step="5" value="0">
+          <span class="editor-progress-num" id="editorProgressNum">0%</span>
+        </div>
+      </div>
+
+      <div id="pagesWrap" style="display:none">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+          <input type="checkbox" id="editorAudiobook" style="width:16px;height:16px;accent-color:var(--warning)">
+          🎧 This is an audiobook — track by time listened instead of pages
+        </label>
+
+        <div id="pagesFieldsWrap">
+          <div class="editor-row">
+            <div style="flex:1;min-width:120px">
+              <div class="editor-field-label">Current Page</div>
+              <input class="gm-input" id="editorCurrentPage" type="number" min="0" step="1" placeholder="0" style="width:100%">
+            </div>
+            <div style="flex:1;min-width:120px">
+              <div class="editor-field-label">Total Pages</div>
+              <input class="gm-input" id="editorTotalPages" type="number" min="0" step="1" placeholder="e.g. 320" style="width:100%">
+            </div>
+          </div>
+        </div>
+
+        <div id="timeFieldsWrap" style="display:none">
+          <div class="editor-row">
+            <div style="flex:1;min-width:120px">
+              <div class="editor-field-label">Current Time</div>
+              <div style="display:flex;gap:6px">
+                <input class="gm-input" id="editorCurrentHr" type="number" min="0" step="1" placeholder="hr" style="width:100%">
+                <input class="gm-input" id="editorCurrentMin" type="number" min="0" max="59" step="1" placeholder="min" style="width:100%">
+              </div>
+            </div>
+            <div style="flex:1;min-width:120px">
+              <div class="editor-field-label">Total Runtime</div>
+              <div style="display:flex;gap:6px">
+                <input class="gm-input" id="editorTotalHr" type="number" min="0" step="1" placeholder="hr" style="width:100%">
+                <input class="gm-input" id="editorTotalMin" type="number" min="0" max="59" step="1" placeholder="min" style="width:100%">
+              </div>
+            </div>
+          </div>
+          <div class="gm-input-wrap" id="ytFetchRow" style="display:none;margin-bottom:10px">
+            <button class="gm-ghost" id="ytFetchBtn" type="button">🔗 Fetch length from YouTube link</button>
+            <span class="editor-meta" id="ytFetchStatus"></span>
+          </div>
+        </div>
+
+        <div class="pages-progress-summary" id="pagesProgressSummary">0 / 0 pages · 0%</div>
+        <div class="pages-progress-track">
+          <div class="pages-progress-fill" id="pagesProgressFill" style="width:0%"></div>
+        </div>
+
+        <div class="editor-field-label" style="margin-top:14px">Reading Pace</div>
+        <div class="chart-wrap">
+          <svg class="book-chart-svg" id="bookChartSvg" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+          <div class="empty-state" id="bookChartEmpty">Log your current page (or time) on a few different days to see your pace here.</div>
+        </div>
+      </div>
+
+      <div class="editor-field-label">Rating</div>
+      <div class="editor-stars" id="editorStars">
+        <button class="editor-star" data-val="1" type="button">★</button>
+        <button class="editor-star" data-val="2" type="button">★</button>
+        <button class="editor-star" data-val="3" type="button">★</button>
+        <button class="editor-star" data-val="4" type="button">★</button>
+        <button class="editor-star" data-val="5" type="button">★</button>
+      </div>
+
+      <div class="editor-field-label">Notes</div>
+      <textarea class="editor-body" id="editorNotes" placeholder="Thoughts, quotes, takeaways…"></textarea>
+
+      <div class="editor-actions">
+        <span class="editor-meta" id="editorMeta"></span>
+        <div style="display:flex;gap:8px">
+          <button class="gm-ghost" id="editorDeleteBtn" type="button">Delete</button>
+          <button class="gm-add" id="editorBackBtn" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="nvFab" type="button" aria-label="Open Nova reading companion"><span class="nv-online"></span></button>
+  <div id="nvPanel" role="dialog" aria-label="Nova reading companion">
+    <div class="nv-head">
+      <div class="nv-av"></div>
+      <div><div class="nv-name">Nova</div><div class="nv-sub">your reading companion</div></div>
+      <button class="nv-new" id="nvNew" type="button" aria-label="New conversation" title="New conversation">↻</button>
+      <button class="nv-x" id="nvClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="nv-body" id="nvBody"></div>
+    <div class="nv-quick">
+      <button class="nv-chip" data-q="Based on my reading list and ratings, what should I read or take next?">📚 What's next?</button>
+      <button class="nv-chip" data-q="Recommend a few books or courses similar to the ones I've rated highly, including some not on my list.">⭐ More like this</button>
+      <button class="nv-chip" data-q="Help me with whatever I'm currently reading — talk through themes, questions to consider, or how it connects to other things I've read.">📖 Discuss current book</button>
+    </div>
+    <div class="nv-foot">
+      <input class="nv-input" id="nvInput" type="text" placeholder="Ask Nova…" autocomplete="off">
+      <button class="nv-send" id="nvSend" type="button">↑</button>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<script>
+(function () {
+  'use strict';
+
+  const STORE_KEY = 'reading:items';
+
+  const TYPE_EMOJI = { book: '📖', course: '🎓', article: '📰', video: '🎥' };
+  const STATUS_LABEL = { want: 'Want to Read', progress: 'In Progress', done: 'Finished' };
+
+  const listView   = document.getElementById('listView');
+  const editorView = document.getElementById('editorView');
+  const listEl      = document.getElementById('itemsList');
+  const emptyEl     = document.getElementById('itemsEmpty');
+  const searchEl    = document.getElementById('itemSearch');
+  const newTypeEl   = document.getElementById('itemNewType');
+  const newBtn      = document.getElementById('itemNewBtn');
+  const pillsEl     = document.getElementById('filterPills');
+
+  const titleEl    = document.getElementById('editorTitle');
+  const typeEl     = document.getElementById('editorType');
+  const statusEl   = document.getElementById('editorStatus');
+  const authorEl   = document.getElementById('editorAuthor');
+  const linkEl     = document.getElementById('editorLink');
+  const progressEl = document.getElementById('editorProgress');
+  const progressNumEl = document.getElementById('editorProgressNum');
+  const progressSliderWrap = document.getElementById('progressSliderWrap');
+  const pagesWrap       = document.getElementById('pagesWrap');
+  const audiobookEl     = document.getElementById('editorAudiobook');
+  const pagesFieldsWrap = document.getElementById('pagesFieldsWrap');
+  const timeFieldsWrap  = document.getElementById('timeFieldsWrap');
+  const currentPageEl   = document.getElementById('editorCurrentPage');
+  const totalPagesEl    = document.getElementById('editorTotalPages');
+  const currentHrEl     = document.getElementById('editorCurrentHr');
+  const currentMinEl    = document.getElementById('editorCurrentMin');
+  const totalHrEl       = document.getElementById('editorTotalHr');
+  const totalMinEl      = document.getElementById('editorTotalMin');
+  const pagesSummaryEl  = document.getElementById('pagesProgressSummary');
+  const pagesFillEl     = document.getElementById('pagesProgressFill');
+  const ytFetchRow      = document.getElementById('ytFetchRow');
+  const ytFetchBtn      = document.getElementById('ytFetchBtn');
+  const ytFetchStatus   = document.getElementById('ytFetchStatus');
+  const bookChartSvg    = document.getElementById('bookChartSvg');
+  const bookChartEmpty  = document.getElementById('bookChartEmpty');
+  const starsEl    = document.getElementById('editorStars');
+  const notesEl    = document.getElementById('editorNotes');
+  const metaEl     = document.getElementById('editorMeta');
+  const deleteBtn  = document.getElementById('editorDeleteBtn');
+  const backBtn    = document.getElementById('editorBackBtn');
+
+  let openId = null;
+  let activeFilter = 'all';
+  let editRating = 0;
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function save(items) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(items));
+  }
+
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (sameDay) return 'Today · ' + time;
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + time;
+  }
+
+  function render() {
+    const q = searchEl.value.trim().toLowerCase();
+    let items = load().slice().sort((a, b) => b.updatedAt - a.updatedAt);
+
+    if (activeFilter !== 'all') {
+      items = items.filter(it => it.status === activeFilter);
+    }
+    if (q) {
+      items = items.filter(it =>
+        (it.title || '').toLowerCase().includes(q) ||
+        (it.author || '').toLowerCase().includes(q)
+      );
+    }
+
+    listEl.innerHTML = '';
+    emptyEl.style.display = items.length ? 'none' : 'block';
+
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'item-row';
+
+      const emoji = document.createElement('div');
+      emoji.className = 'item-emoji';
+      emoji.textContent = (item.type === 'book' && item.audiobook) ? '🎧' : (TYPE_EMOJI[item.type] || '📖');
+
+      const body = document.createElement('div');
+      body.className = 'item-row-body';
+
+      const top = document.createElement('div');
+      top.className = 'item-row-top';
+
+      const title = document.createElement('div');
+      title.className = 'item-row-title';
+      title.textContent = item.title || 'Untitled';
+
+      const pill = document.createElement('span');
+      pill.className = 'status-pill ' + item.status;
+      pill.textContent = STATUS_LABEL[item.status] || 'Want to Read';
+
+      top.append(title, pill);
+
+      const meta = document.createElement('div');
+      meta.className = 'item-row-meta';
+      meta.textContent = item.author || '';
+
+      body.append(top);
+      if (item.author) body.append(meta);
+
+      if (item.type === 'book' && item.audiobook && item.totalMinutes > 0) {
+        const timeMeta = document.createElement('div');
+        timeMeta.className = 'item-row-meta';
+        timeMeta.textContent = fmtHM(item.currentMinutes || 0) + ' / ' + fmtHM(item.totalMinutes);
+        body.appendChild(timeMeta);
+      } else if (item.type === 'book' && item.totalPages > 0) {
+        const pagesMeta = document.createElement('div');
+        pagesMeta.className = 'item-row-meta';
+        pagesMeta.textContent = (item.currentPage || 0) + ' / ' + item.totalPages + ' pages';
+        body.appendChild(pagesMeta);
+      }
+
+      if (item.status === 'progress' && item.progress > 0) {
+        const track = document.createElement('div');
+        track.className = 'item-progress-track';
+        const fill = document.createElement('div');
+        fill.className = 'item-progress-fill';
+        fill.style.width = item.progress + '%';
+        track.appendChild(fill);
+        body.appendChild(track);
+      } else if (item.status === 'done' && item.rating > 0) {
+        const stars = document.createElement('div');
+        stars.className = 'item-stars';
+        stars.textContent = '★'.repeat(item.rating) + '☆'.repeat(5 - item.rating);
+        body.appendChild(stars);
+      }
+
+      const del = document.createElement('button');
+      del.className = 'item-delete';
+      del.type = 'button';
+      del.textContent = '×';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete "' + (item.title || 'Untitled') + '"?')) return;
+        save(load().filter(it => it.id !== item.id));
+        render();
+      });
+
+      li.addEventListener('click', () => openEditor(item.id));
+      li.append(emoji, body, del);
+      listEl.appendChild(li);
+    });
+  }
+
+  function updateTypeFields() {
+    const isBook = typeEl.value === 'book';
+    progressSliderWrap.style.display = isBook ? 'none' : 'block';
+    pagesWrap.style.display = isBook ? 'block' : 'none';
+  }
+
+  // "125" -> "2h 5m"; under an hour -> "45m"; zero -> "0m".
+  function fmtHM(totalMinutes) {
+    const m = Math.max(0, Math.round(totalMinutes || 0));
+    const h = Math.floor(m / 60), rem = m % 60;
+    return h > 0 ? (h + 'h ' + rem + 'm') : (rem + 'm');
+  }
+  function hrMinToMinutes(hrEl, minEl) {
+    return (Number(hrEl.value) || 0) * 60 + (Number(minEl.value) || 0);
+  }
+  function minutesToHrMin(totalMinutes, hrEl, minEl) {
+    const m = Math.max(0, Math.round(totalMinutes || 0));
+    hrEl.value = Math.floor(m / 60) || '';
+    minEl.value = (m % 60) || '';
+  }
+
+  function updateFormatFields() {
+    const isAudiobook = audiobookEl.checked;
+    pagesFieldsWrap.style.display = isAudiobook ? 'none' : 'block';
+    timeFieldsWrap.style.display = isAudiobook ? 'block' : 'none';
+    ytFetchRow.style.display = (isAudiobook && ytLookupConfigured()) ? 'flex' : 'none';
+  }
+
+  // ---- Auto-fetch an audiobook's total runtime from a YouTube link
+  // (optional — degrades to plain manual entry if not configured) ----
+  function ytLookupConfigured() {
+    return !!(window.DASH_YOUTUBE_LOOKUP_SECRET);
+  }
+
+  ytFetchBtn.addEventListener('click', async () => {
+    const url = linkEl.value.trim();
+    if (!url) {
+      ytFetchStatus.textContent = 'Paste the YouTube link in the Link field above first.';
+      linkEl.focus();
+      return;
+    }
+    ytFetchBtn.disabled = true;
+    const origLabel = ytFetchBtn.textContent;
+    ytFetchBtn.textContent = 'Looking up…';
+    ytFetchStatus.textContent = '';
+    try {
+      const res = await fetch('/api/youtube-duration', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + window.DASH_YOUTUBE_LOOKUP_SECRET },
+        body: JSON.stringify({ url: url }),
+      });
+      const result = await res.json();
+      if (!result || !result.ok) {
+        ytFetchStatus.textContent = (result && result.error) ? result.error : "Couldn't look that up just now.";
+        return;
+      }
+      minutesToHrMin(result.minutes, totalHrEl, totalMinEl);
+      updatePagesSummary();
+      persistOpen();
+      ytFetchStatus.textContent = '✓ ' + fmtHM(result.minutes) + (result.title ? (' — ' + result.title) : '');
+    } catch (e) {
+      ytFetchStatus.textContent = "Couldn't reach the lookup just now — check your connection.";
+    } finally {
+      ytFetchBtn.disabled = false;
+      ytFetchBtn.textContent = origLabel;
+    }
+  });
+
+  function updatePagesSummary() {
+    if (audiobookEl.checked) {
+      const cur = hrMinToMinutes(currentHrEl, currentMinEl);
+      const tot = hrMinToMinutes(totalHrEl, totalMinEl);
+      const pct = tot > 0 ? Math.round((cur / tot) * 100) : 0;
+      pagesSummaryEl.textContent = fmtHM(cur) + ' / ' + fmtHM(tot) + ' · ' + pct + '%';
+      pagesFillEl.style.width = Math.min(100, Math.max(0, pct)) + '%';
+      return;
+    }
+    const cur = Number(currentPageEl.value) || 0;
+    const tot = Number(totalPagesEl.value) || 0;
+    const pct = tot > 0 ? Math.round((cur / tot) * 100) : 0;
+    pagesSummaryEl.textContent = cur + ' / ' + tot + ' pages · ' + pct + '%';
+    pagesFillEl.style.width = Math.min(100, Math.max(0, pct)) + '%';
+  }
+
+  function renderBookChart(item) {
+    const sessions = (item && Array.isArray(item.sessions)) ? item.sessions.slice().sort((a, b) => a.ts - b.ts) : [];
+    if (sessions.length < 2) {
+      bookChartSvg.style.display = 'none';
+      bookChartEmpty.style.display = 'block';
+      return;
+    }
+    bookChartSvg.style.display = 'block';
+    bookChartEmpty.style.display = 'none';
+    const isAudiobook = !!(item && item.audiobook);
+    const val = (s) => (isAudiobook ? (s.minutes || 0) : (s.page || 0));
+    const W = 300, H = 70, PAD = 6;
+    const maxPage = Math.max((isAudiobook ? item.totalMinutes : item.totalPages) || 0, ...sessions.map(val), 1);
+    const xStep = (W - PAD * 2) / (sessions.length - 1);
+    const pts = sessions.map((s, i) => {
+      const x = PAD + i * xStep;
+      const y = H - PAD - (val(s) / maxPage) * (H - PAD * 2);
+      return [x, y];
+    });
+    const linePath = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const fillPath = linePath + ' L ' + pts[pts.length - 1][0].toFixed(1) + ' ' + H + ' L ' + pts[0][0].toFixed(1) + ' ' + H + ' Z';
+    bookChartSvg.innerHTML =
+      '<path class="book-chart-fill" d="' + fillPath + '"/>' +
+      '<path class="book-chart-line" d="' + linePath + '"/>';
+  }
+
+  // Logs (or updates today's entry for) a dated page-count (or, for an
+  // audiobook, minutes-listened) snapshot so the reading-pace chart has one
+  // point per day instead of one per edit.
+  function logPageSession(item) {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const sessions = Array.isArray(item.sessions) ? item.sessions : [];
+    const idx = sessions.findIndex(s => s.date === todayKey);
+    const entry = item.audiobook
+      ? { date: todayKey, minutes: item.currentMinutes, ts: Date.now() }
+      : { date: todayKey, page: item.currentPage, ts: Date.now() };
+    if (idx >= 0) sessions[idx] = entry; else sessions.push(entry);
+    item.sessions = sessions;
+  }
+
+  function setStars(n) {
+    editRating = n;
+    Array.from(starsEl.children).forEach(btn => {
+      btn.classList.toggle('filled', Number(btn.dataset.val) <= n);
+    });
+  }
+
+  function openEditor(id) {
+    openId = id;
+    const item = load().find(it => it.id === id);
+    if (!item) return;
+    titleEl.value = item.title || '';
+    typeEl.value = item.type || 'book';
+    statusEl.value = item.status || 'want';
+    authorEl.value = item.author || '';
+    linkEl.value = item.link || '';
+    progressEl.value = item.progress || 0;
+    progressNumEl.textContent = (item.progress || 0) + '%';
+    currentPageEl.value = item.currentPage || '';
+    totalPagesEl.value = item.totalPages || '';
+    audiobookEl.checked = !!item.audiobook;
+    minutesToHrMin(item.currentMinutes || 0, currentHrEl, currentMinEl);
+    minutesToHrMin(item.totalMinutes || 0, totalHrEl, totalMinEl);
+    updateFormatFields();
+    updatePagesSummary();
+    updateTypeFields();
+    renderBookChart(item);
+    setStars(item.rating || 0);
+    notesEl.value = item.notes || '';
+    metaEl.textContent = 'Last edited ' + fmtTime(item.updatedAt);
+    listView.style.display = 'none';
+    editorView.style.display = 'block';
+    titleEl.focus();
+  }
+
+  function persistOpen() {
+    if (openId == null) return;
+    const items = load();
+    const idx = items.findIndex(it => it.id === openId);
+    if (idx === -1) return;
+    const item = items[idx];
+    item.title = titleEl.value.trim();
+    item.type = typeEl.value;
+    item.status = statusEl.value;
+    item.author = authorEl.value.trim();
+    item.link = linkEl.value.trim();
+    item.rating = editRating;
+    item.notes = notesEl.value;
+    item.updatedAt = Date.now();
+    if (item.type === 'book') {
+      item.audiobook = audiobookEl.checked;
+      if (item.audiobook) {
+        item.totalMinutes = hrMinToMinutes(totalHrEl, totalMinEl);
+        item.currentMinutes = hrMinToMinutes(currentHrEl, currentMinEl);
+        item.progress = item.totalMinutes > 0 ? Math.round((item.currentMinutes / item.totalMinutes) * 100) : 0;
+      } else {
+        item.totalPages = Number(totalPagesEl.value) || 0;
+        item.currentPage = Number(currentPageEl.value) || 0;
+        item.progress = item.totalPages > 0 ? Math.round((item.currentPage / item.totalPages) * 100) : 0;
+      }
+      logPageSession(item);
+    } else {
+      item.progress = Number(progressEl.value) || 0;
+    }
+    save(items);
+    if (openId != null && item.type === 'book') renderBookChart(item);
+  }
+
+  function closeEditor() {
+    persistOpen();
+    openId = null;
+    editorView.style.display = 'none';
+    listView.style.display = 'block';
+    // Reset the filter/search so whatever was just saved is guaranteed to
+    // be visible — otherwise a leftover "In Progress" filter or search term
+    // can hide the item you just added, making it look like it never saved.
+    activeFilter = 'all';
+    Array.from(pillsEl.children).forEach(p => p.classList.toggle('active', p.dataset.filter === 'all'));
+    searchEl.value = '';
+    render();
+  }
+
+  newBtn.addEventListener('click', () => {
+    const items = load();
+    const item = {
+      id: 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      title: '', type: newTypeEl.value, status: 'want',
+      author: '', link: '', progress: 0, rating: 0, notes: '',
+      audiobook: false, currentPage: 0, totalPages: 0,
+      currentMinutes: 0, totalMinutes: 0, sessions: [],
+      updatedAt: Date.now()
+    };
+    items.push(item);
+    save(items);
+    openEditor(item.id);
+  });
+
+  [titleEl, typeEl, statusEl, authorEl, linkEl].forEach(el => {
+    el.addEventListener('blur', persistOpen);
+  });
+  typeEl.addEventListener('change', () => { updateTypeFields(); persistOpen(); });
+  statusEl.addEventListener('change', persistOpen);
+
+  progressEl.addEventListener('input', () => {
+    progressNumEl.textContent = progressEl.value + '%';
+  });
+  progressEl.addEventListener('change', persistOpen);
+
+  [currentPageEl, totalPagesEl, currentHrEl, currentMinEl, totalHrEl, totalMinEl].forEach(el => {
+    el.addEventListener('input', updatePagesSummary);
+    el.addEventListener('blur', persistOpen);
+  });
+
+  audiobookEl.addEventListener('change', () => { updateFormatFields(); updatePagesSummary(); persistOpen(); });
+
+  starsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.editor-star');
+    if (!btn) return;
+    const val = Number(btn.dataset.val);
+    setStars(val === editRating ? 0 : val);
+    persistOpen();
+  });
+
+  notesEl.addEventListener('blur', persistOpen);
+  backBtn.addEventListener('click', closeEditor);
+
+  deleteBtn.addEventListener('click', () => {
+    if (openId == null) return;
+    const item = load().find(it => it.id === openId);
+    if (!confirm('Delete "' + (item && item.title ? item.title : 'Untitled') + '"?')) return;
+    save(load().filter(it => it.id !== openId));
+    openId = null;
+    editorView.style.display = 'none';
+    listView.style.display = 'block';
+    render();
+  });
+
+  searchEl.addEventListener('input', render);
+
+  pillsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.filter-pill');
+    if (!btn) return;
+    activeFilter = btn.dataset.filter;
+    Array.from(pillsEl.children).forEach(p => p.classList.toggle('active', p === btn));
+    render();
+  });
+
+  render();
+
+  // Deferred until DOMContentLoaded: sync.js is loaded with `defer`, so it
+  // hasn't run yet at the point this inline script executes during parsing
+  // — checking window.initCloudSync synchronously here would always find
+  // it undefined and silently skip sync setup entirely.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'reading',
+      syncedKeys: [STORE_KEY, 'nova:reading:history'],
+      onApplied: () => { if (openId == null) render(); }
+    });
+  });
+})();
+</script>
+
+<script>
+(function () {
+  'use strict';
+  const KEY_LS = 'nova_lite_api_key';
+  const HIST_KEY = 'nova:reading:history';
+  const $ = (id) => document.getElementById(id);
+  const fab = $('nvFab'), panel = $('nvPanel'), body = $('nvBody'), input = $('nvInput');
+  let busy = false, greeted = false;
+  // Running conversation history, persisted so Nova actually remembers past
+  // chats across reloads/devices instead of forgetting everything the
+  // moment you leave the page. Capped to the last 20 turns so it can't
+  // grow unbounded (both for storage size and per-message token cost).
+  function loadHistory() { try { const h = JSON.parse(localStorage.getItem(HIST_KEY)); return Array.isArray(h) ? h : []; } catch (e) { return []; } }
+  function saveHistory() { try { localStorage.setItem(HIST_KEY, JSON.stringify(history)); } catch (e) {} }
+  let history = loadHistory();
+
+  function savedKey() { try { return localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; } }
+
+  function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function md(t){
+    let h = esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`(.+?)`/g,'<code>$1</code>');
+    const lines = h.split('\n'); let out = '', inUl = false;
+    for (const ln of lines){
+      if (/^\s*[-*]\s+/.test(ln)){ if(!inUl){out+='<ul>';inUl=true;} out+='<li>'+ln.replace(/^\s*[-*]\s+/,'')+'</li>'; }
+      else { if(inUl){out+='</ul>';inUl=false;} out += ln.trim()? '<div>'+ln+'</div>':''; }
+    }
+    if(inUl) out+='</ul>';
+    return out;
+  }
+  function addMsg(who, html){ const d=document.createElement('div'); d.className='nv-msg '+who; d.innerHTML=html; body.appendChild(d); body.scrollTop=body.scrollHeight; return d; }
+
+  function readLS(k,f){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?f:v; }catch(e){ return f; } }
+
+  function readingContext(){
+    const items = readLS('reading:items', []) || [];
+    const list = (Array.isArray(items) ? items : []).map(it => ({
+      title: it.title, type: it.type, author: it.author, status: it.status,
+      progress: it.progress, audiobook: it.audiobook,
+      currentPage: it.currentPage, totalPages: it.totalPages,
+      currentMinutes: it.currentMinutes, totalMinutes: it.totalMinutes,
+      rating: it.rating, notes: (it.notes || '').slice(0, 300)
+    }));
+    let ctx = { today: new Date().toDateString(), list: list };
+    let s = JSON.stringify(ctx);
+    if (s.length > 60000) { ctx.list = list.slice(-60); s = JSON.stringify(ctx); }
+    return s;
+  }
+  const SYS = "You are Nova, the user's personal reading & learning companion living inside their dashboard. "
+    + "You can see their reading list — books, courses, articles, and videos they want to read, are reading, or have finished, "
+    + "including author/creator, status, progress (page-based for a print/ebook, or currentMinutes/totalMinutes "
+    + "for a book with audiobook:true, tracked by time listened instead), star ratings, and their own notes. "
+    + "Use their taste (genres/authors/topics they rated highly, what they're currently into) to recommend what to read, watch, or take next — "
+    + "you can and should recommend things NOT on their list too, using your own knowledge, not just what's already there. "
+    + "Help them decide what to start next, discuss whatever they're currently reading, or suggest similar titles to ones they rated highly. "
+    + "Use short markdown bullets, be concise and specific. Keep replies under ~180 words. Their reading list as JSON: ";
+
+  async function ask(text){
+    text = (text||'').trim(); if (!text || busy) return;
+    const key = savedKey();
+    addMsg('user', md(text));
+    if (!key){ addMsg('coach', md("Paste your **Anthropic API key** on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and I'll use it here too.")); return; }
+    busy = true;
+    history.push({ role: 'user', content: text });
+    if (history.length > 20) history = history.slice(-20);
+    saveHistory();
+    const loading = addMsg('coach', '<span class="nv-dots"><i></i><i></i><i></i></span>');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-opus-4-8', max_tokens:1024, system: SYS + readingContext(), messages: history }),
+      });
+      const json = await res.json();
+      if (json.error){ loading.innerHTML = md('- ' + (json.error.message || 'Something went wrong — check your API key.')); busy=false; history.pop(); saveHistory(); return; }
+      const reply = (json.content && json.content[0] && json.content[0].text) || 'Hmm, no reply.';
+      history.push({ role: 'assistant', content: reply });
+      saveHistory();
+      loading.innerHTML = md(reply);
+    } catch(e){ loading.innerHTML = md('- Could not reach Anthropic — check your connection and key.'); history.pop(); saveHistory(); }
+    body.scrollTop = body.scrollHeight; busy = false;
+  }
+
+  function openPanel(){
+    panel.classList.add('open');
+    if (!greeted){
+      greeted = true;
+      if (history.length) {
+        history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'coach', md(m.content)));
+      } else {
+        addMsg('coach', md("Hey — I'm Nova. I can see your reading list. Ask me for a recommendation, or tap a suggestion below."));
+      }
+    }
+    setTimeout(()=>input.focus(), 50);
+  }
+  function closePanel(){ panel.classList.remove('open'); }
+  function newConversation(){
+    history = []; saveHistory(); body.innerHTML = ''; greeted = false; openPanel();
+  }
+
+  fab.addEventListener('click', ()=> panel.classList.contains('open') ? closePanel() : openPanel());
+  $('nvClose').addEventListener('click', closePanel);
+  $('nvNew').addEventListener('click', newConversation);
+  $('nvSend').addEventListener('click', ()=>{ const t=input.value; input.value=''; ask(t); });
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const t=input.value; input.value=''; ask(t); } });
+  document.querySelectorAll('.nv-chip').forEach(c=> c.addEventListener('click', ()=> ask(c.getAttribute('data-q'))));
+})();
+</script>
+</body>
+</html>

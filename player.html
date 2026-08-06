@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Player Card</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+:root { --pc-gold: #E8C87A; --pc-gold-2: #B8964A; }
+
+.hidden { display: none !important; }
+
+/* ---- The card itself: FIFA/2K-style rating card ---- */
+.pcard-wrap { display: flex; justify-content: center; }
+.pcard {
+  position: relative; width: 100%; max-width: 360px; border-radius: 20px; padding: 22px 20px 18px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(232,200,122,0.30) 0%, rgba(232,200,122,0.06) 45%, rgba(0,0,0,0) 72%),
+    linear-gradient(165deg, rgba(232,200,122,0.16) 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.72) 100%);
+  border: 1px solid rgba(232,200,122,0.42);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5) inset, 0 18px 48px rgba(0,0,0,0.55), 0 0 34px rgba(232,200,122,0.10);
+  overflow: hidden;
+}
+/* Fine instrument-panel grid, matching the HUD theme elsewhere. */
+.pcard::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.30;
+  background-image: linear-gradient(rgba(232,200,122,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(232,200,122,0.10) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 0%, transparent 75%);
+}
+.pcard > * { position: relative; }
+
+.pcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.pcard-ovr { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+.pcard-ovr-num {
+  font-size: 58px; font-weight: 800; letter-spacing: -0.04em; color: var(--pc-gold);
+  font-variant-numeric: tabular-nums; text-shadow: 0 2px 18px rgba(232,200,122,0.35);
+}
+.pcard-ovr-label { font-size: 11px; font-weight: 800; letter-spacing: 0.20em; color: rgba(232,200,122,0.80); margin-top: 4px; }
+.pcard-tier {
+  margin-top: 10px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--pc-gold); border: 1px solid rgba(232,200,122,0.40); border-radius: 999px; padding: 4px 10px;
+  background: rgba(232,200,122,0.10);
+}
+.pcard-lvl {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 14px; border-radius: 14px;
+  border: 1px solid rgba(232,200,122,0.35); background: rgba(0,0,0,0.35); min-width: 78px;
+}
+.pcard-lvl-k { font-size: 9px; font-weight: 800; letter-spacing: 0.16em; color: rgba(232,200,122,0.75); }
+.pcard-lvl-v { font-size: 30px; font-weight: 800; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+
+.pcard-name {
+  margin: 16px 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary);
+  text-align: center; cursor: pointer; border-bottom: 1px dashed transparent; display: inline-block; width: 100%;
+}
+.pcard-name:hover { border-bottom-color: rgba(232,200,122,0.35); }
+.pcard-sub { text-align: center; font-size: 10.5px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-tertiary); }
+.pcard-rule { height: 1px; background: linear-gradient(90deg, transparent, rgba(232,200,122,0.40), transparent); margin: 16px 0 14px; }
+
+.pcard-attrs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; }
+.pattr { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pattr-v { font-size: 22px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+.pattr-v.dim { color: var(--text-tertiary); opacity: 0.45; }
+.pattr-k { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: rgba(232,200,122,0.85); }
+.pattr-n { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
+
+.pcard-empty { text-align: center; font-size: 12.5px; color: var(--text-tertiary); line-height: 1.6; padding: 10px 4px 4px; }
+
+/* ---- XP / progression ---- */
+.xp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.xp-lvl { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.xp-count { font-size: 12px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.xp-track { height: 12px; border-radius: 999px; background: rgba(0,0,0,0.45); border: 1px solid var(--hud-line); overflow: hidden; margin: 12px 0 8px; }
+.xp-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--pc-gold-2), var(--pc-gold)); transition: width 0.5s ease; }
+.xp-next { font-size: 11.5px; color: var(--text-secondary); }
+.xp-total { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; }
+
+.src-list { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-direction: column; gap: 0; }
+.src-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--hud-line); font-size: 13px; }
+.src-row:first-child { border-top: 0; }
+.src-name { color: var(--text-secondary); }
+.src-count { color: var(--text-tertiary); font-size: 11.5px; }
+.src-xp { color: var(--pc-gold); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- Attribute detail ---- */
+.ad-row { padding: 14px 0; border-top: 1px solid var(--hud-line); }
+.ad-row:first-child { border-top: 0; padding-top: 0; }
+.ad-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ad-name { font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+.ad-name .ad-abbr { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; color: var(--text-tertiary); margin-left: 7px; }
+.ad-val { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ad-track { height: 7px; border-radius: 999px; background: rgba(0,0,0,0.45); border: 1px solid var(--hud-line); overflow: hidden; margin: 9px 0 8px; }
+.ad-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.ad-parts { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.6; }
+.ad-empty { font-size: 11.5px; color: var(--text-tertiary); font-style: italic; }
+
+.note { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.6; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <a class="back-link" href="index.html">← Home</a>
+  <h1 class="dash-title">Player Card</h1>
+
+  <div class="section">
+    <div class="pcard-wrap">
+      <div class="pcard">
+        <div class="pcard-top">
+          <div class="pcard-ovr">
+            <span class="pcard-ovr-num" id="ovrNum">—</span>
+            <span class="pcard-ovr-label">OVR</span>
+            <span class="pcard-tier" id="ovrTier">—</span>
+          </div>
+          <div class="pcard-lvl">
+            <span class="pcard-lvl-k">LEVEL</span>
+            <span class="pcard-lvl-v" id="lvlNum">1</span>
+          </div>
+        </div>
+        <div class="pcard-name" id="playerName" title="Click to rename">Player</div>
+        <div class="pcard-sub" id="ovrWindow">last 30 days</div>
+        <div class="pcard-rule"></div>
+        <div class="pcard-attrs" id="attrGrid"></div>
+        <div class="pcard-empty hidden" id="cardEmpty">No rated attributes yet — log a few days across training, sleep, habits or work and your rating builds itself.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Progression</div>
+    <div class="gm-card">
+      <div class="xp-head">
+        <span class="xp-lvl" id="xpLvlLabel">Level 1</span>
+        <span class="xp-count" id="xpCount">0 XP</span>
+      </div>
+      <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div></div>
+      <div class="xp-next" id="xpNext">—</div>
+      <div class="xp-total" id="xpTotal"></div>
+      <ul class="src-list" id="srcList"></ul>
+      <div class="note">Level only ever goes up — it's the running total of everything you've actually logged, so it's a record of work done, not current form. The rating above is current form and moves both ways.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Attribute Breakdown</div>
+    <div class="gm-card" id="attrDetail"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+ * PLAYER CARD — a FIFA/2K-style rating for the whole dashboard.
+ *
+ * Two deliberately different numbers:
+ *
+ *   LEVEL / XP — cumulative and monotonic. Derived by counting every
+ *   real thing ever logged (workouts, habit check-ins, reading sessions,
+ *   skill practice, nights slept, commitments hit, …). It can never drop,
+ *   because you can't un-do work you already did. This is the "career
+ *   progress" half.
+ *
+ *   OVR + attributes — current form, 0-99, over a rolling 30-day window,
+ *   so it rises and falls with how you're actually living right now. This
+ *   is the "player rating" half.
+ *
+ * Everything here is READ-ONLY across other pages' localStorage keys —
+ * this page owns no domain data and never writes back to another page's
+ * keys, so it can't corrupt anything. The only key it owns is the display
+ * name.
+ *
+ * An attribute with no underlying data at all (a domain you haven't set
+ * up) is excluded from OVR entirely rather than counted as a zero — same
+ * fairness rule index.html's Today Score uses, so the rating doesn't
+ * punish you for features you don't use.
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  const NAME_KEY = 'player:name';
+  // A tiny cached summary of the last computed card, so the home screen can
+  // show your OVR/level without duplicating this whole engine over there.
+  const CARD_KEY = 'player:card';
+  const WINDOW_DAYS = 30;
+  const NW_WINDOW_DAYS = 90;   // net worth moves slowly — a 30-day window is too noisy to rate on
+  const WLT_MIN_POINTS = 3;    // fewer than this is just a line between two dots, not a real trend
+  const WLT_MONTHLY_TARGET = 0.03; // sustained +3%/mo net worth growth (smoothed across the window) maxes Wealth — aggressive but real, and averaged across every logged point rather than one lucky snapshot
+
+  // Federal Reserve Survey of Consumer Finances (SCF), 2022 wave — the
+  // latest published as of writing. Approximate published median net
+  // worth by age bracket, hardcoded since this app has no live data feed
+  // for it; this is static reference data that will read slightly stale
+  // once a newer SCF wave is published (by design — no server-side fetch
+  // in this app's architecture).
+  const NW_AGE_MEDIANS = [
+    { maxAge: 34, median: 39000 },
+    { maxAge: 44, median: 135600 },
+    { maxAge: 54, median: 247200 },
+    { maxAge: 64, median: 364500 },
+    { maxAge: 74, median: 409900 },
+    { maxAge: Infinity, median: 334700 },
+  ];
+  const WLT_PEER_MULTIPLE_FOR_MAX = 2; // 2x your age bracket's median net worth maxes this part of Wealth — same "demanding but reachable" philosophy as the T targets below
+
+  // Targets that define "a 99" for each input. Deliberately demanding but
+  // reachable, so a genuinely strong month reads in the 80s-90s rather
+  // than pinning at 99 constantly.
+  const T = {
+    gymSessions: 16,      // ~4x/week over the window
+    nutritionDays: 24,    // logging food most days
+    sleepHours: 8,
+    waterRate: 1,
+    supplementRate: 1,
+    habitRate: 1,
+    revenueDays: 8,
+    readingDays: 12,
+    skillSessions: 12,
+    noteEntries: 8,
+    mistakeEntries: 3,
+  };
+
+  const ATTRS = [
+    { key: 'PHY', name: 'Physical',   weight: 20, color: '#F87171' },
+    { key: 'VIT', name: 'Vitality',   weight: 18, color: '#34D399' },
+    { key: 'DIS', name: 'Discipline', weight: 20, color: '#22D3F5' },
+    { key: 'HUS', name: 'Hustle',     weight: 14, color: '#F2C063' },
+    { key: 'WLT', name: 'Wealth',     weight: 12, color: '#A3E635' },
+    { key: 'MND', name: 'Mind',       weight: 16, color: '#A78BFA' },
+  ];
+
+  // XP per unit of each thing you can log. Weighted by roughly how much
+  // effort the thing actually takes, not by how easy it is to farm.
+  const XP_SOURCES = [
+    { id: 'workouts',    name: 'Workouts',           per: 40 },
+    { id: 'leverage',    name: 'Leverage tasks done', per: 20 },
+    { id: 'commitments', name: 'Work commitments',   per: 15 },
+    { id: 'skills',      name: 'Skill sessions',     per: 12 },
+    { id: 'reading',     name: 'Reading sessions',   per: 12 },
+    { id: 'mistakes',    name: 'Mistakes logged',    per: 10 },
+    { id: 'nights',      name: 'Nights logged',      per: 10 },
+    { id: 'habits',      name: 'Habit check-ins',    per: 8 },
+    { id: 'meals',       name: 'Days food logged',   per: 8 },
+    { id: 'notes',       name: 'Notes written',      per: 6 },
+    { id: 'water',       name: 'Days hydrated',      per: 6 },
+    { id: 'supplements', name: 'Days supplemented',  per: 6 },
+    { id: 'weighins',    name: 'Weigh-ins',          per: 5 },
+    { id: 'checkins',    name: 'Feeling check-ins',  per: 5 },
+  ];
+
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+
+  /* ================= Pure logic (mirrored in tests/test_player_rating.mjs) ================= */
+
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+  // Cumulative XP needed to REACH a given level. Level 1 is the floor at
+  // 0 XP. Superlinear so early levels come fast and later ones genuinely
+  // mean something.
+  function xpForLevel(level) {
+    if (level <= 1) return 0;
+    return Math.round(150 * Math.pow(level - 1, 1.6));
+  }
+
+  function levelForXp(xp) {
+    const total = Math.max(0, Math.floor(xp || 0));
+    let level = 1;
+    while (xpForLevel(level + 1) <= total) level++;
+    const floor = xpForLevel(level);
+    const ceil = xpForLevel(level + 1);
+    const span = ceil - floor;
+    return {
+      level,
+      total,
+      into: total - floor,
+      need: span,
+      remaining: ceil - total,
+      pct: span > 0 ? clamp01((total - floor) / span) : 0,
+    };
+  }
+
+  // A 0-1 performance ratio becomes a 1-99 rating. Straight mapping (no
+  // flattering curve) so the number stays honest — half the target really
+  // does read as roughly 50.
+  function ratingFromRatio(ratio) {
+    return Math.max(1, Math.min(99, Math.round(clamp01(ratio) * 99)));
+  }
+
+  function tierForOvr(ovr) {
+    if (ovr >= 90) return 'Icon';
+    if (ovr >= 85) return 'Elite';
+    if (ovr >= 80) return 'World Class';
+    if (ovr >= 72) return 'Quality';
+    if (ovr >= 62) return 'Solid';
+    if (ovr >= 50) return 'Developing';
+    return 'Rebuilding';
+  }
+
+  // Weighted blend of whichever sub-parts actually have data, renormalized
+  // over just those — so a domain you only half-use still rates fairly on
+  // the half you do use.
+  function blend(parts) {
+    const live = parts.filter(p => p && p.ratio != null);
+    if (!live.length) return null;
+    let sum = 0, wt = 0;
+    live.forEach(p => { sum += clamp01(p.ratio) * p.weight; wt += p.weight; });
+    return { ratio: wt > 0 ? sum / wt : 0, parts: live };
+  }
+
+  function overallFromAttrs(attrs) {
+    const live = ATTRS.filter(a => attrs[a.key] != null);
+    if (!live.length) return null;
+    let sum = 0, wt = 0;
+    live.forEach(a => { sum += attrs[a.key] * a.weight; wt += a.weight; });
+    return Math.round(sum / wt);
+  }
+
+  function dayKeysBack(days, now) {
+    const out = [];
+    const cursor = new Date(now);
+    for (let i = 0; i < days; i++) {
+      out.push(dateToKey(cursor));
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return out;
+  }
+
+  // Least-squares slope over every sample in the window (same regression
+  // finance.html's own Net Worth Forecast already computes), returned as a
+  // fraction of current net worth per month — a rate, not a raw two-point
+  // delta, so a single volatile snapshot can't swing the whole result.
+  // Requires WLT_MIN_POINTS samples before it'll call anything a trend.
+  function computeMonthlyGrowthRate(history, windowDays, now) {
+    if (!Array.isArray(history)) return null;
+    const cutoff = now - windowDays * 86400000;
+    const pts = history.filter(h => h && typeof h.t === 'number' && typeof h.v === 'number' && h.t >= cutoff)
+      .slice().sort((a, b) => a.t - b.t);
+    if (pts.length < WLT_MIN_POINTS) return null;
+    const t0 = pts[0].t;
+    const xs = pts.map(p => (p.t - t0) / 86400000);
+    const ys = pts.map(p => p.v);
+    const n = xs.length;
+    const sumX = xs.reduce((a, b) => a + b, 0), sumY = ys.reduce((a, b) => a + b, 0);
+    const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0), sumXX = xs.reduce((a, x) => a + x * x, 0);
+    const denom = n * sumXX - sumX * sumX;
+    if (denom === 0) return null; // all points landed at the same x (duplicate timestamps) — no slope to fit
+    const slopePerDay = (n * sumXY - sumX * sumY) / denom;
+    const base = ys[ys.length - 1];
+    if (Math.abs(base) < 0.01) return null; // can't express a meaningful percentage off ~zero net worth
+    return (slopePerDay * 30.44) / Math.abs(base);
+  }
+
+  // Looks up the SCF age-bracket median for a given age. Returns null for
+  // an unset/invalid age rather than guessing a bracket.
+  function netWorthPeerMedian(age) {
+    if (typeof age !== 'number' || !(age > 0)) return null;
+    const bracket = NW_AGE_MEDIANS.find(b => age <= b.maxAge);
+    return bracket ? bracket.median : null;
+  }
+
+  // Most recent net worth snapshot by timestamp (not just array order —
+  // nw:history isn't guaranteed to be append-only sorted).
+  function latestNetWorth(history) {
+    if (!Array.isArray(history) || !history.length) return null;
+    const pts = history.filter(h => h && typeof h.t === 'number' && typeof h.v === 'number');
+    if (!pts.length) return null;
+    return pts.reduce((latest, p) => (p.t > latest.t ? p : latest)).v;
+  }
+
+  /* ---------- Lifetime XP ---------- */
+  // Counts of every logged thing, ever. Note to-dos are represented by the
+  // Leverage Task counter rather than raw goals — main.html deletes each
+  // past day's goals key on rollover, so raw to-do history genuinely isn't
+  // recoverable, while leverage_stats_v1 keeps a lifetime tally.
+  function computeXpCounts(d) {
+    const c = {};
+
+    c.workouts = Object.keys(d.workoutDone || {}).filter(k => (d.workoutDone || {})[k]).length;
+
+    const lev = d.leverageStats || {};
+    c.leverage = Math.max(0, Number(lev.completedCount) || 0);
+
+    let commits = 0;
+    const commitLog = d.bizCommitLog || {};
+    Object.keys(commitLog).forEach(id => { commits += Object.keys(commitLog[id] || {}).filter(k => commitLog[id][k]).length; });
+    const delivery = d.bizDelivery || {};
+    Object.keys(delivery).forEach(id => { commits += Object.keys(delivery[id] || {}).filter(k => (delivery[id][k] || 0) > 0).length; });
+    c.commitments = commits;
+
+    c.skills = (d.skillSessions || []).length;
+
+    let readingSessions = 0;
+    (d.readingItems || []).forEach(it => { readingSessions += ((it && it.sessions) || []).length; });
+    c.reading = readingSessions;
+
+    c.mistakes = (d.mistakes || []).length;
+    c.nights = Object.keys(d.nights || {}).length;
+
+    let habitChecks = 0;
+    const hlog = d.habitsLog || {};
+    Object.keys(hlog).forEach(id => { habitChecks += Object.keys(hlog[id] || {}).filter(k => hlog[id][k]).length; });
+    c.habits = habitChecks;
+
+    const mealDays = {};
+    (d.calEntries || []).forEach(e => { if (e && e.dateKey) mealDays[e.dateKey] = true; });
+    c.meals = Object.keys(mealDays).length;
+
+    c.notes = (d.notes || []).length;
+
+    const wlogs = (d.water && d.water.logs) || {};
+    c.water = Object.keys(wlogs).filter(k => (wlogs[k] || 0) > 0).length;
+
+    const taken = d.stackTaken || {};
+    c.supplements = Object.keys(taken).filter(k => Object.keys(taken[k] || {}).some(id => taken[k][id])).length;
+
+    c.weighins = (d.weights || []).length;
+    c.checkins = (d.checkins || []).length;
+
+    return c;
+  }
+
+  function computeLifetimeXp(counts) {
+    let total = 0;
+    const rows = [];
+    XP_SOURCES.forEach(s => {
+      const n = Math.max(0, Number(counts[s.id]) || 0);
+      if (!n) return;
+      const xp = n * s.per;
+      total += xp;
+      rows.push({ id: s.id, name: s.name, count: n, per: s.per, xp });
+    });
+    rows.sort((a, b) => b.xp - a.xp);
+    return { total, rows };
+  }
+
+  /* ---------- Attributes (rolling window) ---------- */
+  function computeAttributes(d, now) {
+    const keys = dayKeysBack(WINDOW_DAYS, now);
+    const keySet = {};
+    keys.forEach(k => { keySet[k] = true; });
+    const startMs = new Date(keys[keys.length - 1] + 'T00:00:00').getTime();
+    const out = {};
+
+    // ---- PHY: training volume + eating deliberately ----
+    const coach = d.coach;
+    const gymConfigured = !!(coach && Array.isArray(coach.splitRotation) && coach.splitRotation.length);
+    const sessions = keys.filter(k => (d.workoutDone || {})[k]).length;
+    const mealDayset = {};
+    (d.calEntries || []).forEach(e => { if (e && keySet[e.dateKey]) mealDayset[e.dateKey] = true; });
+    const mealDays = Object.keys(mealDayset).length;
+    out.PHY = blend([
+      gymConfigured ? { key: 'gym', label: sessions + ' workout' + (sessions === 1 ? '' : 's') + ' in ' + WINDOW_DAYS + 'd', ratio: sessions / T.gymSessions, weight: 65 } : null,
+      (d.calEntries || []).length ? { key: 'food', label: mealDays + ' day' + (mealDays === 1 ? '' : 's') + ' food logged', ratio: mealDays / T.nutritionDays, weight: 35 } : null,
+    ]);
+
+    // ---- VIT: sleep, water, supplements ----
+    const nights = d.nights || {};
+    const nightRows = keys.map(k => nights[k]).filter(Boolean);
+    const hrs = nightRows.map(n => n.sleepHours).filter(v => typeof v === 'number');
+    const qual = nightRows.map(n => n.sleepQuality).filter(v => typeof v === 'number');
+    let sleepPart = null;
+    if (hrs.length || qual.length) {
+      const avgH = hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null;
+      const avgQ = qual.length ? qual.reduce((a, b) => a + b, 0) / qual.length : null;
+      const sub = blend([
+        avgH != null ? { ratio: avgH / T.sleepHours, weight: 60 } : null,
+        avgQ != null ? { ratio: avgQ / 5, weight: 40 } : null,
+      ]);
+      // Logging only some nights shouldn't read as a perfect score on the
+      // strength of two good ones — scale by how much of the window is
+      // actually accounted for.
+      const coverage = clamp01(nightRows.length / (WINDOW_DAYS * 0.6));
+      const label = (avgH != null ? avgH.toFixed(1) + 'h avg' : 'quality only')
+        + ' over ' + nightRows.length + ' night' + (nightRows.length === 1 ? '' : 's');
+      sleepPart = { key: 'sleep', label, ratio: sub.ratio * coverage, weight: 45 };
+    }
+
+    let waterPart = null;
+    const water = d.water;
+    if (water && water.profile && water.profile.weightKg) {
+      const p = water.profile;
+      const wKg = water.weightUnit === 'lb' ? (p.weightKg || 0) / 2.20462 : (p.weightKg || 0);
+      const base = wKg * 35;
+      const exercise = (p.activityHrsPerWeek || 0) / 7 * 500;
+      const caff = Math.max(0, (water.caffeineMgPerDay || 0) - 200) * 1.5;
+      let adjust = 0; if (p.sex === 'm') adjust += 200; if ((p.age || 0) >= 50) adjust += 100;
+      let unitMl = 1;
+      if (water.unit === 'bottle') unitMl = water.bottleMl || 500;
+      else if (water.unit === 'glass') unitMl = water.glassMl || 250;
+      else if (water.unit === 'oz') unitMl = 30;
+      const targetUnits = Math.ceil((base + exercise + caff + adjust) / unitMl);
+      if (targetUnits > 0) {
+        let done = 0;
+        keys.forEach(k => { done += ((water.logs || {})[k]) || 0; });
+        const possible = targetUnits * WINDOW_DAYS;
+        waterPart = { key: 'water', label: Math.round(done / possible * 100) + '% of water target', ratio: done / possible, weight: 30 };
+      }
+    }
+
+    let suppPart = null;
+    const stackItems = d.stackItems || [];
+    if (stackItems.length) {
+      let done = 0;
+      keys.forEach(k => {
+        const t = (d.stackTaken || {})[k] || {};
+        done += stackItems.filter(it => t[it.id]).length;
+      });
+      const possible = stackItems.length * WINDOW_DAYS;
+      suppPart = { key: 'supplements', label: Math.round(done / possible * 100) + '% of supplements taken', ratio: done / possible, weight: 25 };
+    }
+    out.VIT = blend([sleepPart, waterPart, suppPart]);
+
+    // ---- DIS: habits + leverage-task follow-through ----
+    let habitPart = null;
+    const hdefs = d.habitsDefs || [];
+    if (hdefs.length) {
+      let done = 0;
+      keys.forEach(k => { done += hdefs.filter(h => (d.habitsLog || {})[h.id] && d.habitsLog[h.id][k]).length; });
+      const possible = hdefs.length * WINDOW_DAYS;
+      habitPart = { key: 'habits', label: Math.round(done / possible * 100) + '% of habit check-ins', ratio: done / possible, weight: 60 };
+    }
+    let levPart = null;
+    const lev = d.leverageStats || {};
+    if ((Number(lev.setCount) || 0) > 0) {
+      const rate = (Number(lev.completedCount) || 0) / lev.setCount;
+      levPart = { key: 'leverage', label: Math.round(rate * 100) + '% of leverage tasks finished', ratio: rate, weight: 40 };
+    }
+    out.DIS = blend([habitPart, levPart]);
+
+    // ---- HUS: commitments kept + money actually coming in ----
+    const commitments = d.bizCommitments || [];
+    const retainers = (d.bizClients || []).filter(c => c && c.billingType === 'retainer' && c.dailyDeliverables > 0);
+    let cDone = 0, cTotal = 0;
+    keys.forEach(k => {
+      commitments.forEach(c => { cTotal++; if ((d.bizCommitLog || {})[c.id] && d.bizCommitLog[c.id][k]) cDone++; });
+      retainers.forEach(c => { cTotal++; const n = ((d.bizDelivery || {})[c.id] || {})[k] || 0; if (n >= c.dailyDeliverables) cDone++; });
+    });
+    const revDays = {};
+    (d.bizRevenue || []).forEach(r => { if (r && keySet[r.date] && (Number(r.amount) || 0) > 0) revDays[r.date] = true; });
+    (d.bizPayments || []).forEach(p => { if (p && keySet[p.date] && (Number(p.amount) || 0) > 0) revDays[p.date] = true; });
+    const revCount = Object.keys(revDays).length;
+    out.HUS = blend([
+      cTotal > 0 ? { key: 'commitments', label: cDone + '/' + cTotal + ' commitments kept', ratio: cDone / cTotal, weight: 70 } : null,
+      ((d.bizRevenue || []).length || (d.bizPayments || []).length)
+        ? { key: 'revenue', label: revCount + ' day' + (revCount === 1 ? '' : 's') + ' with income', ratio: revCount / T.revenueDays, weight: 30 } : null,
+    ]);
+
+    // ---- WLT: net worth vs. peers your age, blended with your trend ----
+    // Two independent signals, weighted 60/40 so neither dominates: are
+    // you actually ahead of or behind typical net worth for your age (a
+    // level, benchmarked against SCF 2022 age-bracket medians), and is it
+    // climbing (a trend). blend() renormalizes over whichever part(s)
+    // actually have data, so having only one of the two still rates
+    // fairly on that one alone.
+    let peerPart = null;
+    const age = (d.water && d.water.profile && d.water.profile.age) || null;
+    const currentNw = latestNetWorth(d.nwHistory);
+    const peerMedian = netWorthPeerMedian(age);
+    if (currentNw != null && peerMedian) {
+      const peerRatio = clamp01(currentNw / (peerMedian * WLT_PEER_MULTIPLE_FOR_MAX));
+      const pctOfMedian = Math.round((currentNw / peerMedian) * 100);
+      // Benchmark source/year is named directly in the label (not just a
+      // code comment) so it's visible on the card itself, per the
+      // requirement to clearly attribute the reference data in the UI.
+      peerPart = { key: 'peer', label: pctOfMedian + '% of typical net worth for your age (Fed SCF 2022 median)', ratio: peerRatio, weight: 60 };
+    }
+
+    // A least-squares trend over every sample in the window (same math
+    // finance.html's own Net Worth Forecast already uses), not a raw
+    // first-vs-last delta — two points is just a line between two dots, so
+    // one volatile snapshot (a crypto swing, a one-time deposit) could
+    // swing the whole rating on its own. Regressing across every logged
+    // point averages that noise out, and requires at least 3 points before
+    // calling it a trend at all.
+    let trendPart = null;
+    const rate = computeMonthlyGrowthRate(d.nwHistory, NW_WINDOW_DAYS, now);
+    if (rate != null) {
+      const trendRatio = clamp01((rate / WLT_MONTHLY_TARGET + 1) / 2);
+      const pct = Math.round(rate * 1000) / 10;
+      trendPart = { key: 'networth', label: (pct > 0 ? '+' : '') + pct + '%/mo net worth trend', ratio: trendRatio, weight: 40 };
+    }
+
+    out.WLT = blend([peerPart, trendPart]);
+
+    // ---- MND: reading, deliberate practice, writing things down ----
+    const readDays = {};
+    (d.readingItems || []).forEach(it => {
+      ((it && it.sessions) || []).forEach(s => {
+        // reading.html keys sessions by a UTC ISO date, matching how
+        // review.html and the home snapshot read this same domain.
+        if (s && s.date && keySet[s.date]) readDays[s.date] = true;
+      });
+    });
+    const rDays = Object.keys(readDays).length;
+    const skillN = (d.skillSessions || []).filter(s => s && typeof s.ts === 'number' && s.ts >= startMs).length;
+    const noteN = (d.notes || []).filter(n => n && typeof n.ts === 'number' && n.ts >= startMs).length;
+    const mistN = (d.mistakes || []).filter(m => m && typeof m.ts === 'number' && m.ts >= startMs).length;
+    out.MND = blend([
+      (d.readingItems || []).length ? { key: 'reading', label: rDays + ' day' + (rDays === 1 ? '' : 's') + ' reading', ratio: rDays / T.readingDays, weight: 35 } : null,
+      (d.skillSessions || []).length ? { key: 'skills', label: skillN + ' skill session' + (skillN === 1 ? '' : 's'), ratio: skillN / T.skillSessions, weight: 30 } : null,
+      (d.notes || []).length ? { key: 'notes', label: noteN + ' note' + (noteN === 1 ? '' : 's') + ' written', ratio: noteN / T.noteEntries, weight: 20 } : null,
+      (d.mistakes || []).length ? { key: 'mistakes', label: mistN + ' mistake' + (mistN === 1 ? '' : 's') + ' logged', ratio: mistN / T.mistakeEntries, weight: 15 } : null,
+    ]);
+
+    return out;
+  }
+
+  // Turns the raw blends into 1-99 ratings plus the OVR.
+  function computeRating(d, now) {
+    const raw = computeAttributes(d, now);
+    const ratings = {};
+    ATTRS.forEach(a => { ratings[a.key] = raw[a.key] ? ratingFromRatio(raw[a.key].ratio) : null; });
+    const ovr = overallFromAttrs(ratings);
+    return { raw, ratings, ovr, tier: ovr == null ? null : tierForOvr(ovr) };
+  }
+
+  window.__playerLogic = {
+    xpForLevel, levelForXp, ratingFromRatio, tierForOvr, blend, overallFromAttrs,
+    computeXpCounts, computeLifetimeXp, computeAttributes, computeRating, dayKeysBack, clamp01,
+    computeMonthlyGrowthRate,
+    ATTRS, XP_SOURCES, WINDOW_DAYS,
+  };
+
+  /* ================= Data gathering (browser only) ================= */
+
+  function collectStackTaken() {
+    const out = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('stack:taken:') === 0) out[k.slice('stack:taken:'.length)] = storeGet(k) || {};
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function gather() {
+    return {
+      habitsDefs: storeGet('habits:defs') || [],
+      habitsLog: storeGet('habits:log') || {},
+      leverageStats: storeGet('leverage_stats_v1') || {},
+      coach: storeGet('po_coach_v1'),
+      workoutDone: storeGet('po_coach_workout_done') || {},
+      weights: storeGet('po_coach_weights') || [],
+      calEntries: storeGet('cal:entries') || [],
+      water: storeGet('po_water_v1'),
+      stackItems: storeGet('stack:items') || [],
+      stackTaken: collectStackTaken(),
+      nights: storeGet('sleep:nights') || {},
+      checkins: storeGet('peak:checkins') || [],
+      readingItems: storeGet('reading:items') || [],
+      skillSessions: storeGet('skills:sessions') || [],
+      notes: storeGet('notes:items') || [],
+      mistakes: storeGet('mistakes:items') || [],
+      nwHistory: storeGet('nw:history') || [],
+      bizCommitments: storeGet('biz:affiliate:commitments') || [],
+      bizCommitLog: storeGet('biz:affiliate:commitLog') || {},
+      bizClients: storeGet('biz:editing:clients') || [],
+      bizDelivery: storeGet('biz:editing:deliveryLog') || {},
+      bizRevenue: storeGet('biz:affiliate:revenue') || [],
+      bizPayments: storeGet('biz:editing:payments') || [],
+    };
+  }
+
+  /* ================= Render ================= */
+
+  const $ = (id) => document.getElementById(id);
+
+  function render() {
+    const d = gather();
+    const now = Date.now();
+
+    // ---- Card ----
+    const rating = computeRating(d, now);
+    $('ovrNum').textContent = rating.ovr == null ? '—' : rating.ovr;
+    $('ovrTier').textContent = rating.tier || 'Unrated';
+    $('cardEmpty').classList.toggle('hidden', rating.ovr != null);
+
+    const grid = $('attrGrid');
+    grid.innerHTML = '';
+    ATTRS.forEach(a => {
+      const v = rating.ratings[a.key];
+      const cell = document.createElement('div');
+      cell.className = 'pattr';
+      const val = document.createElement('span');
+      val.className = 'pattr-v' + (v == null ? ' dim' : '');
+      val.textContent = v == null ? '—' : v;
+      if (v != null) val.style.color = a.color;
+      const k = document.createElement('span');
+      k.className = 'pattr-k'; k.textContent = a.key;
+      const n = document.createElement('span');
+      n.className = 'pattr-n'; n.textContent = a.name;
+      cell.appendChild(val); cell.appendChild(k); cell.appendChild(n);
+      grid.appendChild(cell);
+    });
+
+    // ---- Progression ----
+    const counts = computeXpCounts(d);
+    const xp = computeLifetimeXp(counts);
+    const lv = levelForXp(xp.total);
+    $('lvlNum').textContent = lv.level;
+    $('xpLvlLabel').textContent = 'Level ' + lv.level;
+    $('xpCount').textContent = xp.total.toLocaleString() + ' XP';
+    $('xpFill').style.width = Math.round(lv.pct * 100) + '%';
+    $('xpNext').textContent = lv.need > 0
+      ? lv.remaining.toLocaleString() + ' XP to Level ' + (lv.level + 1)
+      : 'Max level';
+    $('xpTotal').textContent = lv.into.toLocaleString() + ' / ' + lv.need.toLocaleString() + ' into this level';
+
+    storeSet(CARD_KEY, { ovr: rating.ovr, tier: rating.tier, level: lv.level, pct: lv.pct, ts: now });
+
+    const list = $('srcList');
+    list.innerHTML = '';
+    if (!xp.rows.length) {
+      const li = document.createElement('li');
+      li.className = 'src-row';
+      li.innerHTML = '<span class="src-name">Nothing logged yet — every workout, habit and session you log adds XP here.</span>';
+      list.appendChild(li);
+    } else {
+      xp.rows.forEach(r => {
+        const li = document.createElement('li');
+        li.className = 'src-row';
+        const left = document.createElement('div');
+        left.innerHTML = '<div class="src-name">' + r.name + '</div><div class="src-count">' + r.count.toLocaleString() + ' × ' + r.per + ' XP</div>';
+        const right = document.createElement('span');
+        right.className = 'src-xp';
+        right.textContent = '+' + r.xp.toLocaleString();
+        li.appendChild(left); li.appendChild(right);
+        list.appendChild(li);
+      });
+    }
+
+    // ---- Attribute detail ----
+    const detail = $('attrDetail');
+    detail.innerHTML = '';
+    ATTRS.forEach(a => {
+      const v = rating.ratings[a.key];
+      const rawA = rating.raw[a.key];
+      const row = document.createElement('div');
+      row.className = 'ad-row';
+
+      const head = document.createElement('div');
+      head.className = 'ad-head';
+      head.innerHTML = '<span class="ad-name">' + a.name + '<span class="ad-abbr">' + a.key + '</span></span>'
+        + '<span class="ad-val" style="color:' + (v == null ? 'var(--text-tertiary)' : a.color) + '">' + (v == null ? '—' : v) + '</span>';
+      row.appendChild(head);
+
+      const track = document.createElement('div');
+      track.className = 'ad-track';
+      const fill = document.createElement('div');
+      fill.className = 'ad-fill';
+      fill.style.width = (v == null ? 0 : v) + '%';
+      fill.style.background = a.color;
+      track.appendChild(fill);
+      row.appendChild(track);
+
+      const parts = document.createElement('div');
+      if (rawA && rawA.parts.length) {
+        parts.className = 'ad-parts';
+        parts.textContent = rawA.parts.map(p => p.label).join(' · ');
+      } else {
+        parts.className = 'ad-empty';
+        parts.textContent = 'Not rated yet — nothing tracked in this area.';
+      }
+      row.appendChild(parts);
+      detail.appendChild(row);
+    });
+  }
+
+  /* ---- Editable display name (the only key this page owns) ---- */
+  function refreshName() {
+    const el = $('playerName');
+    if (el.getAttribute('contenteditable') !== 'true') el.textContent = storeGet(NAME_KEY) || 'Player';
+  }
+  // Bound once — refreshName() is what re-runs when sync applies, so the
+  // click handler never stacks up on repeated renders.
+  function initName() {
+    const el = $('playerName');
+    refreshName();
+    el.addEventListener('click', () => {
+      if (el.getAttribute('contenteditable') === 'true') return;
+      const original = el.textContent;
+      el.setAttribute('contenteditable', 'true');
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el); range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      el.addEventListener('blur', () => {
+        el.removeAttribute('contenteditable');
+        const next = el.textContent.trim();
+        if (next && next !== original) storeSet(NAME_KEY, next);
+        else el.textContent = original;
+      }, { once: true });
+      el.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); el.removeEventListener('keydown', onKey); el.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); el.textContent = original; el.removeEventListener('keydown', onKey); el.blur(); }
+      });
+    });
+  }
+
+  /* ---- Freshness ----
+   * Same problem index.html's Today Score has: this page reads a dozen
+   * other pages' keys but owns none of them, so on a device where you
+   * haven't opened those pages yet there'd be nothing in localStorage to
+   * rate. Pull each source row straight from Supabase first, exactly like
+   * the home screen does, so the card is right on a cold load.
+   */
+  const SB_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SB_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+  const SOURCE_APP_KEYS = ['goals', 'health', 'po-coach', 'business', 'reading', 'sleep', 'peak', 'finance', 'skills', 'notes', 'mistakes'];
+  async function pullFreshSources() {
+    if (SB_URL.indexOf('PASTE-') === 0 || SB_KEY.indexOf('PASTE-') === 0) return;
+    try {
+      const rows = await Promise.all(SOURCE_APP_KEYS.map(k =>
+        fetch(SB_URL + '/rest/v1/app_state?key=eq.' + encodeURIComponent(k) + '&select=data', {
+          headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
+        }).then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      rows.forEach(r => {
+        const data = r && r[0] && r[0].data;
+        if (!data) return;
+        Object.keys(data).forEach(k => {
+          try { localStorage.setItem(k, JSON.stringify(data[k])); } catch (e) {}
+        });
+      });
+    } catch (e) {}
+  }
+
+  initName();
+  render();
+  pullFreshSources().then(render);
+  window.addEventListener('pageshow', function () { pullFreshSources().then(render); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') pullFreshSources().then(render);
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    // Only the display name is owned here — every other key is read-only
+    // and owned by the page that writes it.
+    window.initCloudSync({ appKey: 'player', syncedKeys: [NAME_KEY, CARD_KEY], onApplied: () => { refreshName(); render(); } });
+  });
+})();
+</script>
+</body>
+</html>

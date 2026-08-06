@@ -1,0 +1,28 @@
+name: Dashboard reminders
+
+# Vercel Cron (Hobby plan) can't fire more than once a day per job, so this
+# lives here instead — GitHub Actions scheduled workflows are free at any
+# frequency on a public repo. All this does is ping the already-deployed
+# /api/send-reminders endpoint every 15 minutes; that endpoint decides
+# whether anything's actually due right now (each item has its own
+# scheduled time, not one shared hourly gate — see api/send-reminders.js).
+#
+# Schedule is UTC */15 during hours 0-5,10-23, i.e. every 15 min from
+# 6am-1am America/New_York during EDT (skipping the 2am-6am dead zone
+# overnight). Drifts an hour for ~2 weeks around DST changes (mid-March,
+# early November) until nudged here — see SETUP.md.
+on:
+  schedule:
+    - cron: '*/15 0,1,2,3,4,5,10,11,12,13,14,15,16,17,18,19,20,21,22,23 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reminders endpoint
+        run: |
+          curl -sS -o response.json -w "HTTP %{http_code}\n" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://fern-dashboard-beryl.vercel.app/api/send-reminders"
+          cat response.json

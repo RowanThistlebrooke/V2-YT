@@ -11,68 +11,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
 
 <style>
-:root {
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --success: #6BE3A4;
-  --warning: #F2C063;
-  --danger:  #FF6B6B;
-  --caf: #C9A36B;
-  --energy: #6BE3A4;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0; background: #050506; color: var(--text-secondary);
-  font-family: var(--font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-body {
-  min-height: 100vh; position: relative; overflow-x: hidden;
-  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
-}
-body::before {
-  content: ''; position: fixed; inset: 0;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(107,227,164,0.12), transparent 45%),
-    radial-gradient(circle at 18% 90%, rgba(201,163,107,0.07), transparent 50%);
-  filter: blur(40px); pointer-events: none; z-index: -2;
-  animation: drift 36s ease-in-out infinite alternate;
-}
-body::after {
-  content: ''; position: fixed; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px; pointer-events: none; z-index: -1;
-}
-@keyframes drift { 0%{transform:translate3d(0,0,0)} 100%{transform:translate3d(-22px,14px,0)} }
-
-.page { max-width: 1100px; margin: 0 auto; }
-.dash-title {
-  margin: 0 0 14px; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
-  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-}
-@media (max-width: 480px) { .dash-title { font-size: 22px; } }
-
-.section { margin-top: 8px; }
-.section-title {
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--text-tertiary); display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
-}
-.section-title::before { content: ''; width: 18px; height: 1px; background: var(--text-tertiary); opacity: 0.6; }
-.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent); }
-
-.gm-card {
-  position: relative; background: rgba(255,255,255,0.04); border-radius: 16px; padding: 20px;
-  margin-bottom: 14px; backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45); overflow: hidden;
-}
-.gm-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-tertiary); }
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+:root { --caf: #C9A36B; --energy: #6BE3A4; --nic: #9B8AFB; }
 
 /* ===== Energy curve hero ===== */
 .energy-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -278,6 +221,34 @@ body::after {
     </div>
   </div>
 
+  <!-- NICOTINE (POUCHES) -->
+  <div class="section">
+    <div class="section-title">Nicotine (Pouches)</div>
+    <div class="gm-card">
+      <div class="daily-top">
+        <span class="daily-num" id="nicDailyNum">0</span>
+        <span class="daily-of">/ <span id="nicDailyCount">0</span> pouches</span>
+        <span class="daily-unit">mg</span>
+        <span class="daily-active" id="nicDailyActive" style="color:var(--nic)"></span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="nicDailyFill" style="width:0%"></div></div>
+      <div class="daily-msg good" id="nicDailyMsg">No pouches logged today.</div>
+
+      <div class="custom-row" style="border-top:0; padding-top:0; margin-top:14px;">
+        <button class="gm-add" type="button" id="nicQuick3">+ Zyn 3 mg (Wintergreen)</button>
+        <button class="gm-add" type="button" id="nicQuick6" style="background:rgba(255,255,255,0.08); color:var(--text-primary); box-shadow:none;">6 mg</button>
+        <button class="gm-add" type="button" id="nicQuick9" style="background:rgba(255,255,255,0.08); color:var(--text-primary); box-shadow:none;">9 mg</button>
+      </div>
+      <div class="custom-row">
+        <input class="gm-input" id="nicCustomName" type="text" placeholder="Custom pouch / brand" autocomplete="off">
+        <input class="gm-input mg-input" id="nicCustomMg" type="number" min="0" step="0.5" placeholder="mg" autocomplete="off">
+        <button class="gm-add" id="nicCustomAdd" type="button">Add</button>
+      </div>
+
+      <ul class="log-list" id="nicLogList" style="margin-top:14px;"></ul>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -331,6 +302,25 @@ body::after {
   function saveJSON(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
   let logs = loadJSON(LOGS_KEY, []);
   let custom = loadJSON(CUSTOM_KEY, []);
+
+  /* ============ Nicotine (pouches) ============ */
+  // Tracked separately from caffeine: nicotine clears roughly 2-3x faster
+  // (~2h half-life vs ~5h for caffeine), so reusing the caffeine decay curve
+  // for it would misrepresent how quickly it actually wears off.
+  const NIC_HALF_LIFE_H = 2, NIC_PEAK_MIN = 20;
+  const NIC_LOGS_KEY='nic:logs', NIC_CUSTOM_KEY='nic:custom';
+  let nicLogs = loadJSON(NIC_LOGS_KEY, []);
+  let nicCustom = loadJSON(NIC_CUSTOM_KEY, []);
+  function nicActiveAt(mg, ts, t) { const hrs=(t-ts)/3600000; return hrs<0?0:mg*Math.pow(0.5,hrs/NIC_HALF_LIFE_H); }
+  function totalNicActiveAt(t) { let s=0; for(const l of nicLogs) s+=nicActiveAt(l.mg,l.ts,t); return s; }
+  function nicMilestones(l) {
+    const peak=l.ts+NIC_PEAK_MIN*60000, half=l.ts+NIC_HALF_LIFE_H*3600000;
+    const clearedH = l.mg>0.3 ? NIC_HALF_LIFE_H*Math.log2(l.mg/0.3) : 0.5;
+    return { peak, half, cleared: l.ts+clearedH*3600000 };
+  }
+  function todaysNicLogs(){ const s=startOfToday(); return nicLogs.filter(l=>l.ts>=s); }
+  function nicDailyTotal(){ const t=todaysNicLogs().reduce((a,l)=>a+l.mg,0); return Math.round(t*10)/10; }
+  function logPouch(item){ nicLogs.push({id:'n'+Date.now()+Math.floor(Math.random()*1000), n:item.n, mg:item.mg, e:item.e||'🟣', ts:Date.now()}); saveJSON(NIC_LOGS_KEY,nicLogs); renderAll(); }
 
   /* ============ Personal data ============ */
   let bodyKg = null, recovery = null;
@@ -543,6 +533,17 @@ body::after {
     if(a.crashSignificant) tips.push(['🚶','Beat the '+fmtClock(a.crashT)+' dip with 10 min of daylight + water instead of another coffee — you\'ll avoid stacking a late crash.']);
     tips.push(['💧','Drink a glass of water per caffeinated drink — dehydration mimics and worsens the crash.']);
     if(recovery!=null && recovery<34) tips.push(['🔋','WHOOP recovery is '+recovery+'% — low. Caffeine masks fatigue but won\'t repay sleep debt; keep today under '+dailyLimit()+' mg.']);
+
+    const nicToday = nicDailyTotal();
+    if(nicToday>0){
+      const nicActiveNow = totalNicActiveAt(Date.now());
+      const cafActiveNow = totalActiveAt(Date.now());
+      if(nicActiveNow>1 && cafActiveNow>50) tips.push(['🌀','Caffeine and nicotine are both active right now — stacking the two raises heart rate and can tip you into jitteriness or anxiety faster than either alone would.']);
+      tips.push(['🚭','Nicotine\'s "focus" hit is mostly it reversing your own withdrawal, not a true performance boost — tolerance builds within hours, so each pouch does a little less than the last. It also constricts blood vessels and raises resting heart rate/blood pressure, which can blunt endurance or cardio output.']);
+      const hoursToBed = ((bedHour - nowHour()) + 24) % 24;
+      if(hoursToBed < 2) tips.push(['🌙','Nicotine is a stimulant too — a pouch within ~2 hours of bed can fragment sleep the same way a late coffee would.']);
+    }
+
     const ul=$('tips'); ul.innerHTML='';
     tips.forEach(([ic,txt])=>{ const li=document.createElement('li'); li.className='tip'; li.innerHTML='<span class="ic">'+ic+'</span><span>'+txt+'</span>'; ul.appendChild(li); });
   }
@@ -582,7 +583,43 @@ body::after {
     });
   }
 
-  function renderAll(){ renderRing(); renderChart(); renderPlan(); renderDaily(); renderLog(); }
+  function renderNicDaily(){
+    const count = todaysNicLogs().length, totalMg = nicDailyTotal();
+    $('nicDailyNum').textContent = totalMg;
+    $('nicDailyCount').textContent = count;
+    const activeNow = totalNicActiveAt(Date.now());
+    $('nicDailyActive').textContent = activeNow>=0.1 ? (Math.round(activeNow*10)/10+' mg active now') : '';
+    const refCeiling = 15; // soft visual reference, not a medical limit
+    const pct = Math.min(100, (totalMg/refCeiling)*100);
+    const fill = $('nicDailyFill'); fill.style.width = pct+'%';
+    fill.style.background = totalMg>=refCeiling ? 'linear-gradient(90deg,#FF6B6B,#F2807A)' : 'linear-gradient(90deg,#9B8AFB,#C4B8FF)';
+    const msg = $('nicDailyMsg'); msg.className='daily-msg';
+    if(count===0){ msg.classList.add('good'); msg.textContent='No pouches logged today.'; }
+    else { msg.classList.add(totalMg>=refCeiling?'warn':'good'); msg.textContent = count+' pouch'+(count===1?'':'es')+' so far ('+totalMg+' mg total).'; }
+  }
+
+  function renderNicLog(){
+    const list=$('nicLogList'); const tl=todaysNicLogs().slice().sort((a,b)=>b.ts-a.ts); list.innerHTML='';
+    if(tl.length===0){ const li=document.createElement('li'); li.className='empty-state'; li.textContent='No pouches logged today.'; list.appendChild(li); return; }
+    tl.forEach(l=>{
+      const m=nicMilestones(l); const li=document.createElement('li'); li.className='log-row';
+      li.innerHTML='<span class="log-emoji">'+(l.e||'🟣')+'</span><div class="log-main"><div class="log-name">'+escapeHtml(l.n)+'<b>'+l.mg+' mg</b></div>'
+        +'<div class="log-meta">Peaks ~'+fmtTime(m.peak)+'<span class="sep">•</span>Half gone '+fmtTime(m.half)+'</div></div>'
+        +'<span class="log-time">'+fmtTime(l.ts)+'</span><button class="log-del" type="button" aria-label="Delete">×</button>';
+      li.querySelector('.log-del').addEventListener('click',()=>{ nicLogs=nicLogs.filter(x=>x.id!==l.id); saveJSON(NIC_LOGS_KEY,nicLogs); renderAll(); });
+      list.appendChild(li);
+    });
+  }
+
+  function addNicCustom(){
+    const name=$('nicCustomName').value.trim(); const mg=parseFloat($('nicCustomMg').value);
+    if(!name||!(mg>=0)) return;
+    nicCustom.push({n:name,mg:mg}); saveJSON(NIC_CUSTOM_KEY,nicCustom);
+    logPouch({n:name, mg:mg, e:'🟣'});
+    $('nicCustomName').value=''; $('nicCustomMg').value='';
+  }
+
+  function renderAll(){ renderRing(); renderChart(); renderPlan(); renderDaily(); renderLog(); renderNicDaily(); renderNicLog(); }
 
   /* ============ Logging / search / custom ============ */
   function logDrink(item){ logs.push({id:'c'+Date.now()+Math.floor(Math.random()*1000), n:item.n, mg:Math.round(item.mg), e:item.e||'☕', ts:Date.now()}); saveJSON(LOGS_KEY,logs); renderAll(); }
@@ -624,6 +661,12 @@ body::after {
   $('customAdd').addEventListener('click',addCustom);
   $('customMg').addEventListener('keydown',(e)=>{ if(e.key==='Enter') addCustom(); });
 
+  $('nicQuick3').addEventListener('click',()=>logPouch({n:'Zyn 3 mg (Wintergreen)', mg:3, e:'🧊'}));
+  $('nicQuick6').addEventListener('click',()=>logPouch({n:'Zyn 6 mg (Wintergreen)', mg:6, e:'🧊'}));
+  $('nicQuick9').addEventListener('click',()=>logPouch({n:'Zyn 9 mg (Wintergreen)', mg:9, e:'🧊'}));
+  $('nicCustomAdd').addEventListener('click',addNicCustom);
+  $('nicCustomMg').addEventListener('keydown',(e)=>{ if(e.key==='Enter') addNicCustom(); });
+
   readProfile();
   renderResults('');
   renderAll();
@@ -631,10 +674,19 @@ body::after {
   setInterval(()=>{ if(scrubT==null) renderAll(); }, 60000);
 
   /* ============ Cloud sync ============ */
-  if(window.initCloudSync){
-    window.initCloudSync({ appKey:'caffeine', syncedKeys:[LOGS_KEY,CUSTOM_KEY],
-      onApplied:function(){ logs=loadJSON(LOGS_KEY,[]); custom=loadJSON(CUSTOM_KEY,[]); renderResults($('search').value); renderAll(); } });
-  }
+  // Deferred until DOMContentLoaded: sync.js is loaded with `defer`, so it
+  // hasn't run yet at the point this inline script executes during parsing
+  // — checking window.initCloudSync synchronously here would always find
+  // it undefined and silently skip sync setup entirely.
+  document.addEventListener('DOMContentLoaded', function(){
+    if(!window.initCloudSync) return;
+    window.initCloudSync({ appKey:'caffeine', syncedKeys:[LOGS_KEY,CUSTOM_KEY,NIC_LOGS_KEY,NIC_CUSTOM_KEY],
+      onApplied:function(){
+        logs=loadJSON(LOGS_KEY,[]); custom=loadJSON(CUSTOM_KEY,[]);
+        nicLogs=loadJSON(NIC_LOGS_KEY,[]); nicCustom=loadJSON(NIC_CUSTOM_KEY,[]);
+        renderResults($('search').value); renderAll();
+      } });
+  });
 })();
 </script>
 </body>

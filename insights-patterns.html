@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Patterns & Limiters · Insights</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.limiter-headline { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.limiter-detail { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; margin-bottom: 10px; }
+.limiter-fix {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+  padding: 12px 14px; border-radius: 10px;
+  background: rgba(var(--hud-rgb), 0.06); border: 1px solid var(--hud-line);
+}
+
+/* ---- Tornado / diverging bar chart ---- */
+.tornado-row {
+  display: grid; grid-template-columns: 1fr 168px 1fr;
+  align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.tornado-row:last-child { margin-bottom: 0; }
+.tornado-side { display: flex; align-items: center; height: 20px; }
+.tornado-neg { justify-content: flex-end; }
+.tornado-pos { justify-content: flex-start; }
+.tornado-bar { height: 100%; min-width: 3px; }
+.tornado-bar.neg { background: var(--danger); border-radius: 5px 0 0 5px; }
+.tornado-bar.pos { background: var(--success); border-radius: 0 5px 5px 0; }
+.tornado-value {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  white-space: nowrap; padding: 0 6px;
+}
+.tornado-value.neg { color: var(--danger); }
+.tornado-value.pos { color: var(--success); }
+.tornado-label {
+  text-align: center; font-size: 12px; color: var(--text-secondary);
+  line-height: 1.3; padding: 0 2px;
+}
+.tornado-label b { color: var(--text-primary); font-weight: 700; }
+.tornado-sub { display: block; font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+.tornado-axis {
+  display: grid; grid-template-columns: 1fr 168px 1fr;
+  margin-bottom: 14px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary);
+}
+.tornado-axis-neg { text-align: right; color: var(--danger); opacity: 0.75; }
+.tornado-axis-pos { text-align: left; color: var(--success); opacity: 0.75; }
+.tornado-axis-mid { text-align: center; }
+
+@media (max-width: 480px) {
+  .tornado-row, .tornado-axis { grid-template-columns: 1fr 120px 1fr; }
+  .tornado-value { font-size: 10px; padding: 0 3px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-insights.html">← Insights</a>
+  <h1 class="dash-title">Patterns & Limiters</h1>
+
+  <div class="section">
+    <div class="section-title">Biggest Limiter</div>
+    <div class="gm-card" id="limiterCard">
+      <div class="limiter-headline" id="limiterHeadline">Gathering data…</div>
+      <div class="limiter-detail" id="limiterDetail"></div>
+      <div class="limiter-fix" id="limiterFix" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Everything that moves the needle</div>
+    <div class="gm-card">
+      <div class="tornado-axis">
+        <span class="tornado-axis-neg">← drags you down</span>
+        <span class="tornado-axis-mid"></span>
+        <span class="tornado-axis-pos">lifts you up →</span>
+      </div>
+      <div id="tornadoChart"></div>
+      <div class="empty-state" id="tornadoEmpty" style="display:none">Not enough history yet to spot a real pattern — check back after a few more weeks of logging.</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { dateKeyFromDate, lastNDateKeys, buildDayRows } from './correlation-lab.js';
+
+(function () {
+  'use strict';
+
+  // ============================================================
+  // Same shared day-level dataset + bucket-comparison engine as the rest of
+  // the Insights suite. This page merges what used to be two separate stacked
+  // sections (Biggest Limiter + Patterns) into one: a hero callout for the
+  // single worst limiter, and a full diverging "tornado" chart of every
+  // factor that clears the meaningful-difference bar, ranked by effect
+  // size instead of a couple of hand-picked bullet sentences.
+  // ============================================================
+
+  const WINDOW_DAYS = 60;
+  const MIN_SAMPLES = 5;
+  const MEANINGFUL_DIFF = 0.4;
+  const TORNADO_MAX_DIFF = 2.5; // effect size that fills the bar to 100%
+
+  function avg(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+
+  const FACTOR_LABELS = {
+    goodSleepQuality: 'good sleep quality (4-5/5)',
+    poorSleepQuality: 'poor sleep quality (1-2/5)',
+    lowSleepHours: 'under 6.5 hours of sleep',
+    workoutDone: 'a workout day',
+    lateCaffeine: 'caffeine at/after 2pm',
+    highHabitRate: 'high habit completion (80%+)',
+    lowHabitRate: 'low habit completion (under 50%)',
+    highTodoRate: 'high to-do completion (80%+)',
+    lowTodoRate: 'low to-do completion (under 40%)',
+  };
+
+  const FACTOR_FIXES = {
+    goodSleepQuality: 'Sleep quality is doing more for how you feel than almost anything else tracked here — worth protecting first.',
+    poorSleepQuality: 'Poor-sleep nights are dragging your days down — worth treating your wind-down routine as non-negotiable.',
+    lowSleepHours: 'Nights under 6.5 hours show up clearly the next day — worth protecting more sleep time.',
+    workoutDone: 'Workout days are consistently better days for you — worth prioritizing even a short session on rough weeks.',
+    lateCaffeine: 'Caffeine at/after 2pm shows up in how you feel — worth cutting it off earlier in the day.',
+    highHabitRate: 'Staying on top of your habits correlates with real days-feel-better outcomes, not just a streak number.',
+    lowHabitRate: 'Days you fall behind on habits tend to be rougher days.',
+    highTodoRate: 'Getting through your to-do list correlates with feeling better, not just being "productive."',
+    lowTodoRate: 'Days with a lot left undone on your list tend to be harder days.',
+  };
+
+  function computeFactorEffect(dayRows, factorKey, outcomeKey) {
+    const withF = [], withoutF = [];
+    dayRows.forEach(d => {
+      const f = d.factors[factorKey], o = d[outcomeKey];
+      if (f == null || o == null) return;
+      (f ? withF : withoutF).push(o);
+    });
+    if (withF.length < MIN_SAMPLES || withoutF.length < MIN_SAMPLES) return null;
+    const avgWith = avg(withF), avgWithout = avg(withoutF);
+    const rawDiff = avgWith - avgWithout;
+    const goodnessDiff = outcomeKey === 'outcomeStress' ? -rawDiff : rawDiff;
+    return {
+      factorKey, outcome: outcomeKey === 'outcomeStress' ? 'stress' : 'feeling',
+      avgWith, avgWithout, goodnessDiff, nWith: withF.length, nWithout: withoutF.length,
+    };
+  }
+
+  function computeAllEffects(dayRows) {
+    const results = [];
+    Object.keys(FACTOR_LABELS).forEach(factorKey => {
+      ['outcomeFeeling', 'outcomeStress'].forEach(outcomeKey => {
+        const effect = computeFactorEffect(dayRows, factorKey, outcomeKey);
+        if (effect && Math.abs(effect.goodnessDiff) >= MEANINGFUL_DIFF) results.push(effect);
+      });
+    });
+    results.sort((a, b) => Math.abs(b.goodnessDiff) - Math.abs(a.goodnessDiff));
+    return results;
+  }
+
+  function computeBottleneck(dayRows) {
+    const effects = computeAllEffects(dayRows);
+    const negative = effects.filter(e => e.goodnessDiff < 0);
+    return negative.length ? negative[0] : null;
+  }
+
+  window.__insightsPatternsLogic = {
+    dateKeyFromDate, lastNDateKeys, buildDayRows, computeFactorEffect, computeAllEffects, computeBottleneck,
+    FACTOR_LABELS, FACTOR_FIXES, WINDOW_DAYS, MIN_SAMPLES, MEANINGFUL_DIFF,
+  };
+
+  // ---- Rendering ----
+  function describeEffect(effect) {
+    const label = FACTOR_LABELS[effect.factorKey];
+    const outcomeName = effect.outcome === 'stress' ? 'stress' : 'feeling';
+    return 'On days with ' + label + ', your ' + outcomeName + ' averaged '
+      + effect.avgWith.toFixed(1) + '/5 vs ' + effect.avgWithout.toFixed(1) + '/5 without ('
+      + effect.nWith + ' vs ' + effect.nWithout + ' days).';
+  }
+
+  function renderLimiter(dayRows) {
+    const headline = document.getElementById('limiterHeadline');
+    const detail = document.getElementById('limiterDetail');
+    const fix = document.getElementById('limiterFix');
+    const bottleneck = computeBottleneck(dayRows);
+    if (!bottleneck) {
+      headline.textContent = 'No clear limiter yet';
+      detail.textContent = 'Nothing tracked is dragging your days down by a meaningful amount right now — or there just isn\'t enough history yet (needs at least 5 days on each side of a comparison).';
+      fix.style.display = 'none';
+      return;
+    }
+    headline.textContent = 'Biggest limiter: ' + FACTOR_LABELS[bottleneck.factorKey];
+    detail.textContent = describeEffect(bottleneck);
+    const fixText = FACTOR_FIXES[bottleneck.factorKey];
+    if (fixText) { fix.textContent = '💡 ' + fixText; fix.style.display = 'block'; }
+    else { fix.style.display = 'none'; }
+  }
+
+  function renderTornado(dayRows) {
+    const chartEl = document.getElementById('tornadoChart');
+    const emptyEl = document.getElementById('tornadoEmpty');
+    const effects = computeAllEffects(dayRows);
+    chartEl.innerHTML = '';
+    if (!effects.length) { emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+
+    effects.forEach(e => {
+      const pct = Math.max(4, Math.min(100, (Math.abs(e.goodnessDiff) / TORNADO_MAX_DIFF) * 100));
+      const isPos = e.goodnessDiff > 0;
+      const row = document.createElement('div');
+      row.className = 'tornado-row';
+
+      const negSide = document.createElement('div');
+      negSide.className = 'tornado-side tornado-neg';
+      if (!isPos) {
+        const val = document.createElement('span');
+        val.className = 'tornado-value neg';
+        val.textContent = e.goodnessDiff.toFixed(1);
+        const bar = document.createElement('div');
+        bar.className = 'tornado-bar neg';
+        bar.style.width = pct + '%';
+        negSide.appendChild(val);
+        negSide.appendChild(bar);
+      }
+      row.appendChild(negSide);
+
+      const label = document.createElement('div');
+      label.className = 'tornado-label';
+      label.innerHTML = '<b>' + FACTOR_LABELS[e.factorKey] + '</b><span class="tornado-sub">vs ' + e.outcome + '</span>';
+      row.appendChild(label);
+
+      const posSide = document.createElement('div');
+      posSide.className = 'tornado-side tornado-pos';
+      if (isPos) {
+        const bar = document.createElement('div');
+        bar.className = 'tornado-bar pos';
+        bar.style.width = pct + '%';
+        const val = document.createElement('span');
+        val.className = 'tornado-value pos';
+        val.textContent = '+' + e.goodnessDiff.toFixed(1);
+        posSide.appendChild(bar);
+        posSide.appendChild(val);
+      }
+      row.appendChild(posSide);
+
+      chartEl.appendChild(row);
+    });
+  }
+
+  // ---- Wiring ----
+  const SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+  async function loadAndRender() {
+    if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+      document.getElementById('limiterHeadline').textContent = 'Cloud sync isn\'t configured on this device.';
+      return;
+    }
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+      });
+      if (!res.ok) throw new Error('fetch failed: ' + res.status);
+      const rows = await res.json();
+      const rowsByKey = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.key) rowsByKey[r.key] = r.data; });
+      const dateKeys = lastNDateKeys(WINDOW_DAYS);
+      const dayRows = buildDayRows(rowsByKey, dateKeys);
+      renderLimiter(dayRows);
+      renderTornado(dayRows);
+    } catch (e) {
+      document.getElementById('limiterHeadline').textContent = "Couldn't load your data — check your connection.";
+    }
+  }
+
+  loadAndRender();
+})();
+</script>
+</body>
+</html>

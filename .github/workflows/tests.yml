@@ -1,0 +1,21 @@
+name: Tests
+
+# Runs the Node test suite (tests/test_*.mjs — pure logic + serverless
+# function tests, no browser needed) on every push and PR so a regression in
+# api/*.js or the extracted gym.html config/migration logic is caught
+# automatically instead of relying on someone remembering to re-run tests by
+# hand. See tests/run-all.mjs for the aggregator these all run through.
+on:
+  push:
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm test

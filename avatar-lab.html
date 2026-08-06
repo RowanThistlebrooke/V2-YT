@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Avatar Lab · Nova</title>
+<link rel="stylesheet" href="design-system.css">
+<script src="topbar.js" defer></script>
 <!-- ============================================================
  * AVATAR LAB — local playground for the Nova avatar.
  * Pick colors, try 5 designs, preview idle / thinking / happy,
@@ -19,7 +21,7 @@
   --bg: #05060c; --fg: #e9ecf5; --muted: rgba(233,236,245,.55); --line: rgba(255,255,255,.1);
 }
 html, body { background: var(--bg); }
-body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--fg); min-height: 100vh; }
+body { padding: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--fg); min-height: 100vh; }
 
 .shell { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
 header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }

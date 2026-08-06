@@ -6,319 +6,228 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
-<title>Dashboard</title>
+<title>Command Center · Dashboard</title>
 
+<link rel="stylesheet" href="design-system.css">
+<link rel="stylesheet" href="command-center.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
+<script type="module" src="command-center.js"></script>
 
 <style>
-/* ===== Shared design tokens (same as the rest of the dashboard) ===== */
-:root {
-  --text-primary: #FAFAFA;
-  --text-secondary: #B8B6B0;
-  --text-tertiary: #76746E;
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  background: #050506;
-  color: var(--text-secondary);
-  font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-body {
-  min-height: 100vh; position: relative; overflow-x: hidden;
-  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
-}
-/* Soft drifting glow + dot texture (matches the other pages). */
-body::before {
-  content: ''; position: fixed; inset: 0;
-  background:
-    radial-gradient(circle at 82% 14%, rgba(224,118,88,0.16), transparent 45%),
-    radial-gradient(circle at 18% 90%, rgba(180,180,200,0.06), transparent 50%);
-  filter: blur(40px); pointer-events: none; z-index: -2;
-  animation: drift 36s ease-in-out infinite alternate;
-}
-body::after {
-  content: ''; position: fixed; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
-  background-size: 3px 3px; pointer-events: none; z-index: -1;
-}
-@keyframes drift { 0%{transform:translate3d(0,0,0)} 100%{transform:translate3d(-22px,14px,0)} }
-
-.page { max-width: 1100px; margin: 0 auto; }
-.dash-title {
-  margin: 0 0 18px; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
-  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-}
-@media (max-width: 480px) { .dash-title { font-size: 22px; } }
-
-/* ===== BENTO GRID ===== */
-.bento {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: 168px;
-  grid-auto-flow: dense;
-  gap: 14px;
-}
-.tile {
-  --accent: #6BE3A4;                 /* each tile overrides this */
-  position: relative; overflow: hidden;
-  display: flex; flex-direction: column;
-  padding: 20px;
-  border-radius: 18px;
-  text-decoration: none;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-}
-/* The "its own style" bit — a faint accent glow per tile. */
-.tile::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(circle at 78% 18%,
-              color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%);
-  opacity: 0.7; transition: opacity 0.18s ease;
-}
-.tile:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.55);
-}
-.tile:hover::before { opacity: 1; }
-
-/* Tile sizes */
-.tile.big  { grid-column: span 2; grid-row: span 2; }
-.tile.wide { grid-column: span 2; }
-
-/* Tile contents */
-.tile-top { display: flex; align-items: flex-start; justify-content: space-between; }
-.tile-num {
-  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
-  letter-spacing: 0.08em; color: var(--text-tertiary);
-}
-.tile-emoji {
-  font-size: 26px; line-height: 1;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 60%, transparent));
-}
-.tile-spacer { flex: 1; }
-.tile-title {
-  font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
-  color: var(--text-primary); margin: 0 0 4px;
-}
-.tile.big .tile-title { font-size: 28px; }
-.tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.tile-sub {
-  font-size: 13px; color: var(--text-tertiary);
-}
-.tile-arrow {
-  font-size: 18px; color: var(--accent);
-  transition: transform 0.18s ease; flex-shrink: 0;
-}
-.tile:hover .tile-arrow { transform: translateX(4px); }
-
-/* ===== Responsive: collapse the bento on small screens ===== */
-@media (max-width: 720px) {
-  .bento { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
-  .tile.big { grid-column: span 2; grid-row: span 1; }
-  .tile.big .tile-title { font-size: 22px; }
-}
-@media (max-width: 440px) {
-  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
-  .bento { grid-template-columns: 1fr; grid-auto-rows: 132px; }
-  .tile.big, .tile.wide { grid-column: span 1; }
-}
-
-/* ===== Header row + gear ===== */
+/* Page-specific only — shared tokens/components now live in design-system.css. */
 .hub-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .hub-head .dash-title { margin: 0; }
 .gear-btn {
   width: 42px; height: 42px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 12px; border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.04); color: var(--text-secondary);
-  cursor: pointer; transition: background 0.15s, color 0.15s, transform 0.1s;
+  border-radius: 12px; border: 1px solid var(--hud-line);
+  background: rgba(var(--hud-rgb), 0.05); color: var(--text-secondary);
+  cursor: pointer; transition: background 0.15s, color 0.15s, transform 0.1s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.gear-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.gear-btn:hover { background: rgba(var(--hud-rgb), 0.12); color: var(--hud); border-color: var(--hud-dim); }
 .gear-btn:active { transform: scale(0.94) rotate(35deg); }
 .gear-btn svg { width: 22px; height: 22px; }
 
-/* ===== Settings modal ===== */
-.modal-bg {
-  position: fixed; inset: 0; z-index: 120; display: none;
-  align-items: center; justify-content: center; padding: 20px;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+/* ===== Today Score ===== */
+.score-card {
+  display: none; margin: 0 0 18px; padding: 22px 24px;
+  border-radius: 16px; background: rgba(10, 22, 30, 0.55);
+  border: 1px solid var(--hud-line-soft);
+  backdrop-filter: blur(24px) saturate(1.3); -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  align-items: center; gap: 22px;
 }
-.modal-bg.show { display: flex; }
-.modal {
-  width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto;
-  background: #0e0e10; border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 18px; padding: 22px; box-shadow: 0 24px 70px rgba(0,0,0,0.6);
+.score-card.show { display: flex; }
+/* The Today Score gets the "arc reactor" ring treatment — the single
+   most Jarvis-coded number on the dashboard. */
+.score-card .hud-ring { width: 108px; height: 108px; }
+.score-num {
+  display: block;
+  font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+  font-variant-numeric: tabular-nums; font-family: var(--font-mono);
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--hud) 140%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  text-shadow: 0 0 24px rgba(var(--hud-rgb), 0.25);
 }
-.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-.modal-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
-.modal-close { border: 0; background: transparent; color: var(--text-tertiary); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
-.modal-close:hover { color: var(--text-primary); }
-.field { margin-bottom: 14px; }
-.field-label { font-size: 11px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 7px; display: block; }
-.field-row { display: flex; gap: 8px; align-items: center; }
-.set-input {
-  flex: 1; min-width: 0; padding: 11px 13px;
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 11px;
-  background: rgba(0,0,0,0.3); color: var(--text-primary);
-  font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.2s;
+.score-max { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--text-tertiary); }
+.score-body { min-width: 0; flex: 1; }
+.score-tier { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+.score-breakdown { font-size: 12.5px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .score-card { flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 18px; }
+  .score-breakdown { white-space: normal; }
 }
-.set-input:focus { border-color: rgba(255,255,255,0.28); }
-.seg { display: inline-flex; border: 1px solid rgba(255,255,255,0.10); border-radius: 11px; overflow: hidden; flex-shrink: 0; }
-.seg button { border: 0; background: transparent; color: var(--text-tertiary); font-family: inherit; font-size: 13px; font-weight: 600; padding: 11px 14px; cursor: pointer; transition: background 0.15s, color 0.15s; }
-.seg button.on { background: rgba(255,255,255,0.12); color: var(--text-primary); }
-.set-save {
-  width: 100%; margin-top: 6px; padding: 13px; border: 0; border-radius: 12px;
-  background: linear-gradient(180deg,#FFFFFF,#E8E5DD); color: #0A0A0B;
-  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 22px rgba(0,0,0,0.25);
-  transition: filter 0.15s, transform 0.1s;
+
+/* ===== Player Card strip =====
+   Reads the small cached summary player.html writes on each render, so the
+   home screen shows a live OVR/level without duplicating that whole
+   rating engine here. */
+.player-strip {
+  display: flex; align-items: center; gap: 16px; margin: 0 0 18px; padding: 14px 18px;
+  border-radius: 16px; text-decoration: none;
+  background: linear-gradient(135deg, rgba(232,200,122,0.13) 0%, rgba(232,200,122,0.04) 100%);
+  border: 1px solid rgba(232,200,122,0.28);
+  transition: border-color 0.2s, transform 0.1s;
 }
-.set-save:hover { filter: brightness(1.05); }
-.set-save:active { transform: translateY(1px); }
-.set-status { text-align: center; font-size: 12px; color: var(--success); min-height: 16px; margin-top: 8px; }
-.section-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 20px 0 14px; }
-.whoop-box { margin-top: 8px; padding: 16px; border-radius: 14px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); }
+.player-strip:hover { border-color: rgba(232,200,122,0.5); transform: translateY(-1px); }
+.ps-ovr {
+  font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: #E8C87A;
+  font-variant-numeric: tabular-nums; min-width: 46px;
+}
+.ps-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ps-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.ps-sub { font-size: 11.5px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-lvl { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.ps-lvl-k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.14em; color: rgba(232,200,122,0.75); }
+.ps-lvl-v { font-size: 18px; font-weight: 800; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.ps-arrow { color: var(--text-tertiary); font-size: 15px; }
+
+.whoop-box { margin-top: 8px; padding: 16px; border-radius: 12px; background: rgba(var(--hud-rgb), 0.035); border: 1px solid var(--hud-line-soft); }
 .whoop-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .whoop-status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.whoop-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #76746E; }
-.whoop-status.on .dot { background: #6BE3A4; box-shadow: 0 0 8px rgba(107,227,164,0.7); }
+.whoop-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-tertiary); }
+.whoop-status.on .dot { background: var(--success); box-shadow: 0 0 8px rgba(63,224,168,0.7); }
 .whoop-sync { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); text-align: right; }
 .whoop-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 14px; }
 .whoop-stat { text-align: center; }
-.whoop-stat .v { font-size: 20px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+.whoop-stat .v { font-size: 20px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; font-family: var(--font-mono); line-height: 1; }
 .whoop-stat .l { font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-top: 5px; }
-.whoop-btn { width: 100%; margin-top: 14px; padding: 11px; border: 1px solid rgba(255,255,255,0.12); border-radius: 11px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 0.15s, color 0.15s; }
-.whoop-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+.whoop-btn { width: 100%; margin-top: 14px; padding: 11px; border: 1px solid var(--hud-line); border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.whoop-btn:hover { background: rgba(var(--hud-rgb), 0.08); color: var(--hud); }
 </style>
 </head>
 <body>
-<div class="page">
+<main class="page cc-page">
+  <header class="cc-header">
+    <div>
+      <div class="cc-kicker" id="ccKicker">Command Center · Online</div>
+      <h1 class="cc-greeting" id="ccGreeting">Good day, Fernando</h1>
+      <div class="cc-status"><span class="hud-pulse-dot"></span><span id="ccSystemText" aria-live="polite">Reading your systems…</span></div>
+    </div>
+    <div class="cc-header-right">
+      <div class="cc-syncinfo"><span class="cc-sync-label">Last sync</span><span class="cc-sync-value" id="ccLastSync">—</span></div>
+      <div class="cc-header-actions">
+        <button class="cc-icon-btn" id="ccCommandOpen" data-command-open type="button" aria-label="Open command bar" title="Search · ⌘K">⌘K</button>
+        <button class="cc-focus-btn" data-focus-open type="button" aria-label="Enter Focus Mode"><span>◎</span><span>Focus</span></button>
+        <button class="gear-btn" id="settingsOpen" type="button" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
 
-  <div class="hub-head">
-    <h1 class="dash-title">Rowans Dashboard</h1>
-    <button class="gear-btn" id="settingsOpen" type="button" aria-label="Settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    </button>
+  <div class="cc-grid">
+    <aside class="cc-rail cc-rail-left" id="ccRailLeft">
+      <section class="cc-section" aria-labelledby="ccScheduleLabel" id="ccScheduleSection">
+        <div class="cc-section-head" id="ccScheduleLabel">Schedule</div>
+        <div class="cc-strip" id="ccSchedule"></div>
+      </section>
+
+      <section class="cc-section" aria-labelledby="ccSignalsLabel" id="ccSignalsSection">
+        <div class="cc-section-head" id="ccSignalsLabel">Signals</div>
+        <div class="cc-signals" id="ccSignals"></div>
+      </section>
+
+      <section class="cc-browse" aria-labelledby="ccBrowseLabel" id="ccBrowseSection">
+        <div class="cc-section-head" id="ccBrowseLabel">Browse</div>
+        <a class="player-strip" href="player.html" id="playerStrip">
+          <span class="ps-ovr" id="psOvr">—</span><span class="ps-body"><span class="ps-title">Player Card</span><span class="ps-sub" id="psSub">Tap to build your rating</span></span><span class="ps-lvl"><span class="ps-lvl-k">LVL</span><span class="ps-lvl-v" id="psLvl">1</span></span><span class="ps-arrow">→</span>
+        </a>
+        <div class="cc-browse-list">
+          <a class="cc-browse-item" href="hub-today.html" style="--accent:#6BE3A4"><span class="cc-browse-icon">🏠</span><span class="cc-browse-body"><b>Today</b><small>Main & Fitness</small></span><span class="cc-row-arrow">→</span></a>
+          <a class="cc-browse-item" href="hub-body.html" style="--accent:#C4B5FD"><span class="cc-browse-icon">⚡</span><span class="cc-browse-body"><b>Body</b><small>Health, Water, Caffeine, Peak, Sleep, Recovery</small></span><span class="cc-row-arrow">→</span></a>
+          <a class="cc-browse-item" href="hub-money.html" style="--accent:#F2C063"><span class="cc-browse-icon">💰</span><span class="cc-browse-body"><b>Money & Growth</b><small>Finance, Businesses, Learning</small></span><span class="cc-row-arrow">→</span></a>
+          <a class="cc-browse-item" href="hub-reflect.html" style="--accent:#A78BFA"><span class="cc-browse-icon">🪞</span><span class="cc-browse-body"><b>Reflect</b><small>Nova, Notes, Review</small></span><span class="cc-row-arrow">→</span></a>
+          <a class="cc-browse-item" href="hub-insights.html" style="--accent:#22D3F5"><span class="cc-browse-icon">🧭</span><span class="cc-browse-body"><b>Insights</b><small>Patterns, mode, triggers, drift, adherence</small></span><span class="cc-row-arrow">→</span></a>
+        </div>
+      </section>
+    </aside>
+
+    <div class="cc-main">
+      <div class="score-card cc-ai-core gm-card" id="scoreCard">
+        <div class="cc-core-tabs" role="tablist" aria-label="AI Core view">
+          <button type="button" class="cc-core-tab is-active" id="coreTabToday" role="tab" aria-selected="true" aria-controls="coreTodayPanel">Today</button>
+          <button type="button" class="cc-core-tab" id="coreTabJarvis" role="tab" aria-selected="false" aria-controls="coreJarvisPanel">Jarvis</button>
+        </div>
+        <div class="cc-core-panel" id="coreTodayPanel" role="tabpanel" aria-labelledby="coreTabToday">
+          <div class="cc-core-label">AI Core</div>
+          <div class="hud-ring" id="scoreRing" style="--ring-pct:0">
+            <div class="hud-ring-track"></div>
+            <div class="cc-core-globe" aria-hidden="true"></div>
+            <div class="hud-ring-value"><span class="score-num" id="scoreNum">—</span><span class="score-max">/100</span></div>
+          </div>
+          <div class="score-body"><div class="score-tier" id="scoreTier">Systems ready</div><div class="score-breakdown" id="scoreBreakdown">Building today’s picture…</div></div>
+          <div class="cc-core-trace" id="scoreTrace"></div>
+        </div>
+        <div class="cc-core-panel" id="coreJarvisPanel" role="tabpanel" aria-labelledby="coreTabJarvis" hidden>
+          <div class="cc-core-label">AI Core · Jarvis</div>
+          <div class="cc-jarvis-mic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/>
+            </svg>
+          </div>
+          <div class="score-body"><div class="score-tier">Voice mode — coming soon</div><div class="score-breakdown">Talk to your dashboard the way you already text it on Telegram.</div></div>
+          <button type="button" class="cc-secondary-btn cc-jarvis-btn" disabled>◌ Tap to talk</button>
+        </div>
+      </div>
+
+      <article class="gm-card cc-action" id="ccAction" aria-live="polite">
+        <div class="cc-action-top"><span class="cc-action-eyebrow" id="ccActionEyebrow">Recommended next action</span><span class="cc-action-badge">One priority</span></div>
+        <h2 class="cc-action-title" id="ccActionTitle">Reading today’s plan…</h2>
+        <p class="cc-action-reason" id="ccActionReason">Finding the clearest next move from your existing goals.</p>
+        <div class="cc-action-buttons"><button class="cc-primary-btn" id="ccActionDone" type="button">Mark complete</button><a class="cc-secondary-btn" href="main.html">Open today</a></div>
+      </article>
+
+      <section class="gm-card cc-brief" aria-labelledby="ccBriefLabel" aria-live="polite">
+        <div class="cc-brief-top">
+          <div><span class="cc-brief-kicker" id="ccBriefLabel">AI Daily Brief</span><span class="cc-brief-period" id="ccBriefPeriod">Daily briefing</span></div>
+          <span class="cc-brief-confidence" id="ccBriefConfidence">Building context</span>
+        </div>
+        <div class="cc-brief-copy">
+          <h2 id="ccBriefTitle">Connecting today’s signals…</h2>
+          <p id="ccBriefSummary">Your brief will update automatically as your dashboard changes.</p>
+        </div>
+        <div class="cc-brief-items" id="ccBriefItems"></div>
+        <div class="cc-brief-foot"><span class="hud-pulse-dot"></span><span>Built privately from data already in your dashboard</span></div>
+      </section>
+
+      <aside class="cc-insight"><span class="cc-insight-icon">⚡</span><span id="ccInsightText">Connecting the signals that already exist across your dashboard…</span></aside>
+    </div>
+
+    <aside class="cc-rail cc-rail-right" id="ccRailRight">
+      <article class="gm-card cc-panel" id="ccAlertsPanel">
+        <div class="cc-section-head">Alerts <span class="cc-section-count" id="ccAlertCount">0</span></div>
+        <div class="cc-panel-list" id="ccAlerts"></div>
+      </article>
+      <article class="gm-card cc-panel" id="ccConsolePanel">
+        <div class="cc-section-head">Recent activity</div>
+        <div class="cc-panel-list" id="ccActivity"></div>
+      </article>
+    </aside>
   </div>
 
-  <div class="bento">
+  <button class="cc-cmdbar-trigger" type="button" data-command-open id="ccCmdBarBottom" aria-label="Open command bar">
+    <span class="cc-cmdbar-prompt">&gt;</span><span class="cc-cmdbar-placeholder" id="ccCmdBarPlaceholder">Try “open finance”…</span><span class="cc-cmdbar-kbd">⌘K</span>
+  </button>
 
-    <!-- Big tile -->
-    <a class="tile big" href="main.html" style="--accent:#6BE3A4">
-      <div class="tile-top">
-        <span class="tile-num">·01</span>
-        <span class="tile-emoji">🏠</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Main</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Goals & daily plan</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
+  <footer class="cc-footer-actions">
+    <button class="cc-secondary-btn" data-focus-open type="button">◎ Focus Mode</button>
+    <button class="cc-secondary-btn cc-ambient-stub" type="button" disabled title="Planned for a later phase">◌ Ambient Mode · Soon</button>
+  </footer>
+</main>
 
-    <!-- Wide tile -->
-    <a class="tile wide" href="gym.html" style="--accent:#7DD3FC">
-      <div class="tile-top">
-        <span class="tile-num">·02</span>
-        <span class="tile-emoji">💪</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Fitness</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Workouts, splits, sessions</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Small tile -->
-    <a class="tile" href="health.html" style="--accent:#A7F3D0">
-      <div class="tile-top">
-        <span class="tile-num">·03</span>
-        <span class="tile-emoji">💊</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Health</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Supplements & vitals</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Small tile -->
-    <a class="tile" href="po-water.html" style="--accent:#60A5FA">
-      <div class="tile-top">
-        <span class="tile-num">·04</span>
-        <span class="tile-emoji">💧</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Water</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Hydration</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Wide tile -->
-    <a class="tile wide" href="finance.html" style="--accent:#F2C063">
-      <div class="tile-top">
-        <span class="tile-num">·05</span>
-        <span class="tile-emoji">📊</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Finance</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Net worth & spending</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Small tile -->
-    <a class="tile" href="caffeine.html" style="--accent:#C9A36B">
-      <div class="tile-top">
-        <span class="tile-num">·06</span>
-        <span class="tile-emoji">☕</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Caffeine</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Intake & timing</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
-    <!-- Wide tile -->
-    <a class="tile wide" href="nova-lite.html" style="--accent:#A78BFA">
-      <div class="tile-top">
-        <span class="tile-num">·07</span>
-        <span class="tile-emoji">🧠</span>
-      </div>
-      <div class="tile-spacer"></div>
-      <h2 class="tile-title">Nova</h2>
-      <div class="tile-foot">
-        <span class="tile-sub">Your AI mentor</span>
-        <span class="tile-arrow">→</span>
-      </div>
-    </a>
-
+<div class="focus-mode" id="focusMode" role="dialog" aria-modal="true" aria-label="Focus Mode">
+  <div class="focus-shell">
+    <div class="focus-top"><div class="focus-status"><span class="hud-pulse-dot"></span><span>Focus Mode</span></div><button class="focus-close" id="focusClose" type="button" aria-label="Exit Focus Mode">×</button></div>
+    <div class="focus-label">Current objective</div>
+    <h2 class="focus-objective" id="focusObjective">Plan your next objective</h2>
+    <div class="focus-timer" id="focusTimer">00:00</div>
+    <div class="focus-controls"><button class="cc-primary-btn" id="focusTimerToggle" type="button">Start</button><button class="cc-secondary-btn" id="focusReset" type="button">Reset</button><a class="cc-secondary-btn" href="main.html">Open task</a></div>
   </div>
 </div>
 
@@ -376,6 +285,31 @@ body::after {
 
     <div class="section-divider"></div>
 
+    <label class="field-label">Appearance</label>
+    <div class="field">
+      <label class="field-label">Greeting tone</label>
+      <div class="seg" id="toneSeg" style="width:100%;display:flex">
+        <button type="button" data-tone="friendly" style="flex:1">Friendly</button>
+        <button type="button" data-tone="callsign" style="flex:1">Callsign</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">Recent activity style</label>
+      <div class="seg" id="consoleStyleSeg" style="width:100%;display:flex">
+        <button type="button" data-console="cards" style="flex:1">Cards</button>
+        <button type="button" data-console="terminal" style="flex:1">Terminal</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">Show first</label>
+      <div class="seg" id="railContentSeg" style="width:100%;display:flex">
+        <button type="button" data-rail="schedule_signals" style="flex:1">Schedule & Signals</button>
+        <button type="button" data-rail="alerts_activity" style="flex:1">Alerts & Activity</button>
+      </div>
+    </div>
+
+    <div class="section-divider"></div>
+
     <label class="field-label">WHOOP</label>
     <div class="whoop-box">
       <div class="whoop-row">
@@ -389,6 +323,21 @@ body::after {
       </div>
       <button class="whoop-btn" id="whAction" type="button">Sync now</button>
     </div>
+
+    <div class="section-divider"></div>
+
+    <label class="field-label">Backup</label>
+    <div class="whoop-box">
+      <div class="whoop-row" style="margin-bottom:10px">
+        <span style="font-size:12.5px;color:var(--text-tertiary);line-height:1.5">
+          Downloads everything synced to your account as one JSON file — todos, notes, finance,
+          gym, reading, and the rest. Doesn't include your Google/WHOOP login tokens (those
+          aren't readable this way on purpose) — you'd just reconnect those after a restore.
+        </span>
+      </div>
+      <button class="whoop-btn" id="exportBtn" type="button">⬇️ Export everything (JSON)</button>
+      <div class="set-status" id="exportStatus"></div>
+    </div>
   </div>
 </div>
 
@@ -399,6 +348,7 @@ body::after {
   const WATER_KEY = 'po_water_v1';
   const WHOOP_KEY = 'whoop_tokens_v1';
   const SYNC_KEY  = 'whoop_last_sync';
+  const APPEARANCE_KEY = 'cc_appearance_v1';
 
   function loadJSON(k, f) { try { return JSON.parse(localStorage.getItem(k)) || f; } catch (e) { return f; } }
   function saveJSON(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
@@ -409,6 +359,35 @@ body::after {
       profile:{ weightKg:75, age:25, sex:'m', activityHrsPerWeek:5 },
       caffeineMgPerDay:200, substances:[], logs:{} };
   }
+
+  /* ---------- Appearance (tone / console style / rail content) ----------
+   * Purely a display preference for this device — not part of the synced
+   * profile, so it lives in its own key and applies immediately on click
+   * (no Save button) the way a visual toggle should. command-center.js
+   * reads this same key to render the Command Center itself. */
+  function defaultAppearance() { return { tone: 'callsign', consoleStyle: 'terminal', railContent: 'schedule_signals' }; }
+  function readAppearance() {
+    const a = loadJSON(APPEARANCE_KEY, defaultAppearance());
+    return {
+      tone: a.tone === 'friendly' ? 'friendly' : 'callsign',
+      consoleStyle: a.consoleStyle === 'cards' ? 'cards' : 'terminal',
+      railContent: a.railContent === 'alerts_activity' ? 'alerts_activity' : 'schedule_signals',
+    };
+  }
+  function paintAppearanceSegs(a) {
+    $('toneSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tone === a.tone));
+    $('consoleStyleSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.console === a.consoleStyle));
+    $('railContentSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.rail === a.railContent));
+  }
+  function setAppearance(patch) {
+    const next = Object.assign(readAppearance(), patch);
+    saveJSON(APPEARANCE_KEY, next);
+    paintAppearanceSegs(next);
+    window.dispatchEvent(new CustomEvent('appearance-changed'));
+  }
+  $('toneSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => setAppearance({ tone: b.dataset.tone })));
+  $('consoleStyleSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => setAppearance({ consoleStyle: b.dataset.console })));
+  $('railContentSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => setAppearance({ railContent: b.dataset.rail })));
 
   /* ---------- unit state ---------- */
   let heightUnit = 'cm';   // 'cm' | 'ft'
@@ -475,7 +454,7 @@ body::after {
   }
 
   /* ---------- open / close ---------- */
-  function open() { populate(); renderWhoop(); $('settingsBg').classList.add('show'); syncWhoop(); }
+  function open() { populate(); paintAppearanceSegs(readAppearance()); renderWhoop(); $('settingsBg').classList.add('show'); syncWhoop(); }
   function close() { $('settingsBg').classList.remove('show'); }
   $('settingsOpen').addEventListener('click', open);
   $('settingsClose').addEventListener('click', close);
@@ -557,6 +536,9 @@ body::after {
         sleep: s0 && s0.score && s0.score.sleep_performance_percentage != null ? Math.round(s0.score.sleep_performance_percentage) : null,
       };
       localStorage.setItem(SYNC_KEY, String(Date.now()));
+      // Cached so the home screen's Signals rail can show a real Recovery %
+      // without this page having to make its own WHOOP API calls.
+      try { localStorage.setItem('whoop_last_stats_v1', JSON.stringify(whStats)); } catch (e) {}
       renderWhoop();
     } catch (e) { renderWhoop(e); }
   }
@@ -565,7 +547,326 @@ body::after {
     if (!t || !t.access) { window.location.href = 'health.html'; return; }
     $('whAction').textContent = 'Syncing…'; syncWhoop();
   });
+
+  /* ---------- Export everything ----------
+   * Pulls every row of app_state directly (not just the domains this page
+   * happens to know about for scoring) so the export stays complete as new
+   * features add their own appKey, with nothing to update here when they do.
+   * google_tokens/whoop_tokens_v1 are deliberately out of reach the same way
+   * — see api/config.js's note on google_tokens having no anon-key policies
+   * at all — so a restore just means reconnecting those, not a security gap. */
+  const EXPORT_SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const EXPORT_SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+  async function exportAllData() {
+    const btn = $('exportBtn'), status = $('exportStatus');
+    if (EXPORT_SUPABASE_URL.indexOf('PASTE-') === 0 || EXPORT_SUPABASE_KEY.indexOf('PASTE-') === 0) {
+      status.textContent = 'Cloud sync isn\'t configured on this device.';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Gathering…'; status.textContent = '';
+    try {
+      const res = await fetch(EXPORT_SUPABASE_URL + '/rest/v1/app_state?select=key,data,updated_at', {
+        headers: { apikey: EXPORT_SUPABASE_KEY, Authorization: 'Bearer ' + EXPORT_SUPABASE_KEY },
+      });
+      if (!res.ok) throw new Error('fetch failed: ' + res.status);
+      const rows = await res.json();
+      const bundle = { exportedAt: new Date().toISOString(), source: 'fern-dashboard', domains: {} };
+      (Array.isArray(rows) ? rows : []).forEach(r => {
+        if (!r || !r.key) return;
+        bundle.domains[r.key] = { data: r.data, updatedAt: r.updated_at };
+      });
+      const count = Object.keys(bundle.domains).length;
+      if (!count) throw new Error('no data found');
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = 'fern-dashboard-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+      status.textContent = count + ' section' + (count === 1 ? '' : 's') + ' exported ✓';
+    } catch (e) {
+      status.textContent = "Couldn't export — check your connection.";
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇️ Export everything (JSON)';
+      setTimeout(() => { status.textContent = ''; }, 5000);
+    }
+  }
+  $('exportBtn').addEventListener('click', exportAllData);
 })();
+
+/* ============ Today Score ============
+ * Reads every domain's own localStorage keys directly (same origin, no
+ * fetch) to compute the composite score card above. Read-only — never
+ * writes back to another page's keys, so it can't corrupt anything another
+ * page owns. (The old per-tile live captions this file used to render live
+ * on hub-today.html/hub-body.html/hub-money.html now that the home screen's
+ * tiles are category links rather than direct feature links.)
+ */
+(function () {
+  'use strict';
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  // Same forgiving 6 AM day boundary used by main.html/health.html/business.html,
+  // so a tile doesn't roll over to "tomorrow" in the middle of a late night.
+  function activeDate6am() { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); return d; }
+  function activeDateKey6am() { return dateToKey(activeDate6am()); }
+  function plainTodayKey() { return dateToKey(new Date()); }
+
+  /* ---------- Today Score ----------
+   * One composite number from whichever domains you've actually got data
+   * for today — a domain with nothing set up (no habits defined, no
+   * business commitments, etc.) is left out of the average entirely
+   * rather than counted as a zero, so the score stays fair as your setup
+   * grows. Finance and caffeine/nicotine are deliberately excluded: they
+   * aren't "did today go well" behaviors in the same sense the others are.
+   */
+  function tierForScore(s) {
+    if (s >= 90) return 'Elite day';
+    if (s >= 75) return 'Strong day';
+    if (s >= 55) return 'Decent day';
+    if (s >= 35) return 'Slipping';
+    return 'Rough day';
+  }
+
+  function computeTodayScore() {
+    const todayK6 = activeDateKey6am();
+    const todayPlain = plainTodayKey();
+    const parts = []; // { weight, done, total, label(done,total) }
+
+    const goals = storeGet('goals:' + todayK6) || [];
+    if (goals.length) parts.push({ weight: 25, done: goals.filter(g => g.done).length, total: goals.length, label: (n, t) => n + '/' + t + ' to-dos' });
+
+    const habitDefs = storeGet('habits:defs') || [];
+    if (habitDefs.length) {
+      const log = storeGet('habits:log') || {};
+      const done = habitDefs.filter(h => log[h.id] && log[h.id][todayK6]).length;
+      parts.push({ weight: 15, done, total: habitDefs.length, label: (n, t) => n + '/' + t + ' habits' });
+    }
+
+    const coach = storeGet('po_coach_v1');
+    if (coach && Array.isArray(coach.splitRotation) && coach.splitRotation.length) {
+      const doneDays = storeGet('po_coach_workout_done') || {};
+      const logged = !!doneDays[todayPlain];
+      parts.push({ weight: 15, done: logged ? 1 : 0, total: 1, label: () => (logged ? 'workout logged' : 'no workout yet') });
+    }
+
+    const water = storeGet('po_water_v1');
+    if (water && water.profile && water.profile.weightKg) {
+      const p = water.profile;
+      const wKg = water.weightUnit === 'lb' ? (p.weightKg || 0) / 2.20462 : (p.weightKg || 0);
+      const base = wKg * 35;
+      const exercise = (p.activityHrsPerWeek || 0) / 7 * 500;
+      const caffeine = Math.max(0, (water.caffeineMgPerDay || 0) - 200) * 1.5;
+      let adjust = 0; if (p.sex === 'm') adjust += 200; if ((p.age || 0) >= 50) adjust += 100;
+      const total = base + exercise + caffeine + adjust;
+      let unitMl = 1; if (water.unit === 'bottle') unitMl = water.bottleMl || 500; else if (water.unit === 'glass') unitMl = water.glassMl || 250; else if (water.unit === 'oz') unitMl = 30;
+      const targetUnits = Math.ceil(total / unitMl);
+      const count = (water.logs && water.logs[todayPlain]) || 0;
+      if (targetUnits > 0) parts.push({ weight: 15, done: Math.min(count, targetUnits), total: targetUnits, label: (n, t) => n + '/' + t + ' water' });
+    }
+
+    const stackItems = storeGet('stack:items');
+    if (Array.isArray(stackItems) && stackItems.length) {
+      const taken = storeGet('stack:taken:' + todayK6) || {};
+      const done = stackItems.filter(it => taken[it.id]).length;
+      parts.push({ weight: 10, done, total: stackItems.length, label: (n, t) => n + '/' + t + ' supplements' });
+    }
+
+    const commitments = storeGet('biz:affiliate:commitments') || [];
+    const commitLog = storeGet('biz:affiliate:commitLog') || {};
+    const clients = storeGet('biz:editing:clients') || [];
+    const delivery = storeGet('biz:editing:deliveryLog') || {};
+    let bizTotal = 0, bizDone = 0;
+    commitments.forEach(c => { bizTotal++; if (commitLog[c.id] && commitLog[c.id][todayK6]) bizDone++; });
+    clients.forEach(c => {
+      if (c.billingType === 'retainer' && c.dailyDeliverables > 0) {
+        bizTotal++;
+        const doneToday = (delivery[c.id] && delivery[c.id][todayK6]) || 0;
+        if (doneToday >= c.dailyDeliverables) bizDone++;
+      }
+    });
+    if (bizTotal > 0) parts.push({ weight: 10, done: bizDone, total: bizTotal, label: (n, t) => n + '/' + t + ' commitments' });
+
+    const readingItems = storeGet('reading:items') || [];
+    if (readingItems.length) {
+      let any = false;
+      readingItems.forEach(it => {
+        const sessions = it.sessions || [];
+        if (sessions.some(s => s.date === todayPlain)) any = true;
+      });
+      parts.push({ weight: 10, done: any ? 1 : 0, total: 1, label: () => (any ? 'reading done' : 'no reading yet') });
+    }
+
+    if (!parts.length) return null;
+
+    let weightedSum = 0, weightTotal = 0;
+    const breakdownBits = [];
+    parts.forEach(p => {
+      const ratio = p.total > 0 ? Math.min(1, p.done / p.total) : 0;
+      weightedSum += ratio * p.weight;
+      weightTotal += p.weight;
+      breakdownBits.push(p.label(p.done, p.total));
+    });
+    return { score: Math.round((weightedSum / weightTotal) * 100), breakdown: breakdownBits.join(' · ') };
+  }
+
+  /* ---------- 7-day score trend ----------
+   * Persists each day's already-computed score under its own date key so
+   * the AI Core card can show a real trend line. Never backfills or
+   * estimates missing days — a day with no score just isn't in the record,
+   * and the trace honestly says "building" until there are at least two
+   * real points to compare, rather than inventing a shape for it.
+   */
+  const SCORE_HISTORY_KEY = 'cc_score_history_v1';
+  function recordScoreHistory(dateKeyStr, score) {
+    if (score == null) return;
+    let hist;
+    try { hist = JSON.parse(localStorage.getItem(SCORE_HISTORY_KEY)) || {}; } catch (e) { hist = {}; }
+    hist[dateKeyStr] = score;
+    const keys = Object.keys(hist).sort();
+    while (keys.length > 30) { delete hist[keys.shift()]; }
+    try { localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+  }
+  function renderScoreTrace() {
+    const wrap = document.getElementById('scoreTrace');
+    if (!wrap) return;
+    let hist;
+    try { hist = JSON.parse(localStorage.getItem(SCORE_HISTORY_KEY)) || {}; } catch (e) { hist = {}; }
+    const days = Object.keys(hist).sort().slice(-7);
+    if (days.length < 2) {
+      wrap.innerHTML = '<div class="cc-trace-empty">Building your trend — check back after a few days</div>';
+      return;
+    }
+    const values = days.map(d => hist[d]);
+    const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+    const today = values[values.length - 1];
+    const prev = values.length > 1 ? values[values.length - 2] : null;
+    const delta = prev != null ? today - prev : null;
+    const bars = values.map((v, i) => '<span class="cc-trace-bar' + (i === values.length - 1 ? ' is-today' : '') + '" style="--v:' + Math.max(4, v) + '"></span>').join('');
+    wrap.innerHTML = '<div class="cc-trace-bars">' + bars + '</div><div class="cc-trace-caption">Last ' + days.length + ' days · avg ' + avg + (delta != null ? ' · today ' + (delta >= 0 ? '+' : '') + delta : '') + '</div>';
+  }
+
+  function renderTodayScore() {
+    const card = document.getElementById('scoreCard');
+    const result = computeTodayScore();
+    if (!result) {
+      document.getElementById('scoreNum').textContent = '—';
+      document.getElementById('scoreTier').textContent = 'Systems ready';
+      document.getElementById('scoreBreakdown').textContent = 'Add a goal, habit, or health log to begin today\'s score.';
+      document.getElementById('scoreRing').style.setProperty('--ring-pct', 0);
+      card.classList.add('show');
+      renderScoreTrace();
+      return;
+    }
+    document.getElementById('scoreNum').textContent = result.score;
+    document.getElementById('scoreTier').textContent = tierForScore(result.score);
+    document.getElementById('scoreBreakdown').textContent = result.breakdown;
+    document.getElementById('scoreRing').style.setProperty('--ring-pct', result.score);
+    card.classList.add('show');
+    recordScoreHistory(activeDateKey6am(), result.score);
+    renderScoreTrace();
+  }
+
+  // Every domain's own page (main.html, health.html, gym.html, ...) only
+  // ever pulls its own fresh data from Supabase when THAT page loads — this
+  // page has no cloud sync of its own for any of them, so the score above
+  // was reading whatever happened to already be sitting in this browser's
+  // localStorage. On a device/session where you haven't opened Fitness or
+  // Health yet today, that's stale or missing entirely, which is why the
+  // score would show 0 (or nothing) until visiting those pages first. Pull
+  // each domain's current row directly from Supabase — same plain REST call
+  // api/send-reminders.js already makes server-side — and cache it into
+  // localStorage before computing the score, so it's correct on the very
+  // first load without needing to visit anything else first.
+  const SCORE_SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SCORE_SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+  const SCORE_SOURCE_APP_KEYS = ['goals', 'health', 'po-coach', 'business', 'reading', 'player', 'finance', 'peak', 'sleep', 'notes'];
+  const LAST_SYNC_KEY = 'cc_last_sync_v1';
+  async function pullFreshScoreSources() {
+    if (SCORE_SUPABASE_URL.indexOf('PASTE-') === 0 || SCORE_SUPABASE_KEY.indexOf('PASTE-') === 0) return;
+    try {
+      const rows = await Promise.all(SCORE_SOURCE_APP_KEYS.map(k =>
+        fetch(SCORE_SUPABASE_URL + '/rest/v1/app_state?key=eq.' + encodeURIComponent(k) + '&select=data', {
+          headers: { apikey: SCORE_SUPABASE_KEY, Authorization: 'Bearer ' + SCORE_SUPABASE_KEY },
+        }).then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      rows.forEach(r => {
+        const data = r && r[0] && r[0].data;
+        if (!data) return;
+        Object.keys(data).forEach(k => {
+          try { localStorage.setItem(k, JSON.stringify(data[k])); } catch (e) {}
+        });
+      });
+      localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+    } catch (e) {}
+  }
+  function renderLastSync() {
+    const el = document.getElementById('ccLastSync');
+    if (!el) return;
+    const ts = Number(localStorage.getItem(LAST_SYNC_KEY)) || 0;
+    if (!ts) { el.textContent = 'Not yet'; return; }
+    const s = Math.floor((Date.now() - ts) / 1000);
+    el.textContent = s < 60 ? 'Just now' : s < 3600 ? Math.floor(s / 60) + 'm ago' : s < 86400 ? Math.floor(s / 3600) + 'h ago' : Math.floor(s / 86400) + 'd ago';
+  }
+
+  /* ---------- Player Card strip ----------
+   * Purely a display of the summary player.html caches — the rating engine
+   * itself lives over there and isn't duplicated here, so the two can't
+   * drift apart.
+   */
+  function renderPlayerStrip() {
+    const c = storeGet('player:card');
+    if (!c || typeof c.level !== 'number') return;
+    document.getElementById('psOvr').textContent = c.ovr == null ? '—' : c.ovr;
+    document.getElementById('psLvl').textContent = c.level;
+    document.getElementById('psSub').textContent = c.tier
+      ? c.tier + ' · overall rating'
+      : 'Log a few days to get rated';
+  }
+
+  function renderAll() {
+    renderTodayScore();
+    renderPlayerStrip();
+    renderLastSync();
+    document.dispatchEvent(new CustomEvent('command-center:refresh'));
+  }
+
+  renderAll();
+  pullFreshScoreSources().then(renderAll);
+  window.addEventListener('pageshow', function () { pullFreshScoreSources().then(renderAll); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') pullFreshScoreSources().then(renderAll);
+  });
+  window.addEventListener('storage', renderAll);
+})();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof initCloudSync === 'function') {
+    initCloudSync({
+      appKey: 'goals',
+      syncedPrefixes: ['goals:'],
+      syncedKeys: ['habits:defs', 'habits:log', 'recur:defs', 'leverage_stats_v1'],
+      onApplied: function () {
+        window.dispatchEvent(new CustomEvent('goals-changed'));
+        window.dispatchEvent(new CustomEvent('habits-changed'));
+        window.dispatchEvent(new Event('storage'));
+      }
+    });
+    initCloudSync({
+      appKey: 'alerts',
+      syncedKeys: ['command_center_alerts_v1'],
+      onApplied: function () {
+        window.dispatchEvent(new CustomEvent('alert-state-changed'));
+      }
+    });
+  }
+  if (window.location.hash === '#settings') document.getElementById('settingsOpen').click();
+});
 </script>
 </body>
 </html>

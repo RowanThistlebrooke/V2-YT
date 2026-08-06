@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Google · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+.page { max-width: 640px; }
+.dash-title { margin: 0 0 22px; }
+
+.gc-section { margin-bottom: 20px; }
+.gc-card {
+  padding: 22px;
+  background: rgba(255,255,255,0.025);
+  border-radius: 22px;
+  box-shadow: 0 1px 0 0 rgba(255,255,255,0.06) inset, 0 12px 40px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.25);
+}
+.gc-brand { display: inline-flex; align-items: center; gap: 8px; }
+.gc-brand-mark {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: conic-gradient(from 90deg, #4285F4, #34A853, #FBBC05, #EA4335, #4285F4);
+  box-shadow: 0 0 12px rgba(255,255,255,0.15);
+}
+.gc-brand-text { font-weight: 800; font-size: 13px; letter-spacing: 0.10em; color: var(--text-primary); }
+.gc-disc { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 8px 8px; gap: 6px; }
+.gc-disc .gc-brand { margin-bottom: 14px; }
+.gc-disc-title { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; margin-top: 2px; }
+.gc-disc-sub { font-size: 13px; color: var(--text-tertiary); max-width: 340px; line-height: 1.55; margin-bottom: 18px; }
+.gc-connect {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.85); background: linear-gradient(180deg, #FFF, #E8E5DD);
+  color: #0A0A0B; font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 20px rgba(0,0,0,0.45); transition: transform 0.12s;
+}
+.gc-connect:hover { transform: translateY(-1px); }
+.gc-testing-note {
+  margin-top: 16px; font-size: 11.5px; color: var(--text-tertiary); max-width: 340px; line-height: 1.6;
+  padding: 10px 12px; background: rgba(242,192,99,0.06); border: 1px solid rgba(242,192,99,0.18); border-radius: 10px;
+}
+
+.gc-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.gc-updated { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); }
+.gc-head-right { display: flex; align-items: center; gap: 10px; }
+.gc-refresh {
+  width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.4s, background 0.18s, color 0.18s;
+}
+.gc-refresh:hover { background: rgba(255,255,255,0.10); color: var(--text-primary); }
+.gc-refresh.spin { transform: rotate(360deg); }
+.gc-err {
+  background: rgba(255,107,107,0.08); border: 1px solid rgba(255,107,107,0.28); color: #FF8A8A;
+  padding: 10px 12px; border-radius: 10px; font-size: 11.5px; font-family: var(--font-mono); margin-bottom: 14px;
+}
+
+.gc-service { margin-top: 22px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.05); }
+.gc-service:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+.gc-service-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.gc-service-label { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-tertiary); }
+.gc-service-count { font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary); font-weight: 700; }
+
+.gc-list { display: flex; flex-direction: column; gap: 8px; }
+.gc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px;
+  text-decoration: none; color: inherit;
+}
+.gc-row-icon { font-size: 15px; flex-shrink: 0; }
+.gc-row-info { min-width: 0; flex: 1; }
+.gc-row-title { font-size: 13px; color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-row-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-empty { font-size: 12.5px; color: var(--text-tertiary); padding: 8px 2px; }
+
+.gc-disconnect-link {
+  display: block; margin: 20px auto 0; padding: 6px 14px; background: transparent; border: none;
+  color: var(--text-tertiary); font-family: inherit; font-size: 11px; text-align: center; cursor: pointer; letter-spacing: 0.04em;
+}
+.gc-disconnect-link:hover { color: var(--text-secondary); text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-today.html">← Today</a>
+  <h1 class="dash-title">Google</h1>
+
+  <div class="gc-section">
+    <div class="gc-card">
+      <div id="gcDisc" class="gc-disc">
+        <div class="gc-brand"><span class="gc-brand-mark"></span><span class="gc-brand-text">GOOGLE</span></div>
+        <div class="gc-disc-title">Not connected</div>
+        <div class="gc-disc-sub">Connect once to see today's Calendar events, unread Gmail, and recent Drive files here.</div>
+        <button id="gcConnectBtn" class="gc-connect" type="button">Connect Google</button>
+        <div class="gc-testing-note">While this app is in Google's "Testing" mode (the default, no verification needed), the connection expires after about a week — just reconnect with one click when that happens.</div>
+      </div>
+      <div id="gcConn" style="display:none">
+        <div class="gc-head">
+          <div class="gc-brand"><span class="gc-brand-mark"></span><span class="gc-brand-text">GOOGLE</span></div>
+          <div class="gc-head-right">
+            <span id="gcUpdated" class="gc-updated">—</span>
+            <button id="gcRefresh" class="gc-refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/></svg></button>
+          </div>
+        </div>
+        <div id="gcErr" class="gc-err" style="display:none"></div>
+
+        <div class="gc-service">
+          <div class="gc-service-h"><span class="gc-service-label">📅 Calendar · Today</span><span class="gc-service-count" id="gcCalCount">—</span></div>
+          <div id="gcCalList" class="gc-list"></div>
+        </div>
+
+        <div class="gc-service">
+          <div class="gc-service-h"><span class="gc-service-label">📧 Gmail · Unread</span><span class="gc-service-count" id="gcMailCount">—</span></div>
+          <div id="gcMailList" class="gc-list"></div>
+        </div>
+
+        <div class="gc-service">
+          <div class="gc-service-h"><span class="gc-service-label">📁 Drive · Recent</span><span class="gc-service-count" id="gcDriveCount">—</span></div>
+          <div id="gcDriveList" class="gc-list"></div>
+        </div>
+
+        <button id="gcDisconnectBtn" class="gc-disconnect-link" type="button">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+(function () {
+  const KEY = 'google_tokens_v1';
+  // Paste your Google Cloud OAuth Client ID here — see SETUP.md.
+  const CLIENT_ID = '852157933945-40shvfmrsi6fkhhdgrk45re0ejc7hetq.apps.googleusercontent.com';
+  const REDIRECT  = window.location.origin + '/api/google-callback';
+  // calendar.events (not calendar.readonly) — the Telegram assistant can
+  // create/reschedule/cancel real events, not just read them. Narrower than
+  // the full 'calendar' scope: it covers events specifically, not calendar
+  // list/settings management. Existing connections made before this change
+  // only hold the old read-only grant — Disconnect and reconnect here to
+  // pick up write access.
+  const SCOPES    = 'https://www.googleapis.com/auth/calendar.events '
+    + 'https://www.googleapis.com/auth/gmail.readonly '
+    + 'https://www.googleapis.com/auth/drive.metadata.readonly';
+
+  function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
+  // Also pushes the fresh token to the server (best-effort, never blocks
+  // or throws) so the Telegram assistant — which runs with no browser
+  // involved — has a copy to work with. See api/google.js for
+  // where this lands and why it's a separate, locked-down table rather
+  // than the shared app_state one everything else syncs through.
+  function save(t) {
+    try { localStorage.setItem(KEY, JSON.stringify(t)); } catch (e) {}
+    try {
+      const secret = window.DASH_GOOGLE_SYNC_SECRET;
+      if (secret) {
+        fetch('/api/google-token-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secret },
+          body: JSON.stringify({ access: t.access, refresh: t.refresh, expires: t.expires }),
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+  function wipe() { try { localStorage.removeItem(KEY); } catch (e) {} }
+
+  if (location.hash && location.hash.indexOf('google_access') !== -1) {
+    const h = new URLSearchParams(location.hash.slice(1));
+    const access = h.get('google_access'), refresh = h.get('google_refresh');
+    const expires = Number(h.get('google_expires')) || Date.now() + 3500e3;
+    if (access) {
+      // Google only sends a refresh_token on the FIRST consent (or when
+      // prompt=consent forces a fresh one) — preserve an existing one
+      // across a reconnect that didn't get a new refresh_token.
+      const prev = load();
+      save({ access, refresh: refresh || (prev && prev.refresh) || '', expires });
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const errEl = $('gcErr');
+  function showErr(m) { errEl.textContent = m || ''; errEl.style.display = m ? 'block' : 'none'; }
+
+  $('gcConnectBtn').addEventListener('click', () => {
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth'
+      + '?client_id='     + encodeURIComponent(CLIENT_ID)
+      + '&redirect_uri='  + encodeURIComponent(REDIRECT)
+      + '&response_type=code'
+      + '&access_type=offline'
+      + '&prompt=consent'
+      + '&scope='         + encodeURIComponent(SCOPES)
+      + '&state='         + Math.random().toString(36).slice(2);
+    location.href = url;
+  });
+  $('gcDisconnectBtn').addEventListener('click', () => { wipe(); render(); });
+  $('gcRefresh').addEventListener('click', async (e) => {
+    const btn = e.currentTarget; btn.classList.add('spin');
+    try { await loadData(); } finally { setTimeout(() => btn.classList.remove('spin'), 600); }
+  });
+
+  async function refreshTok(t) {
+    if (!t.refresh) return null;
+    try {
+      const r = await fetch('/api/google-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: t.refresh }) });
+      const j = await r.json();
+      if (j.access_token) {
+        const next = { access: j.access_token, refresh: t.refresh, expires: Date.now() + (j.expires_in || 3500) * 1000 };
+        save(next); return next;
+      }
+    } catch (e) {}
+    return null;
+  }
+  // Google's APIs send CORS headers for authorized requests, so unlike
+  // WHOOP this calls googleapis.com directly — no data-proxy needed.
+  async function gFetch(url, t) {
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + t.access, Accept: 'application/json' } });
+    if (r.status === 401) { const n = await refreshTok(t); if (n) return gFetch(url, n); throw new Error('unauthorized — reconnect'); }
+    if (!r.ok) throw new Error('Google ' + r.status + ': ' + (await r.text()));
+    return await r.json();
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  async function loadCalendar(t) {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 86400000);
+    const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+      + '?timeMin=' + encodeURIComponent(startOfDay.toISOString())
+      + '&timeMax=' + encodeURIComponent(endOfDay.toISOString())
+      + '&singleEvents=true&orderBy=startTime&maxResults=10';
+    const data = await gFetch(url, t);
+    const events = (data && data.items) || [];
+    $('gcCalCount').textContent = events.length + (events.length === 1 ? ' event' : ' events');
+    const list = $('gcCalList');
+    if (!events.length) { list.innerHTML = '<div class="gc-empty">Nothing on the calendar today.</div>'; return []; }
+    list.innerHTML = events.map(ev => {
+      const start = ev.start && (ev.start.dateTime || ev.start.date);
+      const timeLabel = ev.start && ev.start.dateTime ? fmtTime(start) : 'All day';
+      return '<div class="gc-row"><span class="gc-row-icon">📅</span><div class="gc-row-info">'
+        + '<div class="gc-row-title">' + escapeHtml(ev.summary || '(no title)') + '</div>'
+        + '<div class="gc-row-sub">' + timeLabel + (ev.location ? ' · ' + escapeHtml(ev.location) : '') + '</div>'
+        + '</div></div>';
+    }).join('');
+    // Summarized for Nova (see cacheSnapshot) — title + time only, no location/attendees.
+    return events.map(ev => ({
+      title: ev.summary || '(no title)',
+      time: ev.start && ev.start.dateTime ? fmtTime(ev.start.dateTime) : 'All day',
+    }));
+  }
+
+  async function loadGmail(t) {
+    const labelData = await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/labels/UNREAD', t);
+    const unreadCount = labelData.messagesUnread || 0;
+    $('gcMailCount').textContent = unreadCount;
+    const listEl = $('gcMailList');
+    if (!unreadCount) { listEl.innerHTML = '<div class="gc-empty">Inbox zero — nothing unread.</div>'; return { unreadCount: 0, recent: [] }; }
+    const listData = await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=5', t);
+    const ids = ((listData && listData.messages) || []).map(m => m.id);
+    const metas = await Promise.all(ids.map(id =>
+      gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/' + id + '?format=metadata&metadataHeaders=Subject&metadataHeaders=From', t).catch(() => null)
+    ));
+    const parsed = metas.filter(Boolean).map(m => {
+      const headers = (m.payload && m.payload.headers) || [];
+      const subject = (headers.find(h => h.name === 'Subject') || {}).value || '(no subject)';
+      const from = (headers.find(h => h.name === 'From') || {}).value || '';
+      const fromShort = from.replace(/<.*>/, '').trim() || from;
+      return { subject, from: fromShort };
+    });
+    listEl.innerHTML = parsed.map(m =>
+      '<div class="gc-row"><span class="gc-row-icon">📧</span><div class="gc-row-info">'
+        + '<div class="gc-row-title">' + escapeHtml(m.subject) + '</div>'
+        + '<div class="gc-row-sub">' + escapeHtml(m.from) + '</div>'
+        + '</div></div>'
+    ).join('');
+    // Summarized for Nova (see cacheSnapshot) — subject + sender only, no body content.
+    return { unreadCount, recent: parsed };
+  }
+
+  async function loadDrive(t) {
+    const url = 'https://www.googleapis.com/drive/v3/files'
+      + '?orderBy=modifiedTime desc&pageSize=5&fields=' + encodeURIComponent('files(id,name,modifiedTime,webViewLink,mimeType)');
+    const data = await gFetch(url, t);
+    const files = (data && data.files) || [];
+    $('gcDriveCount').textContent = files.length + (files.length === 1 ? ' file' : ' files');
+    const list = $('gcDriveList');
+    if (!files.length) { list.innerHTML = '<div class="gc-empty">No files found.</div>'; return []; }
+    list.innerHTML = files.map(f => {
+      const modified = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+      return '<a class="gc-row" href="' + (f.webViewLink || '#') + '" target="_blank" rel="noopener">'
+        + '<span class="gc-row-icon">📁</span><div class="gc-row-info">'
+        + '<div class="gc-row-title">' + escapeHtml(f.name || '(untitled)') + '</div>'
+        + '<div class="gc-row-sub">Edited ' + modified + '</div>'
+        + '</div></a>';
+    }).join('');
+    // Summarized for Nova (see cacheSnapshot) — filename + modified date only.
+    return files.map(f => ({ name: f.name || '(untitled)', modified: f.modifiedTime || null }));
+  }
+
+  // Nova (nova-lite.html) reads EVERYTHING in this browser's localStorage as
+  // its context, so caching a small summary here — not the raw tokens — is
+  // all it takes for Nova to know about today's schedule/inbox/files too.
+  // Titles/subjects/filenames only: no event descriptions, email bodies, or
+  // file contents.
+  function cacheSnapshot(calEvents, mail, driveFiles) {
+    try {
+      localStorage.setItem('google:snapshot', JSON.stringify({
+        calendarEventsToday: calEvents || [],
+        gmailUnreadCount: (mail && mail.unreadCount) || 0,
+        gmailRecentSubjects: (mail && mail.recent) || [],
+        driveRecentFiles: driveFiles || [],
+        updatedAt: new Date().toISOString(),
+      }));
+    } catch (e) {}
+  }
+
+  async function loadData() {
+    let t = load(); if (!t) return;
+    if (t.expires && Date.now() > t.expires - 60000) { const n = await refreshTok(t); if (n) t = n; }
+    if (!t.access) { showErr('Not connected — reconnect below.'); return; }
+    showErr('');
+    try {
+      const [calEvents, mail, driveFiles] = await Promise.all([
+        loadCalendar(t).catch(e => { console.error('[google] calendar', e.message); throw e; }),
+        loadGmail(t).catch(e => { console.error('[google] gmail', e.message); throw e; }),
+        loadDrive(t).catch(e => { console.error('[google] drive', e.message); throw e; }),
+      ]);
+      cacheSnapshot(calEvents, mail, driveFiles);
+      $('gcUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch (e) {
+      showErr((e && e.message) || 'Something went wrong.');
+    }
+  }
+
+  function render() {
+    const t = load();
+    if (t && t.access) { $('gcDisc').style.display = 'none'; $('gcConn').style.display = ''; loadData(); }
+    else { $('gcDisc').style.display = ''; $('gcConn').style.display = 'none'; }
+  }
+  render();
+})();
+</script>
+</body>
+</html>

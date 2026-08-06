@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Prediction Center · Insights</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components live in design-system.css. */
+.pd-card { margin-top: 14px; }
+.pd-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.pd-card-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.pd-badge {
+  flex-shrink: 0; padding: 3px 10px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase;
+}
+.pd-badge.banded { background: rgba(63,224,168,0.14); color: #3FE0A8; }
+.pd-badge.point-estimate { background: rgba(251,191,36,0.14); color: #FBBF24; }
+.pd-badge.trend { background: rgba(34,211,245,0.14); color: #22D3F5; }
+.pd-badge.unavailable { background: rgba(255,255,255,0.06); color: var(--text-tertiary); }
+
+.pd-scenarios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+@media (max-width: 560px) { .pd-scenarios { grid-template-columns: 1fr; } }
+.pd-scenario { padding: 10px; border: 1px solid var(--hud-line-soft); border-radius: 10px; background: rgba(255,255,255,0.02); }
+.pd-scenario-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 3px; }
+.pd-scenario-rate { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.pd-scenario-eta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.pd-scenario.is-typical { border-color: var(--hud); }
+
+.pd-stat-row { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }
+.pd-stat { min-width: 90px; }
+.pd-stat-num { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.pd-stat-label { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+.pd-empty-reason { font-size: 13px; color: var(--text-tertiary); line-height: 1.6; }
+.pd-assumptions { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.5; border-top: 1px solid var(--hud-line-soft); padding-top: 8px; margin-top: 4px; }
+.pd-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.pd-source-link { font-size: 11.5px; color: var(--hud); text-decoration: none; font-weight: 700; }
+.pd-source-link:hover { text-decoration: underline; }
+.pd-datavolume { font-size: 11px; color: var(--text-tertiary); }
+
+.pd-status { font-size: 13px; color: var(--text-tertiary); padding: 30px 4px; text-align: center; }
+.pd-status.is-error { color: var(--danger, #FF5470); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="hub-insights.html">← Insights</a>
+  <h1 class="dash-title">Prediction Center</h1>
+
+  <div class="section" id="pdResults">
+    <div class="pd-status" id="pdStatus">Loading your forecasts…</div>
+  </div>
+
+</div><!-- /.page -->
+
+<script type="module">
+import { buildAllCards } from './prediction-center.js';
+
+const resultsEl = document.getElementById('pdResults');
+const statusEl = document.getElementById('pdStatus');
+
+const CONFIDENCE_LABEL = {
+  banded: 'Slow / Typical / Fast',
+  'point-estimate': 'Current status',
+  trend: 'Recent trend',
+  unavailable: 'Not available',
+};
+
+function fmtNum(n, decimals) {
+  if (n == null || isNaN(n)) return '—';
+  return n.toLocaleString(undefined, { maximumFractionDigits: decimals == null ? 1 : decimals });
+}
+function fmtDate(d) {
+  if (!(d instanceof Date)) return null;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtPct(n) {
+  if (n == null || isNaN(n)) return '—';
+  return Math.round(n * 100) + '%';
+}
+
+function scenarioRow(result, unitSuffix, ratePrefix) {
+  const row = document.createElement('div');
+  row.className = 'pd-scenarios';
+  ['slow', 'typical', 'fast'].forEach(key => {
+    const box = document.createElement('div');
+    box.className = 'pd-scenario' + (key === 'typical' ? ' is-typical' : '');
+    const label = document.createElement('div');
+    label.className = 'pd-scenario-label';
+    label.textContent = key;
+    const rate = document.createElement('div');
+    rate.className = 'pd-scenario-rate';
+    const val = result.scenarios[key];
+    rate.textContent = (val > 0 ? '+' : '') + fmtNum(val) + unitSuffix;
+    box.append(label, rate);
+    if (result.goal != null) {
+      const eta = document.createElement('div');
+      eta.className = 'pd-scenario-eta';
+      const etaDate = fmtDate(result.etas[key]);
+      eta.textContent = etaDate ? ('ETA ' + etaDate) : 'Not on track';
+      box.appendChild(eta);
+    }
+    row.appendChild(box);
+  });
+  return row;
+}
+
+function buildCardEl(card) {
+  const el = document.createElement('div');
+  el.className = 'gm-card pd-card';
+
+  const head = document.createElement('div');
+  head.className = 'pd-card-head';
+  const title = document.createElement('div');
+  title.className = 'pd-card-title';
+  title.textContent = card.title;
+  const badge = document.createElement('span');
+  badge.className = 'pd-badge ' + card.confidence;
+  badge.textContent = CONFIDENCE_LABEL[card.confidence] || card.confidence;
+  head.append(title, badge);
+  el.appendChild(head);
+
+  if (card.type === 'weight' || card.type === 'networth') {
+    if (card.result) {
+      el.appendChild(scenarioRow(card.result, card.type === 'weight' ? ' /wk' : ' /mo'));
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'pd-empty-reason';
+      empty.textContent = 'Not enough data yet — logged ' + card.dataVolume + ' of the ' + card.minDataVolume + ' needed.';
+      el.appendChild(empty);
+    }
+  } else if (card.type === 'sleep') {
+    if (card.debt) {
+      const stats = document.createElement('div');
+      stats.className = 'pd-stat-row';
+      const d1 = document.createElement('div'); d1.className = 'pd-stat';
+      d1.innerHTML = '<div class="pd-stat-num">' + fmtNum(card.debt.totalDebt) + 'h</div><div class="pd-stat-label">Accumulated debt · trailing 14d</div>';
+      const d2 = document.createElement('div'); d2.className = 'pd-stat';
+      d2.innerHTML = '<div class="pd-stat-num">' + fmtNum(card.debt.avgHours) + 'h</div><div class="pd-stat-label">Avg sleep/night · ' + card.debt.nights + ' nights logged</div>';
+      const d3 = document.createElement('div'); d3.className = 'pd-stat';
+      const level = card.burnout ? card.burnout.level : 'Unknown';
+      d3.innerHTML = '<div class="pd-stat-num">' + level + '</div><div class="pd-stat-label">Burnout risk · this week vs. last</div>';
+      stats.append(d1, d2, d3);
+      el.appendChild(stats);
+      if (card.burnout && card.burnout.signals && card.burnout.signals.length) {
+        const signals = document.createElement('div');
+        signals.className = 'pd-empty-reason';
+        signals.textContent = card.burnout.signals.join('; ') + '.';
+        el.appendChild(signals);
+      }
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'pd-empty-reason';
+      empty.textContent = 'No sleep logged in the trailing 14 days yet.';
+      el.appendChild(empty);
+    }
+  } else if (card.type === 'adherence') {
+    if (card.trend) {
+      const stats = document.createElement('div');
+      stats.className = 'pd-stat-row';
+      const overall = document.createElement('div'); overall.className = 'pd-stat';
+      overall.innerHTML = '<div class="pd-stat-num">' + fmtPct(card.overall.rate) + '</div><div class="pd-stat-label">Overall · last 28 days</div>';
+      const recent = document.createElement('div'); recent.className = 'pd-stat';
+      const dir = card.trend.diff > 0.01 ? 'Improving' : card.trend.diff < -0.01 ? 'Declining' : 'Flat';
+      recent.innerHTML = '<div class="pd-stat-num">' + dir + '</div><div class="pd-stat-label">' + fmtPct(card.trend.recentAvg) + ' recent vs. ' + fmtPct(card.trend.priorAvg) + ' before</div>';
+      stats.append(overall, recent);
+      el.appendChild(stats);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'pd-empty-reason';
+      empty.textContent = 'Not enough logged habit/goal history yet to compare a recent window against a prior one.';
+      el.appendChild(empty);
+    }
+  } else if (card.type === 'schedule') {
+    const empty = document.createElement('div');
+    empty.className = 'pd-empty-reason';
+    empty.textContent = card.reason;
+    el.appendChild(empty);
+  }
+
+  if (card.assumptions) {
+    const assumptions = document.createElement('div');
+    assumptions.className = 'pd-assumptions';
+    assumptions.textContent = card.assumptions;
+    el.appendChild(assumptions);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'pd-meta-row';
+  const link = document.createElement('a');
+  link.className = 'pd-source-link';
+  link.href = card.deepLink;
+  link.textContent = 'View source: ' + card.sourcePage + ' →';
+  meta.appendChild(link);
+  if (card.dataVolume != null) {
+    const vol = document.createElement('span');
+    vol.className = 'pd-datavolume';
+    vol.textContent = card.dataVolume + ' data point' + (card.dataVolume === 1 ? '' : 's');
+    meta.appendChild(vol);
+  }
+  el.appendChild(meta);
+
+  return el;
+}
+
+function render(cards) {
+  resultsEl.innerHTML = '';
+  cards.forEach(card => resultsEl.appendChild(buildCardEl(card)));
+}
+
+// ---- Loading ----
+// Prediction Center reads across five domains (gym, finance, sleep,
+// caffeine, peak, goals) that already sync independently via sync.js.
+// Same one-shot direct app_state fetch pattern as Life Timeline and
+// insights-recovery.html, so the page works standalone.
+const SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+const SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+
+async function load() {
+  if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.indexOf('PASTE-') === 0) {
+    statusEl.textContent = "Cloud sync isn't configured on this device.";
+    statusEl.classList.add('is-error');
+    return;
+  }
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/app_state?select=key,data', {
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+    });
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    const rows = await res.json();
+    const rowsByKey = {};
+    (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.key) rowsByKey[r.key] = r.data; });
+
+    const cards = buildAllCards({
+      pcData: rowsByKey['po-coach'] || {},
+      financeData: rowsByKey.finance || {},
+      rowsByKey,
+    });
+
+    statusEl.remove();
+    render(cards);
+  } catch (e) {
+    statusEl.textContent = "Couldn't load your forecasts — check your connection and try again.";
+    statusEl.classList.add('is-error');
+  }
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Today · Dashboard</title>
+
+<link rel="stylesheet" href="design-system.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+
+/* ===== MISSION CONTROL ===== */
+.mc-head { margin-bottom: 14px; }
+.mc-greeting {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.mc-date { font-size: 15px; color: var(--text-secondary); margin-top: 2px; }
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.mc-card {
+  --accent: var(--hud);
+  position: relative; overflow: hidden;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(10, 22, 30, 0.55);
+  border: 1px solid var(--hud-line-soft);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  box-shadow: 0 10px 32px rgba(0,0,0,0.45);
+  min-width: 0;
+}
+.mc-card::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 82% 12%,
+              color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%);
+}
+.mc-card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.mc-emoji { font-size: 15px; line-height: 1; }
+.mc-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.mc-value {
+  font-size: 19px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mc-sub {
+  font-size: 12px; color: var(--text-tertiary); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mc-wide { grid-column: span 2; }
+@media (max-width: 900px) {
+  .mc-grid { grid-template-columns: repeat(3, 1fr); }
+  .mc-wide { grid-column: span 3; }
+}
+@media (max-width: 640px) {
+  .mc-grid { grid-template-columns: repeat(2, 1fr); }
+  .mc-wide { grid-column: span 2; }
+}
+@media (max-width: 440px) {
+  .mc-grid { grid-template-columns: 1fr; gap: 10px; }
+  .mc-wide { grid-column: span 1; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="index.html">← Dashboard</a>
+  <h1 class="dash-title">Today</h1>
+
+  <div class="mc-head">
+    <div class="mc-greeting" id="mcGreeting">Today</div>
+    <div class="mc-date" id="mcDate"></div>
+  </div>
+
+  <div class="mc-grid">
+    <div class="mc-card" style="--accent:#6BE3A4">
+      <div class="mc-card-top"><span class="mc-emoji">🎯</span><span class="mc-label">Goals</span></div>
+      <div class="mc-value" id="mcGoalsValue">—</div>
+      <div class="mc-sub" id="mcGoalsSub"></div>
+    </div>
+    <div class="mc-card" style="--accent:#FB923C">
+      <div class="mc-card-top"><span class="mc-emoji">🔥</span><span class="mc-label">Streak</span></div>
+      <div class="mc-value" id="mcStreakValue">—</div>
+      <div class="mc-sub" id="mcStreakSub"></div>
+    </div>
+    <div class="mc-card" style="--accent:#C4B5FD">
+      <div class="mc-card-top"><span class="mc-emoji">⚡</span><span class="mc-label">Energy</span></div>
+      <div class="mc-value" id="mcEnergyValue">—</div>
+      <div class="mc-sub" id="mcEnergySub"></div>
+    </div>
+    <div class="mc-card" style="--accent:#7DD3FC">
+      <div class="mc-card-top"><span class="mc-emoji">💰</span><span class="mc-label">Net Worth</span></div>
+      <div class="mc-value" id="mcMoneyValue">—</div>
+      <div class="mc-sub" id="mcMoneySub"></div>
+    </div>
+    <div class="mc-card mc-wide" style="--accent:#F2C063">
+      <div class="mc-card-top"><span class="mc-emoji">⏭️</span><span class="mc-label">Next up</span></div>
+      <div class="mc-value" id="mcNextValue">—</div>
+      <div class="mc-sub" id="mcNextSub"></div>
+    </div>
+  </div>
+
+  <div class="bento">
+    <!-- Big tile -->
+    <a class="tile big" href="main.html" style="--accent:#6BE3A4">
+      <div class="tile-top">
+        <span class="tile-num">·01</span>
+        <span class="tile-emoji">🏠</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Main</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Goals & daily plan</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Wide tile -->
+    <a class="tile wide" href="gym.html" style="--accent:#7DD3FC">
+      <div class="tile-top">
+        <span class="tile-num">·02</span>
+        <span class="tile-emoji">💪</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Fitness</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Workouts, splits, sessions</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="google.html" style="--accent:#FBBC05">
+      <div class="tile-top">
+        <span class="tile-num">·03</span>
+        <span class="tile-emoji">🗓️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Google</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Calendar, Gmail, Drive</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="calendar.html" style="--accent:#B794F4">
+      <div class="tile-top">
+        <span class="tile-num">·04</span>
+        <span class="tile-emoji">📆</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Calendar</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Day, week & month view</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+
+    <a class="tile" href="schedule.html" style="--accent:#22D3F5">
+      <div class="tile-top">
+        <span class="tile-num">·05</span>
+        <span class="tile-emoji">🗓️</span>
+      </div>
+      <div class="tile-spacer"></div>
+      <h2 class="tile-title">Weekly Schedule</h2>
+      <div class="tile-foot">
+        <span class="tile-sub">Your Mon–Sat routine, hour by hour</span>
+        <span class="tile-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  // Same forgiving 6 AM day boundary used by main.html/health.html/business.html,
+  // so a tile doesn't roll over to "tomorrow" in the middle of a late night.
+  function activeDate6am() { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); return d; }
+  function activeDateKey6am() { return dateToKey(activeDate6am()); }
+  function plainTodayKey() { return dateToKey(new Date()); }
+
+  function setTileSub(href, text) {
+    const el = document.querySelector('.tile[href="' + href + '"] .tile-sub');
+    if (el && text) el.textContent = text;
+  }
+
+  // =====================================================================
+  // MISSION CONTROL — a computed daily-overview strip above the link
+  // grid. Every stat here is derived from data already synced through
+  // one of this page's own Supabase pulls (see SNAP_SOURCE_APP_KEYS
+  // below) — no new external calls, no new sync rows.
+  //
+  // "Energy" deliberately does NOT reproduce peak.html's full predictive
+  // energyAt(t) composite model (circadian curve + sleep/caffeine/RHR/
+  // hydration/workout adjustments, ~15 interdependent read* helpers,
+  // partly fed by a live WHOOP fetch that only happens inside peak.html
+  // itself and isn't persisted anywhere this page could read it from).
+  // Duplicating that engine here would be a lot of fragile surface area
+  // to keep in sync for a glance-level card. Instead this shows the
+  // same raw signal a person would actually glance at: your latest
+  // feeling/stress check-in today, or last night's logged sleep quality
+  // as a fallback — honest and simple rather than a fragile facsimile.
+  // =====================================================================
+
+  function renderGreeting() {
+    const h = new Date().getHours();
+    const greeting = h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    const gEl = document.getElementById('mcGreeting'), dEl = document.getElementById('mcDate');
+    if (gEl) gEl.textContent = greeting;
+    if (dEl) dEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  function renderGoalsStat() {
+    const valEl = document.getElementById('mcGoalsValue'), subEl = document.getElementById('mcGoalsSub');
+    if (!valEl) return;
+    const goals = storeGet('goals:' + activeDateKey6am()) || [];
+    const total = goals.length, done = goals.filter(g => g.done).length;
+    if (!total) { valEl.textContent = '—'; subEl.textContent = 'Nothing added yet'; return; }
+    valEl.textContent = done + '/' + total;
+    subEl.textContent = Math.round(done / total * 100) + '% done';
+  }
+
+  // Consecutive-days-ending-today streak logic, duplicated verbatim from
+  // main.html's habit streak (streakFor) and gym.html's workout streak
+  // (workoutDoneStreak) — same "today counts, or falls back to
+  // yesterday if today's not done yet" forgiving rule as the 🔥
+  // counters on those pages, so an unlogged today doesn't read as a
+  // broken streak before the day's actually over.
+  function isDone(log, habitId, dayKey) { return !!(log[habitId] && log[habitId][dayKey]); }
+  function streakFor(log, habitId) {
+    let streak = 0;
+    const cursor = activeDate6am();
+    if (!isDone(log, habitId, dateToKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+    while (isDone(log, habitId, dateToKey(cursor))) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    return streak;
+  }
+  function gymWorkoutStreak(doneDays) {
+    let streak = 0;
+    const cursor = new Date();
+    if (!doneDays[dateToKey(cursor)]) cursor.setDate(cursor.getDate() - 1);
+    while (doneDays[dateToKey(cursor)]) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    return streak;
+  }
+  function bestStreak(defs, log, doneDays) {
+    let best = 0, label = '';
+    defs.forEach(h => { const s = streakFor(log, h.id); if (s > best) { best = s; label = h.name; } });
+    const gymS = gymWorkoutStreak(doneDays);
+    if (gymS > best) { best = gymS; label = 'Workouts'; }
+    return { days: best, label: label };
+  }
+  function renderStreakStat() {
+    const valEl = document.getElementById('mcStreakValue'), subEl = document.getElementById('mcStreakSub');
+    if (!valEl) return;
+    const defs = storeGet('habits:defs') || [];
+    const log = storeGet('habits:log') || {};
+    const doneDays = storeGet('po_coach_workout_done') || {};
+    const s = bestStreak(defs, log, doneDays);
+    if (!s.days) { valEl.textContent = '—'; subEl.textContent = 'No active streak'; return; }
+    valEl.textContent = s.days + ' day' + (s.days === 1 ? '' : 's');
+    subEl.textContent = s.label;
+  }
+
+  function timeAgo(ts, nowTs) {
+    const mins = Math.round(((nowTs != null ? nowTs : Date.now()) - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  }
+  // Picks the latest today's feeling/stress check-in (peak:checkins,
+  // filtered to the plain calendar day — same boundary peak.html's own
+  // todaysCheckins() uses), falling back to last night's logged sleep
+  // quality (sleep:nights, from sleep.html) if there's been no check-in
+  // yet today.
+  function pickEnergySignal(checkins, morning, todayKPlain, nowTs) {
+    const dayStart = new Date(nowTs != null ? nowTs : Date.now());
+    dayStart.setHours(0, 0, 0, 0);
+    const todays = (checkins || []).filter(c => c.ts >= dayStart.getTime()).sort((a, b) => a.ts - b.ts);
+    const last = todays[todays.length - 1];
+    if (last && (last.feeling != null || last.stress != null)) {
+      const parts = [];
+      if (last.feeling != null) parts.push('Feeling ' + last.feeling + '/5');
+      if (last.stress != null) parts.push('Stress ' + last.stress + '/5');
+      return { text: parts.join(' · '), sub: timeAgo(last.ts, nowTs) };
+    }
+    const m = morning && morning[todayKPlain];
+    if (m && m.sleepQuality) {
+      return { text: 'Slept ' + (m.sleepHours ? m.sleepHours + 'h' : '—') + ' · quality ' + m.sleepQuality + '/5', sub: 'this morning' };
+    }
+    return null;
+  }
+  function renderEnergyStat() {
+    const valEl = document.getElementById('mcEnergyValue'), subEl = document.getElementById('mcEnergySub');
+    if (!valEl) return;
+    const signal = pickEnergySignal(storeGet('peak:checkins') || [], storeGet('sleep:nights') || {}, plainTodayKey());
+    if (!signal) { valEl.textContent = '—'; subEl.textContent = 'No check-in yet today'; return; }
+    valEl.textContent = signal.text;
+    subEl.textContent = signal.sub;
+  }
+
+  // Trend line fit, duplicated verbatim from finance.html's Forecast
+  // card (computeNetWorthTrend) — same least-squares regression over
+  // nw:history, restricted to a trailing window so an old pattern
+  // doesn't dominate a fresh read.
+  function computeNetWorthTrend(history, windowDays) {
+    if (!Array.isArray(history) || history.length < 2) return null;
+    const cutoff = windowDays ? Date.now() - windowDays * 86400000 : -Infinity;
+    const pts = history.filter(p => p.t >= cutoff);
+    if (pts.length < 2) return null;
+    const t0 = pts[0].t;
+    const xs = pts.map(p => (p.t - t0) / 86400000);
+    const ys = pts.map(p => p.v);
+    const n = xs.length;
+    const sumX = xs.reduce((a, b) => a + b, 0), sumY = ys.reduce((a, b) => a + b, 0);
+    const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0), sumXX = xs.reduce((a, x) => a + x * x, 0);
+    const denom = n * sumXX - sumX * sumX;
+    if (denom === 0) return null;
+    const slopePerDay = (n * sumXY - sumX * sumY) / denom;
+    return { slopePerDay: slopePerDay, monthlyRate: slopePerDay * 30.44, currentValue: ys[ys.length - 1], samples: n, windowStartT: pts[0].t };
+  }
+  // nw:history values are stored in CHF-equivalent base units (matching
+  // finance.html's internal engine, invisible to the user) — USD is the only
+  // default display currency now, so this card needs the real exchange rate
+  // applied rather than just swapping the label.
+  let mcUsdRate = 1;
+  async function loadMcUsdRate() {
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/CHF');
+      const data = await res.json();
+      if (data && data.rates && data.rates.USD) { mcUsdRate = data.rates.USD; renderMoneyStat(); }
+    } catch (e) {}
+  }
+  function renderMoneyStat() {
+    const valEl = document.getElementById('mcMoneyValue'), subEl = document.getElementById('mcMoneySub');
+    if (!valEl) return;
+    const hist = storeGet('nw:history') || [];
+    if (!hist.length) { valEl.textContent = '—'; subEl.textContent = 'Not tracked yet'; return; }
+    const current = hist[hist.length - 1].v * mcUsdRate;
+    valEl.textContent = 'USD ' + Math.round(current).toLocaleString('en-US');
+    const trend = computeNetWorthTrend(hist, 180);
+    if (trend && trend.monthlyRate) {
+      const sign = trend.monthlyRate >= 0 ? '+' : '−';
+      subEl.textContent = sign + 'USD ' + Math.round(Math.abs(trend.monthlyRate) * mcUsdRate).toLocaleString('en-US') + '/mo trending';
+      subEl.style.color = trend.monthlyRate >= 0 ? '#6BE3A4' : '#FF6B6B';
+    } else {
+      subEl.textContent = 'Trend building…';
+      subEl.style.color = '';
+    }
+  }
+
+  function fmtTime12(hhmm) {
+    const parts = hhmm.split(':');
+    const h = Number(parts[0]), m = Number(parts[1]);
+    const ap = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12; if (h12 === 0) h12 = 12;
+    return h12 + ':' + pad2(m) + ' ' + ap;
+  }
+  // Earliest still-timed item at/after now, else the earliest timed item
+  // (in case they're all already past), else the first untimed item —
+  // mirrors what a person scanning today's list top-to-bottom would
+  // actually do next.
+  function nextUpPick(goals, nowHM) {
+    const undone = (goals || []).filter(g => !g.done);
+    if (!undone.length) return null;
+    const timed = undone.filter(g => g.time).sort((a, b) => a.time.localeCompare(b.time));
+    const upcoming = timed.find(g => g.time >= nowHM);
+    return upcoming || timed[0] || undone[0];
+  }
+  function renderNextStat() {
+    const valEl = document.getElementById('mcNextValue'), subEl = document.getElementById('mcNextSub');
+    if (!valEl) return;
+    const goals = storeGet('goals:' + activeDateKey6am()) || [];
+    const now = new Date();
+    const pick = nextUpPick(goals, pad2(now.getHours()) + ':' + pad2(now.getMinutes()));
+    if (!pick) { valEl.textContent = goals.length ? 'All done for today' : 'Nothing scheduled'; subEl.textContent = ''; return; }
+    valEl.textContent = pick.text;
+    subEl.textContent = pick.time ? fmtTime12(pick.time) : 'Anytime today';
+  }
+
+  function renderMissionControl() {
+    renderGreeting();
+    renderGoalsStat();
+    renderStreakStat();
+    renderEnergyStat();
+    renderMoneyStat();
+    renderNextStat();
+  }
+
+  function renderMainTile() {
+    const todayK = activeDateKey6am();
+    const goals = storeGet('goals:' + todayK) || [];
+    const goalsLeft = goals.filter(g => !g.done).length;
+    const defs = storeGet('habits:defs') || [];
+    const log = storeGet('habits:log') || {};
+    const habitsDone = defs.filter(h => log[h.id] && log[h.id][todayK]).length;
+    const parts = [];
+    if (defs.length) parts.push(habitsDone + '/' + defs.length + ' habits');
+    if (goals.length) parts.push(goalsLeft > 0 ? goalsLeft + ' to-do' + (goalsLeft === 1 ? '' : 's') + ' left' : 'to-dos done');
+    if (parts.length) setTileSub('main.html', parts.join(' · '));
+  }
+
+  function renderFitnessTile() {
+    const state = storeGet('po_coach_v1');
+    if (!state || !Array.isArray(state.splitRotation) || !state.splitRotation.length || !state.splitAnchor) return;
+    const rot = state.splitRotation;
+    const a = new Date(state.splitAnchor.date), t = new Date();
+    a.setHours(0, 0, 0, 0); t.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((t - a) / 86400000);
+    const idx = ((state.splitAnchor.index + diffDays) % rot.length + rot.length) % rot.length;
+    const splitName = rot[idx];
+    if (!splitName) return;
+    const doneDays = storeGet('po_coach_workout_done') || {};
+    const logged = !!doneDays[plainTodayKey()];
+    let text = 'Today: ' + splitName + (logged ? ' · done' : ' · not logged yet');
+    const cardioSessions = storeGet('cardio:sessions');
+    if (Array.isArray(cardioSessions) && cardioSessions.length) {
+      const cutoff = Date.now() - 7 * 86400000;
+      const recentCardio = cardioSessions.filter(s => s.ts >= cutoff).length;
+      if (recentCardio) text += ' · ' + recentCardio + ' cardio this wk';
+    }
+    setTileSub('gym.html', text);
+  }
+
+  function renderSnapshot() { renderMainTile(); renderFitnessTile(); renderMissionControl(); }
+
+  // Main/Fitness only pull their own fresh data from Supabase when
+  // main.html/gym.html themselves load — this page has no cloud sync of its
+  // own, so these captions were reading whatever already happened to be in
+  // this browser's localStorage. Pull each domain's row directly (same
+  // plain REST call api/send-reminders.js already makes server-side) before
+  // rendering, so it's correct on the very first visit.
+  const SNAP_SUPABASE_URL = (window.DASH_SUPABASE_URL) || 'https://srajryooffirbroltjmg.supabase.co';
+  const SNAP_SUPABASE_KEY = (window.DASH_SUPABASE_KEY) || 'sb_publishable_5142ZwTLF_DkSVRzciNuRA_bHwRAu4c';
+  const SNAP_SOURCE_APP_KEYS = ['goals', 'po-coach', 'finance', 'peak', 'sleep'];
+  async function pullFreshSnapshotSources() {
+    if (SNAP_SUPABASE_URL.indexOf('PASTE-') === 0 || SNAP_SUPABASE_KEY.indexOf('PASTE-') === 0) return;
+    try {
+      const rows = await Promise.all(SNAP_SOURCE_APP_KEYS.map(k =>
+        fetch(SNAP_SUPABASE_URL + '/rest/v1/app_state?key=eq.' + encodeURIComponent(k) + '&select=data', {
+          headers: { apikey: SNAP_SUPABASE_KEY, Authorization: 'Bearer ' + SNAP_SUPABASE_KEY },
+        }).then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      rows.forEach(r => {
+        const data = r && r[0] && r[0].data;
+        if (!data) return;
+        Object.keys(data).forEach(k => { try { localStorage.setItem(k, JSON.stringify(data[k])); } catch (e) {} });
+      });
+    } catch (e) {}
+  }
+
+  renderSnapshot();
+  loadMcUsdRate();
+  pullFreshSnapshotSources().then(renderSnapshot);
+  window.addEventListener('pageshow', function () { pullFreshSnapshotSources().then(renderSnapshot); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') pullFreshSnapshotSources().then(renderSnapshot);
+  });
+  window.addEventListener('storage', renderSnapshot);
+})();
+</script>
+</body>
+</html>

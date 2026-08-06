@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<script src="/api/config"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Review · Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<link rel="stylesheet" href="design-system.css">
+
+<style>
+/* Page-specific only — shared tokens/components now live in design-system.css. */
+:root { --accent: #5EEAD4; }
+
+/* ===== Period control bar ===== */
+.period-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.seg-toggle { display: inline-flex; border: 1px solid rgba(255,255,255,0.10); border-radius: 999px; overflow: hidden; background: rgba(0,0,0,0.25); flex-shrink: 0; }
+.seg-toggle button {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.10em;
+  padding: 8px 16px; cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.seg-toggle button.on { background: rgba(94,234,212,0.15); color: var(--accent); }
+.period-nav { display: flex; align-items: center; gap: 12px; }
+.period-btn {
+  width: 32px; height: 32px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04); color: var(--text-primary); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: background 0.15s, opacity 0.15s;
+}
+.period-btn:hover:not(:disabled) { background: rgba(255,255,255,0.09); }
+.period-btn:disabled { opacity: 0.3; cursor: default; }
+.period-label { font-size: 15px; font-weight: 700; color: var(--text-primary); min-width: 150px; text-align: center; }
+.period-tag { font-size: 10.5px; color: var(--text-tertiary); text-align: center; margin-top: 2px; }
+
+/* ===== Nova insight ===== */
+.insight-body { font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 14px; min-height: 20px; }
+.insight-body.empty { font-style: italic; color: var(--text-tertiary); }
+.insight-meta { font-size: 10.5px; color: var(--text-tertiary); margin-top: 8px; font-family: var(--font-mono); }
+.gm-ghost {
+  padding: 11px 18px; border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.04);
+  color: var(--text-primary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.gm-ghost:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.18); }
+.gm-ghost:disabled { opacity: 0.5; cursor: default; }
+
+/* ===== Recap grid ===== */
+.recap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px,1fr)); gap: 14px; }
+.recap-card {
+  background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 16px;
+}
+.recap-num { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); margin-top: 8px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.recap-delta { font-size: 12px; font-weight: 600; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.recap-delta.up { color: var(--success); }
+.recap-delta.down { color: var(--danger); }
+.recap-delta.flat { color: var(--text-tertiary); }
+.recap-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.4; }
+.recap-empty { font-size: 12px; font-style: italic; color: var(--text-tertiary); margin-top: 10px; }
+
+/* ===== Period grade ===== */
+.grade-card {
+  display: flex; align-items: center; gap: 18px; margin-bottom: 16px; padding: 18px 20px; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(34,211,245,0.10) 0%, rgba(167,139,250,0.08) 100%);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.grade-letter {
+  font-size: 46px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; min-width: 78px; text-align: center;
+  font-variant-numeric: tabular-nums; color: var(--text-primary);
+}
+.grade-body { flex: 1; min-width: 0; }
+.grade-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.grade-score { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.grade-delta { font-size: 12px; font-weight: 600; }
+.grade-delta.up { color: var(--success); }
+.grade-delta.down { color: var(--danger); }
+.grade-delta.flat { color: var(--text-tertiary); }
+.grade-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.5; }
+
+/* ===== Reflection ===== */
+.refl-draft-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
+.refl-draft-hint { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.4; flex: 1; min-width: 180px; }
+.refl-label { font-size: 12px; font-weight: 700; color: var(--text-primary); margin: 0 0 8px; }
+.refl-label:not(:first-child) { margin-top: 18px; }
+.refl-input {
+  width: 100%; min-height: 76px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+  background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; line-height: 1.5;
+  outline: none; resize: vertical; transition: border-color 0.2s, background 0.2s;
+}
+.refl-input::placeholder { color: var(--text-tertiary); }
+.refl-input:focus { border-color: rgba(94,234,212,0.45); background: rgba(0,0,0,0.36); }
+.refl-status { font-size: 10.5px; color: var(--text-tertiary); margin-top: 8px; font-family: var(--font-mono); min-height: 14px; }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+  .period-label { min-width: 0; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">Review</h1>
+
+  <!-- PERIOD CONTROL -->
+  <div class="section">
+    <div class="gm-card period-bar">
+      <div class="seg-toggle" id="modeToggle">
+        <button data-m="week" class="on" type="button">WEEK</button>
+        <button data-m="month" type="button">MONTH</button>
+      </div>
+      <div class="period-nav">
+        <button class="period-btn" id="prevPeriod" type="button" aria-label="Previous period">‹</button>
+        <div>
+          <div class="period-label" id="periodLabel">—</div>
+          <div class="period-tag" id="periodTag"></div>
+        </div>
+        <button class="period-btn" id="nextPeriod" type="button" aria-label="Next period">›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOVA INSIGHT -->
+  <div class="section">
+    <div class="section-title">Nova Insight</div>
+    <div class="gm-card">
+      <div class="insight-body empty" id="insightBody">No insight generated yet for this period.</div>
+      <button class="gm-ghost" id="insightBtn" type="button">🧠 Generate Insight</button>
+      <div class="insight-meta" id="insightMeta"></div>
+    </div>
+  </div>
+
+  <!-- RECAP -->
+  <div class="section">
+    <div class="section-title">Recap</div>
+    <div class="grade-card" id="gradeCard" style="display:none">
+      <div class="grade-letter" id="gradeLetter">—</div>
+      <div class="grade-body">
+        <div class="grade-head">
+          <span class="grade-score" id="gradeScore"></span>
+          <span class="grade-delta" id="gradeDelta"></span>
+        </div>
+        <div class="grade-sub" id="gradeSub"></div>
+      </div>
+    </div>
+    <div class="recap-grid" id="recapGrid"></div>
+  </div>
+
+  <!-- REFLECTION -->
+  <div class="section">
+    <div class="section-title">Reflection</div>
+    <div class="gm-card">
+      <div class="refl-draft-row">
+        <button class="gm-ghost" id="draftBtn" type="button">✍️ Draft a starting point</button>
+        <span class="refl-draft-hint">Stuck on a blank page? Nova can rough out a first draft from this period's stats — rewrite anything, it's just a starting point, not the reflection itself.</span>
+      </div>
+      <div class="refl-status" id="reflDraftStatus"></div>
+      <p class="refl-label">What went well?</p>
+      <textarea class="refl-input" id="reflWell" placeholder="Anything you're glad you did this period…"></textarea>
+      <p class="refl-label">What do you want to change?</p>
+      <textarea class="refl-input" id="reflChange" placeholder="Anything you want to do differently next time…"></textarea>
+      <div class="refl-status" id="reflStatus"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  function storeGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  // Same forgiving 6 AM boundary used across the dashboard.
+  function activeDate() { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); return d; }
+  function stripTime(d) { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; }
+
+  /* ============ Period math (calendar week/month, not rolling) ============ */
+  function mondayOf(d) {
+    const dt = stripTime(d); const day = dt.getDay();
+    dt.setDate(dt.getDate() + (day === 0 ? -6 : 1 - day));
+    return dt;
+  }
+  function weekBounds(anchor) { const start = mondayOf(anchor); const end = new Date(start); end.setDate(end.getDate() + 6); return { start, end }; }
+  function monthBounds(anchor) { const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1); const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0); return { start, end }; }
+  function bounds(mode, anchor) { return mode === 'week' ? weekBounds(anchor) : monthBounds(anchor); }
+  function priorAnchorFor(b) { const d = new Date(b.start); d.setDate(d.getDate() - 1); return d; }
+  function periodKey(mode, b) { return mode === 'week' ? ('week:' + dateToKey(b.start)) : ('month:' + b.start.getFullYear() + '-' + pad2(b.start.getMonth() + 1)); }
+  function periodLabel(mode, b) {
+    const opts = { month: 'short', day: 'numeric' };
+    if (mode === 'week') return 'Week of ' + b.start.toLocaleDateString(undefined, opts);
+    return b.start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+  function daysList(start, end) {
+    const days = []; const cur = new Date(start); const e = new Date(end);
+    while (cur <= e) { days.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+    return days;
+  }
+  // Returns the day-lists to actually compute stats over: if the viewed
+  // period is still in progress, both current and prior are truncated to
+  // the same elapsed-day count so a partial week isn't compared to a full one.
+  function effectiveRanges(mode, b, priorB) {
+    const today = activeDate();
+    const isCurrent = b.start <= today && today <= b.end;
+    const curEnd = isCurrent ? today : b.end;
+    const curDays = daysList(b.start, curEnd);
+    const priorEnd = isCurrent ? new Date(priorB.start.getTime() + (curDays.length - 1) * 86400000) : priorB.end;
+    const priorDays = daysList(priorB.start, priorEnd);
+    return { isCurrent, curDays, priorDays };
+  }
+
+  /* ============ Domain stat functions — each reads another page's own
+   * localStorage keys read-only (same origin) and returns null if that
+   * domain has no data at all, so its card can be omitted cleanly. ============ */
+  function habitsStat(days) {
+    const defs = storeGet('habits:defs') || [];
+    if (!defs.length) return null;
+    const log = storeGet('habits:log') || {};
+    let done = 0;
+    days.forEach(d => { const k = dateToKey(d); defs.forEach(h => { if (log[h.id] && log[h.id][k]) done++; }); });
+    const possible = defs.length * days.length;
+    return { done, possible, rate: possible ? Math.round(done / possible * 100) : 0 };
+  }
+  function todosStat(days) {
+    let done = 0, total = 0;
+    days.forEach(d => { const goals = storeGet('goals:' + dateToKey(d)) || []; total += goals.length; done += goals.filter(g => g.done).length; });
+    if (!total) return null;
+    return { done, total, rate: Math.round(done / total * 100) };
+  }
+  function gymStat(days) {
+    const doneDaysMap = storeGet('po_coach_workout_done');
+    if (!doneDaysMap) return null;
+    const sessions = days.filter(d => doneDaysMap[dateToKey(d)]).length;
+    const weights = storeGet('po_coach_weights') || [];
+    const keys = new Set(days.map(dateToKey));
+    const inRange = weights.filter(w => keys.has(w.dateKey)).slice().sort((a, b) => a.dateKey < b.dateKey ? -1 : 1);
+    let weightDelta = null;
+    if (inRange.length >= 2) weightDelta = Math.round((inRange[inRange.length - 1].weight - inRange[0].weight) * 10) / 10;
+    return { sessions, days: days.length, weightDelta };
+  }
+  function nutritionStat(days) {
+    const entries = storeGet('cal:entries');
+    if (!Array.isArray(entries) || !entries.length) return null;
+    const targets = storeGet('cal:targets') || {};
+    const keys = new Set(days.map(dateToKey));
+    const byDay = {};
+    entries.forEach(e => { if (keys.has(e.dateKey)) byDay[e.dateKey] = (byDay[e.dateKey] || 0) + (Number(e.calories) || 0); });
+    const loggedDays = Object.keys(byDay).length;
+    if (!loggedDays) return null;
+    const avg = Math.round(Object.values(byDay).reduce((a, b) => a + b, 0) / loggedDays);
+    return { avg, loggedDays, totalDays: days.length, target: targets.calories || null };
+  }
+  function supplementsStat(days) {
+    const items = storeGet('stack:items');
+    if (!Array.isArray(items) || !items.length) return null;
+    let done = 0;
+    days.forEach(d => { const taken = storeGet('stack:taken:' + dateToKey(d)) || {}; done += items.filter(it => taken[it.id]).length; });
+    const possible = items.length * days.length;
+    return { done, possible, rate: possible ? Math.round(done / possible * 100) : 0 };
+  }
+  function waterStat(days) {
+    const state = storeGet('po_water_v1');
+    if (!state || !state.profile || !state.profile.weightKg) return null;
+    const p = state.profile;
+    const wKg = state.weightUnit === 'lb' ? p.weightKg / 2.20462 : p.weightKg;
+    const base = wKg * 35, exercise = (p.activityHrsPerWeek || 0) / 7 * 500, caffeine = Math.max(0, (state.caffeineMgPerDay || 0) - 200) * 1.5;
+    let adjust = 0; if (p.sex === 'm') adjust += 200; if ((p.age || 0) >= 50) adjust += 100;
+    const totalMl = base + exercise + caffeine + adjust;
+    let unitMl = 1; if (state.unit === 'bottle') unitMl = state.bottleMl || 500; else if (state.unit === 'glass') unitMl = state.glassMl || 250; else if (state.unit === 'oz') unitMl = 30;
+    const targetUnits = Math.ceil(totalMl / unitMl);
+    let doneUnits = 0;
+    days.forEach(d => { doneUnits += (state.logs && state.logs[dateToKey(d)]) || 0; });
+    const possible = targetUnits * days.length;
+    return { rate: possible ? Math.round(doneUnits / possible * 100) : 0, doneUnits, possible };
+  }
+  function stimulantStat(days) {
+    const logs = storeGet('caf:logs') || [];
+    const nicLogs = storeGet('nic:logs') || [];
+    if (!logs.length && !nicLogs.length) return null;
+    const startMs = days[0].getTime(), endMs = days[days.length - 1].getTime() + 86400000;
+    const caf = logs.filter(l => l.ts >= startMs && l.ts < endMs).reduce((a, l) => a + l.mg, 0);
+    const nic = nicLogs.filter(l => l.ts >= startMs && l.ts < endMs).reduce((a, l) => a + l.mg, 0);
+    return { avgCaf: Math.round(caf / days.length), avgNic: Math.round(nic / days.length * 10) / 10 };
+  }
+  function readingStat(days) {
+    const items = storeGet('reading:items');
+    if (!Array.isArray(items) || !items.length) return null;
+    // reading.html logs sessions keyed by a UTC-ISO date string, not the
+    // local-date keys used elsewhere — match it exactly, same as the
+    // home-screen Today snapshot does for this same domain.
+    const utcKeys = new Set(days.map(d => d.toISOString().slice(0, 10)));
+    let pages = 0, minutes = 0, any = false;
+    items.forEach(it => {
+      const sessions = (it.sessions || []).slice().sort((a, b) => a.date < b.date ? -1 : 1);
+      sessions.forEach((s, i) => {
+        if (!utcKeys.has(s.date)) return;
+        any = true;
+        // An audiobook logs minutes listened instead of a page number.
+        if (it.audiobook) {
+          const prior = i > 0 ? (sessions[i - 1].minutes || 0) : 0;
+          const delta = (s.minutes || 0) - prior;
+          if (delta > 0) minutes += delta;
+        } else {
+          const prior = i > 0 ? (sessions[i - 1].page || 0) : 0;
+          const delta = (s.page || 0) - prior;
+          if (delta > 0) pages += delta;
+        }
+      });
+    });
+    if (!any) return null;
+    return { pages, minutes };
+  }
+  function peakStat(days) {
+    const daily = storeGet('peak:daily');
+    if (!daily) return null;
+    const keys = new Set(days.map(dateToKey));
+    const scores = Object.keys(daily).filter(k => keys.has(k)).map(k => daily[k].avgScore);
+    if (!scores.length) return null;
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    return { avg, loggedDays: scores.length, totalDays: days.length };
+  }
+  function businessStat(days) {
+    const rev = storeGet('biz:affiliate:revenue') || [];
+    const pay = storeGet('biz:editing:payments') || [];
+    const keys = new Set(days.map(dateToKey));
+    const revenue = rev.filter(r => keys.has(r.date)).reduce((a, r) => a + (Number(r.amount) || 0), 0)
+                  + pay.filter(p => keys.has(p.date)).reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const commitments = storeGet('biz:affiliate:commitments') || [];
+    const commitLog = storeGet('biz:affiliate:commitLog') || {};
+    const clients = (storeGet('biz:editing:clients') || []).filter(c => c.billingType === 'retainer' && c.dailyDeliverables > 0);
+    const delivery = storeGet('biz:editing:deliveryLog') || {};
+    let done = 0, total = 0;
+    days.forEach(d => {
+      const k = dateToKey(d);
+      commitments.forEach(c => { total++; if (commitLog[c.id] && commitLog[c.id][k]) done++; });
+      clients.forEach(c => { total++; const dt = (delivery[c.id] && delivery[c.id][k]) || 0; if (dt >= c.dailyDeliverables) done++; });
+    });
+    if (!total && !revenue && !commitments.length) return null;
+    return { revenue, done, total, rate: total ? Math.round(done / total * 100) : null };
+  }
+
+  function peakTier(v) { if (v>=80) return 'Peak'; if (v>=62) return 'High'; if (v>=44) return 'Steady'; if (v>=28) return 'Dip'; return 'Low'; }
+
+  /* ============ Period grade ============
+   * One letter for the whole week/month, from the same per-domain stats the
+   * recap cards below already compute — so the grade can never disagree
+   * with the numbers sitting right under it.
+   *
+   * A domain you don't track at all is left out of the average entirely
+   * rather than counted as a zero (same fairness rule as the home screen's
+   * Today Score), so the grade reflects how you did at the things you
+   * actually do, not how many dashboard features you've set up.
+   */
+  const GYM_SESSIONS_PER_WEEK = 4;   // what "full marks" on training looks like
+  const READING_DAY_SHARE = 0.4;     // reading on ~40% of days is full marks
+
+  function letterForScore(s) {
+    if (s >= 97) return 'A+'; if (s >= 93) return 'A'; if (s >= 90) return 'A-';
+    if (s >= 87) return 'B+'; if (s >= 83) return 'B'; if (s >= 80) return 'B-';
+    if (s >= 77) return 'C+'; if (s >= 73) return 'C'; if (s >= 70) return 'C-';
+    if (s >= 67) return 'D+'; if (s >= 63) return 'D'; if (s >= 60) return 'D-';
+    return 'F';
+  }
+  function gradeBlurb(letter) {
+    const c = letter.charAt(0);
+    if (c === 'A') return 'Exceptional period — this is the standard to hold.';
+    if (c === 'B') return 'Strong period. A couple of areas away from an A.';
+    if (c === 'C') return 'Middling — the basics happened, the edge didn\'t.';
+    if (c === 'D') return 'Slipped. Pick one area below and rebuild from it.';
+    return 'Rough period. Reset with the single easiest habit first.';
+  }
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+  // Returns { score, letter, parts } or null when nothing at all is tracked.
+  function computePeriodGrade(days) {
+    const n = days.length || 1;
+    const parts = [];
+    const add = (label, ratio, weight) => { if (ratio != null && isFinite(ratio)) parts.push({ label, ratio: clamp01(ratio), weight }); };
+
+    const pk = peakStat(days); if (pk) add('energy', pk.avg / 100, 15);
+    const h = habitsStat(days); if (h) add('habits', h.rate / 100, 20);
+    const t = todosStat(days); if (t) add('to-dos', t.rate / 100, 15);
+    const g = gymStat(days); if (g) add('training', g.sessions / (n * GYM_SESSIONS_PER_WEEK / 7), 20);
+    const s = supplementsStat(days); if (s) add('supplements', s.rate / 100, 10);
+    const w = waterStat(days); if (w) add('water', w.rate / 100, 10);
+    const b = businessStat(days); if (b && b.rate != null) add('commitments', b.rate / 100, 15);
+
+    if (!parts.length) return null;
+    let sum = 0, wt = 0;
+    parts.forEach(p => { sum += p.ratio * p.weight; wt += p.weight; });
+    const score = Math.round((sum / wt) * 100);
+    return { score, letter: letterForScore(score), parts };
+  }
+
+  function renderGrade(curDays, priorDays) {
+    const el = $('gradeCard');
+    const cur = computePeriodGrade(curDays);
+    if (!cur) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    $('gradeLetter').textContent = cur.letter;
+    $('gradeScore').textContent = cur.score + '/100';
+
+    const prior = computePeriodGrade(priorDays);
+    const dEl = $('gradeDelta');
+    if (prior) {
+      const diff = cur.score - prior.score;
+      dEl.className = 'grade-delta ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat');
+      dEl.textContent = (diff > 0 ? '▲ +' : diff < 0 ? '▼ ' : '● ') + diff + ' vs last period (' + prior.letter + ')';
+    } else {
+      dEl.className = 'grade-delta flat';
+      dEl.textContent = '';
+    }
+    // Name the weakest tracked area — that's the actionable half of a grade.
+    const worst = cur.parts.slice().sort((a, b) => a.ratio - b.ratio)[0];
+    $('gradeSub').textContent = gradeBlurb(cur.letter)
+      + (cur.parts.length > 1 ? ' Weakest area: ' + worst.label + ' (' + Math.round(worst.ratio * 100) + '%).' : '');
+  }
+
+  /* ============ Recap card rendering ============ */
+  function deltaRow(diff, unit, goodDirection) {
+    // goodDirection: 1 = up is good, -1 = down is good, 0 = neutral (no color judgment)
+    if (diff == null || !isFinite(diff)) return '';
+    const dir = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+    const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '●';
+    const cls = goodDirection === 0 ? 'flat' : (dir === 'flat' ? 'flat' : ((diff > 0) === (goodDirection > 0) ? 'up' : 'down'));
+    const abs = Math.abs(diff);
+    return '<div class="recap-delta ' + cls + '">' + arrow + ' ' + (diff > 0 ? '+' : '') + abs + unit + ' vs last period</div>';
+  }
+  function card(title, numHtml, deltaHtml, subHtml) {
+    return '<div class="recap-card"><div class="gm-eyebrow">' + title + '</div>'
+      + '<div class="recap-num">' + numHtml + '</div>'
+      + (deltaHtml || '')
+      + (subHtml ? '<div class="recap-sub">' + subHtml + '</div>' : '')
+      + '</div>';
+  }
+
+  function renderRecap(curDays, priorDays) {
+    const cards = [];
+
+    const pk1 = peakStat(curDays), pk0 = peakStat(priorDays);
+    if (pk1) cards.push(card('Peak Score', pk1.avg + ' · ' + peakTier(pk1.avg), pk0 ? deltaRow(pk1.avg - pk0.avg, '', 1) : '', 'logged ' + pk1.loggedDays + '/' + pk1.totalDays + ' days'));
+
+    const h1 = habitsStat(curDays), h0 = habitsStat(priorDays);
+    if (h1) cards.push(card('Habits', h1.rate + '%', h0 ? deltaRow(h1.rate - h0.rate, 'pp', 1) : '', h1.done + '/' + h1.possible + ' possible check-ins'));
+
+    const t1 = todosStat(curDays), t0 = todosStat(priorDays);
+    if (t1) cards.push(card('To-Dos', t1.rate + '%', t0 ? deltaRow(t1.rate - t0.rate, 'pp', 1) : '', t1.done + '/' + t1.total + ' completed'));
+
+    const g1 = gymStat(curDays), g0 = gymStat(priorDays);
+    if (g1) cards.push(card('Gym', g1.sessions + ' session' + (g1.sessions === 1 ? '' : 's'), g0 ? deltaRow(g1.sessions - g0.sessions, '', 1) : '',
+      g1.weightDelta != null ? ('Weight: ' + (g1.weightDelta > 0 ? '+' : '') + g1.weightDelta + ' this period') : 'Out of ' + g1.days + ' days'));
+
+    const n1 = nutritionStat(curDays), n0 = nutritionStat(priorDays);
+    if (n1) cards.push(card('Nutrition', n1.avg.toLocaleString() + ' kcal/day', n0 ? deltaRow(n1.avg - n0.avg, '', 0) : '',
+      (n1.target ? ('Target ' + n1.target.toLocaleString() + ' · ') : '') + 'logged ' + n1.loggedDays + '/' + n1.totalDays + ' days'));
+
+    const s1 = supplementsStat(curDays), s0 = supplementsStat(priorDays);
+    if (s1) cards.push(card('Supplements', s1.rate + '%', s0 ? deltaRow(s1.rate - s0.rate, 'pp', 1) : '', s1.done + '/' + s1.possible + ' taken'));
+
+    const w1 = waterStat(curDays), w0 = waterStat(priorDays);
+    if (w1) cards.push(card('Water', w1.rate + '%', w0 ? deltaRow(w1.rate - w0.rate, 'pp', 1) : '', 'of target most days'));
+
+    const c1 = stimulantStat(curDays), c0 = stimulantStat(priorDays);
+    if (c1) cards.push(card('Caffeine & Nicotine', c1.avgCaf + 'mg/day', c0 ? deltaRow(c1.avgCaf - c0.avgCaf, 'mg', 0) : '',
+      c1.avgNic > 0 ? (c1.avgNic + 'mg/day nicotine avg') : 'caffeine avg'));
+
+    const r1 = readingStat(curDays), r0 = readingStat(priorDays);
+    if (r1) {
+      // Whichever unit actually has activity this period — pages take
+      // priority when both are nonzero, since a page count is the more
+      // familiar "reading" figure and mixing the two into one delta would
+      // be misleading (10 pages + 5 fewer minutes isn't a single number).
+      const usesMinutes = r1.pages === 0 && r1.minutes > 0;
+      const val = usesMinutes ? r1.minutes : r1.pages;
+      const priorVal = r0 ? (usesMinutes ? r0.minutes : r0.pages) : null;
+      cards.push(card('Reading', val + (usesMinutes ? ' min listened' : ' pages'), priorVal != null ? deltaRow(val - priorVal, '', 1) : '', 'read this period'));
+    }
+
+    const b1 = businessStat(curDays), b0 = businessStat(priorDays);
+    if (b1) cards.push(card('Business', '$' + Math.round(b1.revenue).toLocaleString(), b0 ? deltaRow(Math.round(b1.revenue - b0.revenue), '', 1) : '',
+      b1.rate != null ? (b1.rate + '% of daily commitments met') : 'revenue this period'));
+
+    const grid = $('recapGrid');
+    grid.innerHTML = cards.length ? cards.join('') : '<div class="recap-empty">No tracked activity yet for this period — log something on any tab and it\'ll show up here.</div>';
+  }
+
+  /* ============ Nova insight (single-shot, cached per period) ============ */
+  const KEY_LS = 'nova_lite_api_key';
+  function savedKey() { try { return localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; } }
+  function getSummaries() { return storeGet('review:summaries') || {}; }
+  function setSummaries(s) { storeSet('review:summaries', s); }
+
+  function statsSummaryText(mode, label, curDays, priorDays) {
+    const lines = ['Period: ' + label + ' (' + curDays.length + ' days so far)'];
+    const push = (name, cur, prior) => { if (cur != null) lines.push(name + ': ' + cur + (prior != null ? (' (prior period: ' + prior + ')') : '')); };
+    const gr1 = computePeriodGrade(curDays), gr0 = computePeriodGrade(priorDays);
+    if (gr1) push('Overall grade', gr1.letter + ' (' + gr1.score + '/100)', gr0 && (gr0.letter + ' (' + gr0.score + '/100)'));
+    const pk1 = peakStat(curDays), pk0 = peakStat(priorDays); if (pk1) push('Peak score', pk1.avg, pk0 && pk0.avg);
+    const h1 = habitsStat(curDays), h0 = habitsStat(priorDays); if (h1) push('Habit completion', h1.rate + '%', h0 && h0.rate + '%');
+    const t1 = todosStat(curDays), t0 = todosStat(priorDays); if (t1) push('To-do completion', t1.rate + '%', t0 && t0.rate + '%');
+    const g1 = gymStat(curDays), g0 = gymStat(priorDays); if (g1) push('Gym sessions', g1.sessions, g0 && g0.sessions);
+    const n1 = nutritionStat(curDays), n0 = nutritionStat(priorDays); if (n1) push('Avg daily calories', n1.avg, n0 && n0.avg);
+    const s1 = supplementsStat(curDays), s0 = supplementsStat(priorDays); if (s1) push('Supplement adherence', s1.rate + '%', s0 && s0.rate + '%');
+    const w1 = waterStat(curDays), w0 = waterStat(priorDays); if (w1) push('Water adherence', w1.rate + '%', w0 && w0.rate + '%');
+    const c1 = stimulantStat(curDays), c0 = stimulantStat(priorDays); if (c1) push('Avg daily caffeine', c1.avgCaf + 'mg', c0 && (c0.avgCaf + 'mg'));
+    const r1 = readingStat(curDays), r0 = readingStat(priorDays);
+    if (r1) push('Pages read', r1.pages + (r1.minutes > 0 ? (' (plus ' + r1.minutes + ' min of audiobook listening)') : ''), r0 && r0.pages);
+    const b1 = businessStat(curDays), b0 = businessStat(priorDays); if (b1) push('Business revenue', '$' + Math.round(b1.revenue), b0 && ('$' + Math.round(b0.revenue)));
+    return lines.join('\n');
+  }
+
+  const SYS = "You are Nova, Fernando's blunt but supportive personal coach, writing a short periodic review. "
+    + "You'll get a compact stats summary across health, fitness, nutrition, learning, and business for the current period vs the prior one. "
+    + "Write 2-4 sentences that connect what's happening ACROSS domains rather than just restating each number — surface a real correlation, tradeoff, or pattern if one exists. "
+    + "End with exactly one concrete, specific suggestion for the upcoming period. Plain prose only, no markdown headers or bullet lists, under 120 words.\n\n";
+
+  async function generateInsight(periodK, mode, label, curDays, priorDays) {
+    const btn = $('insightBtn'), body = $('insightBody'), meta = $('insightMeta');
+    const key = savedKey();
+    if (!key) {
+      body.className = 'insight-body'; body.textContent = "Paste your Anthropic API key on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and I'll use it here too.";
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Thinking…';
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-8', max_tokens: 400,
+          system: SYS,
+          messages: [{ role: 'user', content: statsSummaryText(mode, label, curDays, priorDays) }],
+        }),
+      });
+      const data = await res.json();
+      const text = (data && data.content && data.content[0] && data.content[0].text) ? data.content[0].text.trim() : null;
+      if (!text) throw new Error('empty response');
+      const summaries = getSummaries();
+      summaries[periodK] = { text: text, generatedAt: Date.now() };
+      setSummaries(summaries);
+      renderInsight(periodK);
+    } catch (e) {
+      body.className = 'insight-body'; body.textContent = "Couldn't generate an insight just now — check your API key or connection and try again.";
+    } finally {
+      btn.disabled = false; btn.textContent = '🧠 Regenerate Insight';
+    }
+  }
+
+  // ---- Reflection draft (same Nova Lite key as the insight above, a
+  // separate call because this returns structured JSON for two fields
+  // rather than one free-text blob) ----
+  function parseJsonLoose(raw) {
+    const s = String(raw).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+    return JSON.parse(s);
+  }
+  const REFLECTION_DRAFT_SYS = "You help someone draft a REFLECTION starting point for a personal weekly/monthly review, from a compact cross-domain stats summary (health, fitness, nutrition, learning, business). "
+    + "This is explicitly a rough FIRST DRAFT the person will read and rewrite in their own words before it counts as their real reflection — not a finished, final reflection. Write in first person (\"I\"), plain and honest, referencing specific numbers from the summary where relevant rather than generic encouragement. "
+    + "Respond with ONLY a JSON object (no markdown fences, no commentary) matching exactly this shape: {\"well\":string,\"change\":string}\n"
+    + "- well: 2-3 sentences on what went well this period, grounded in the actual stats given.\n"
+    + "- change: 2-3 sentences on what to change or focus on next period, grounded in the actual stats given.\n"
+    + "If the stats summary is too thin to say anything specific and honest, write a short honest one-liner noting that instead of inventing detail. Output raw JSON only.";
+
+  async function draftReflection() {
+    const ctx = renderAll._ctx; if (!ctx) return;
+    const btn = $('draftBtn'), status = $('reflDraftStatus');
+    const key = savedKey();
+    if (!key) {
+      status.textContent = "Paste your Anthropic API key on the Nova page first (the 🧠 tile on the home screen) — it's saved in this browser and I'll use it here too.";
+      return;
+    }
+    const hasExisting = $('reflWell').value.trim() || $('reflChange').value.trim();
+    if (hasExisting && !confirm('This replaces the text currently in both reflection fields with a drafted starting point — continue?')) return;
+    btn.disabled = true; btn.textContent = 'Drafting…'; status.textContent = '';
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-8', max_tokens: 400,
+          system: REFLECTION_DRAFT_SYS,
+          messages: [{ role: 'user', content: statsSummaryText(ctx.mode, ctx.label, ctx.curDays, ctx.priorDays) }],
+        }),
+      });
+      const data = await res.json();
+      const raw = (data && data.content && data.content[0] && data.content[0].text) || '';
+      const parsed = parseJsonLoose(raw);
+      if (parsed && typeof parsed.well === 'string') $('reflWell').value = parsed.well;
+      if (parsed && typeof parsed.change === 'string') $('reflChange').value = parsed.change;
+      flushReflection();
+      status.textContent = 'Drafted — edit freely, this is just a starting point.';
+    } catch (e) {
+      status.textContent = "Couldn't draft a reflection just now — check your API key or connection and try again.";
+    } finally {
+      btn.disabled = false; btn.textContent = '✍️ Draft a starting point';
+    }
+  }
+  $('draftBtn').addEventListener('click', draftReflection);
+
+  function renderInsight(periodK) {
+    const body = $('insightBody'), meta = $('insightMeta'), btn = $('insightBtn');
+    const summaries = getSummaries();
+    const s = summaries[periodK];
+    if (s && s.text) {
+      body.className = 'insight-body'; body.textContent = s.text;
+      meta.textContent = 'Generated ' + new Date(s.generatedAt).toLocaleString();
+      btn.textContent = '🧠 Regenerate Insight';
+    } else {
+      body.className = 'insight-body empty'; body.textContent = 'No insight generated yet for this period.';
+      meta.textContent = '';
+      btn.textContent = '🧠 Generate Insight';
+    }
+  }
+
+  /* ============ Reflection (debounced autosave, same pattern used to fix notes.html) ============ */
+  function getReflections() { return storeGet('review:reflections') || {}; }
+  function setReflections(r) { storeSet('review:reflections', r); }
+  let reflectionTimer = null;
+  let currentPeriodK = null;
+
+  function loadReflection(periodK) {
+    const refl = getReflections()[periodK] || { well: '', change: '' };
+    $('reflWell').value = refl.well || '';
+    $('reflChange').value = refl.change || '';
+    $('reflStatus').textContent = refl.updatedAt ? ('Saved ' + new Date(refl.updatedAt).toLocaleString()) : '';
+  }
+  function flushReflection() {
+    if (!currentPeriodK) return;
+    clearTimeout(reflectionTimer);
+    const refl = getReflections();
+    refl[currentPeriodK] = { well: $('reflWell').value, change: $('reflChange').value, updatedAt: Date.now() };
+    setReflections(refl);
+    $('reflStatus').textContent = 'Saved ' + new Date(refl[currentPeriodK].updatedAt).toLocaleTimeString();
+  }
+  function scheduleReflectionSave() { clearTimeout(reflectionTimer); reflectionTimer = setTimeout(flushReflection, 400); }
+  ['reflWell', 'reflChange'].forEach(id => $(id).addEventListener('input', scheduleReflectionSave));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushReflection(); });
+  window.addEventListener('pagehide', flushReflection);
+  window.addEventListener('beforeunload', flushReflection);
+
+  /* ============ Wire up mode + period navigation ============ */
+  let mode = 'week';
+  let viewAnchor = activeDate();
+
+  function renderAll() {
+    const b = bounds(mode, viewAnchor);
+    const priorB = bounds(mode, priorAnchorFor(b));
+    const { isCurrent, curDays, priorDays } = effectiveRanges(mode, b, priorB);
+    const periodK = periodKey(mode, b);
+    currentPeriodK = periodK;
+
+    $('periodLabel').textContent = periodLabel(mode, b);
+    $('periodTag').textContent = isCurrent ? ('So far — ' + curDays.length + ' day' + (curDays.length === 1 ? '' : 's') + ' in') : 'Complete';
+    $('nextPeriod').disabled = isCurrent;
+
+    renderGrade(curDays, priorDays);
+    renderRecap(curDays, priorDays);
+    renderInsight(periodK);
+    loadReflection(periodK);
+
+    // Stash for the insight button's click handler.
+    renderAll._ctx = { periodK, mode, label: periodLabel(mode, b), curDays, priorDays };
+  }
+
+  $('modeToggle').querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    flushReflection();
+    mode = btn.dataset.m;
+    viewAnchor = activeDate();
+    $('modeToggle').querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+    renderAll();
+  }));
+  $('prevPeriod').addEventListener('click', () => {
+    flushReflection();
+    const b = bounds(mode, viewAnchor);
+    viewAnchor = new Date(b.start); viewAnchor.setDate(viewAnchor.getDate() - 1);
+    renderAll();
+  });
+  $('nextPeriod').addEventListener('click', () => {
+    if ($('nextPeriod').disabled) return;
+    flushReflection();
+    const b = bounds(mode, viewAnchor);
+    const next = new Date(b.end); next.setDate(next.getDate() + 1);
+    if (next > activeDate()) return;
+    viewAnchor = next;
+    renderAll();
+  });
+  $('insightBtn').addEventListener('click', () => {
+    const ctx = renderAll._ctx; if (!ctx) return;
+    generateInsight(ctx.periodK, ctx.mode, ctx.label, ctx.curDays, ctx.priorDays);
+  });
+
+  renderAll();
+
+  /* ============ Cloud sync ============ */
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
+    window.initCloudSync({
+      appKey: 'review',
+      syncedKeys: ['review:reflections', 'review:summaries'],
+      onApplied: function () { renderAll(); },
+    });
+  });
+})();
+</script>
+</body>
+</html>

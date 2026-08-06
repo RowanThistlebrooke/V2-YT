@@ -18,6 +18,7 @@
 <!--      the bottom) so it saves + syncs independently.            -->
 <!-- ============================================================= -->
 <script src="lock.js"></script>                                  <!-- passcode lock screen -->
+<script src="/api/config"></script>                              <!-- real Supabase URL/key from Vercel env vars -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
@@ -27,6 +28,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>     <!-- cloud sync across devices -->
 <script src="topbar.js" defer></script>   <!-- top water bar + bottom tab nav -->
+<link rel="stylesheet" href="design-system.css">
 
 <style>
 /* ============================================================= */
@@ -462,14 +464,22 @@ body::after {
   // Mirrors STORE_KEY to all your devices. `appKey` is this page's row
   // in Supabase — give each NEW page its own appKey. onApplied re-draws
   // the list when an update arrives from another device.
-  if (window.initCloudSync) {
+  //
+  // MUST be wrapped in DOMContentLoaded: sync.js is loaded with `defer`,
+  // so it hasn't run yet at the point this inline script executes during
+  // parsing. Checking window.initCloudSync synchronously here (outside
+  // DOMContentLoaded) will always find it undefined and silently skip
+  // sync setup — your page will work fine on one device and just never
+  // sync to any other. Keep this wrapper when you copy this block.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.initCloudSync) return;
     window.initCloudSync({
       appKey: 'template',          // 👈 unique per page (e.g. 'reading', 'habits')
       syncedKeys: [STORE_KEY],     // exact localStorage keys to sync
       // syncedPrefixes: ['tpl:'], // …or sync every key starting with a prefix
       onApplied: render
     });
-  }
+  });
 })();
 </script>
 
