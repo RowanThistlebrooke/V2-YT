@@ -1403,8 +1403,9 @@ body.topbar-modal-open {
         try { accounts = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); } catch (_) {}
         if (!accounts || !accounts.length) return;
         let account = accounts[0];
-        // Only proceed if the token has gmail scope (granted after user reconnects in calendar.html)
-        if (!account.scope || !account.scope.includes('gmail.readonly')) return;
+        // Only block if scope is explicitly set and doesn't include gmail.readonly.
+        // Legacy accounts without a stored scope field get through (same logic as hasGmailScope() in mail.html).
+        if (account.scope && !account.scope.includes('gmail.readonly')) return;
 
         // Refresh token if expiring soon
         if (account.expires && Date.now() > account.expires - 60000) {
