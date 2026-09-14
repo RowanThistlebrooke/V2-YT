@@ -762,7 +762,8 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
             var timeStr = ev.start.dateTime
               ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : null;
-            return { when: when, daysFromNow: daysFromNow, title: ev.summary || '(no title)',
+            var isoDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            return { isoDate: isoDate, title: ev.summary || '(no title)',
               allDay: !ev.start.dateTime, time: timeStr, cal: ev._calName || 'Google' };
           });
         localStorage.setItem('google_cal_events_v1', JSON.stringify(slim));

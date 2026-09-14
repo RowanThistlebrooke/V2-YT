@@ -856,8 +856,19 @@ body.topbar-modal-open {
           } catch (e) { /* leave null */ }
           out[k] = { exercises: v.exercises, days: v.days, gyms: v.gyms, logs: slimLogs, today_gym_split: todayGymSplit };
         } else if (k === 'google_cal_events_v1' && Array.isArray(v)) {
-          // Already slimmed with precomputed when strings — cap to 30 upcoming events
-          out[k] = v.slice(0, 30);
+          // Recompute when strings fresh — stored values are stale (computed at calendar sync time,
+          // not at coach call time). Filter out past events and recalculate daysFromNow.
+          const calToday = new Date(); calToday.setHours(0,0,0,0);
+          const calTodayKey = calToday.getFullYear() + '-' + String(calToday.getMonth()+1).padStart(2,'0') + '-' + String(calToday.getDate()).padStart(2,'0');
+          out[k] = v.filter(function(ev) {
+            return ev.isoDate ? ev.isoDate >= calTodayKey : true;
+          }).slice(0, 30).map(function(ev) {
+            if (!ev.isoDate) return ev; // old format without isoDate — pass through unchanged
+            var evDay = new Date(ev.isoDate + 'T00:00');
+            var daysFromNow = Math.round((evDay - calToday) / 86400000);
+            var when = daysFromNow === 0 ? 'today' : daysFromNow === 1 ? 'tomorrow' : daysFromNow + ' days from now';
+            return Object.assign({}, ev, { when: when, daysFromNow: daysFromNow });
+          });
         } else if (k === 'gmail_summary_v1' && v && typeof v === 'object') {
           // Slim gmail data: pass unread count, top 10 threads (subject/from/when/snippet),
           // and up to 5 shipping threads. Drop full email bodies and raw dates.
@@ -2527,7 +2538,7 @@ body.topbar-modal-open {
     // If coach_prompt_build fails to save (quota), the version check fires on every
     // page load → proactiveDayKey() is deleted → scan re-runs infinitely.
     pruneOldStorage();
-    const COACH_PROMPT_BUILD = '2026-07-27-v4';
+    const COACH_PROMPT_BUILD = '2026-09-13-v1';
     if (localStorage.getItem('coach_prompt_build') !== COACH_PROMPT_BUILD) {
       try { localStorage.removeItem(proactiveDayKey()); } catch (e) { console.warn('[Coach] proactive key remove failed', e); }
       // Retry once on quota — pruneOldStorage() should have freed space above,

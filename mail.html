@@ -186,9 +186,9 @@ body::after {
   <div id="connectPrompt" style="display:none">
     <div class="connect-card">
       <div class="connect-icon">📬</div>
-      <div class="connect-title">Connect Gmail</div>
-      <div class="connect-desc">Connect your Google account with Gmail permissions to view your inbox, track packages, and let your coach draft and send emails on your behalf.</div>
-      <a href="/calendar.html" class="connect-btn">Connect in Calendar →</a>
+      <div class="connect-title" id="connectTitle">Connect Gmail</div>
+      <div class="connect-desc" id="connectDesc">Connect your Google account with Gmail permissions to view your inbox, track packages, and let your coach draft and send emails on your behalf.</div>
+      <a href="/calendar.html" class="connect-btn" id="connectBtn">Connect in Calendar →</a>
     </div>
   </div>
 
@@ -512,7 +512,14 @@ body::after {
         await window.loadGmailSummary(window.DASH_APP_SECRET || '');
     }
 
-    try { var s = JSON.parse(localStorage.getItem(SUMMARY_KEY)); if (s) renderSummary(s); } catch (_) {}
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(SUMMARY_KEY)); } catch (_) {}
+    if (s) {
+      renderSummary(s);
+    } else {
+      // loadGmailSummary ran but produced no data — likely a token or scope issue
+      el('mailSub').textContent = '⚠ Could not load mail. Check that Gmail is authorized (reconnect in Calendar if needed), then refresh.';
+    }
     btn.disabled = false;
     btn.textContent = '⟳ Refresh';
   }
@@ -546,9 +553,21 @@ body::after {
   // ── Boot ──────────────────────────────────────────────────────────────────
   function init() {
     if (!hasGmailScope()) {
+      // Check whether the user has a calendar-only account (needs upgrade) vs no account at all
+      try {
+        var _accs = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]');
+        if (_accs && _accs[0] && _accs[0].access) {
+          // Has account but lacking gmail.readonly — needs to reconnect with new scopes
+          el('connectTitle').textContent = 'Gmail Access Needed';
+          el('connectDesc').textContent  = 'Your Google account is connected for Calendar, but Gmail permission hasn\'t been granted yet. Click below to reconnect — it only takes a moment and adds Gmail access alongside your existing calendar connection.';
+          el('connectBtn').textContent   = 'Reconnect with Gmail Access →';
+          el('mailSub').textContent      = 'Gmail permission needed — reconnect Google';
+        } else {
+          el('mailSub').textContent = 'Google account not connected';
+        }
+      } catch (_) { el('mailSub').textContent = 'Gmail not connected'; }
       el('connectPrompt').style.display = '';
       el('mailContent').style.display   = 'none';
-      el('mailSub').textContent          = 'Gmail not connected';
       return;
     }
     el('connectPrompt').style.display = 'none';
