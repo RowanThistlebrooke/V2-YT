@@ -448,6 +448,8 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
   // Each entry describes what changed for that release so you can trace
   // what was added when, which is useful for debugging "when did X appear?"
   const CHANGELOG = [
+    { ver: '3.155', date: '2026-09-13', items: ['Fix stale calendar dates in coach + mail error UX'] },
+
     { ver: '3.154', date: '2026-08-23', items: ['chore: update CLAUDE.md for 16e28d8 (Google routing fix, Gmail scope fix)', 'Fix Calendar API routing bug + mail Gmail scope check'] },
 
     { ver: '3.153', date: '2026-07-30', items: ['chore: update CLAUDE.md changelog for ef2d598 (plan rebuild)', 'Rebuild marathon plan from Jul 30 with safe 20mi progression'] },
