@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
-<title>Research &amp; Internships · Dashboard</title>
+<title>Labs &amp; Applications · Dashboard</title>
 <script src="/api/config"></script>
 <script src="sync.js"></script>
 <script src="topbar.js" defer></script>
@@ -46,10 +46,60 @@ textarea.gm-input { resize: vertical; min-height: 100px; line-height: 1.5; margi
 .gm-add:disabled { opacity: 0.5; cursor: default; }
 .gm-ghost { padding: 10px 16px; border: 1px solid rgba(255,255,255,0.10); border-radius: 11px; background: rgba(255,255,255,0.04); color: var(--text-primary); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .gm-ghost:hover { background: rgba(255,255,255,0.08); }
-
 .save-ok { font-size: 11.5px; color: var(--success); margin-left: 10px; }
 .hint { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.5; margin-top: 0; margin-bottom: 12px; }
 .hidden { display: none !important; }
+
+/* Pipeline stats bar */
+.pipeline-bar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 16px; }
+.pipeline-stage { text-align: center; padding: 10px 4px 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 11px; cursor: pointer; transition: 0.15s; }
+.pipeline-stage:hover, .pipeline-stage.active { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+.pipeline-stage-num { font-size: 18px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.pipeline-stage-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-tertiary); margin-top: 2px; }
+
+/* Status badges */
+.status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
+.st-saved       { background: rgba(120,120,130,0.12); color: #9CA3AF; }
+.st-emailed     { background: rgba(125,211,252,0.12); color: #7DD3FC; }
+.st-applied     { background: rgba(242,192,99,0.12);  color: #F2C063; }
+.st-replied     { background: rgba(107,227,164,0.14); color: var(--success); }
+.st-interviewing{ background: rgba(255,138,138,0.12); color: #FF8A8A; }
+.st-offer       { background: rgba(167,243,208,0.15); color: #A7F3D0; }
+.st-closed      { background: rgba(80,80,90,0.12);    color: #52525B; }
+
+/* Opportunity rows */
+.opp-row { padding: 14px 16px; margin-bottom: 8px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; transition: border-color 0.15s; }
+.opp-row.replied-row { border-color: rgba(107,227,164,0.3); background: rgba(107,227,164,0.03); }
+.opp-row-top { display: flex; align-items: flex-start; gap: 10px; }
+.opp-row-info { flex: 1; min-width: 0; }
+.opp-row-name { font-size: 13.5px; color: var(--text-primary); font-weight: 600; }
+.opp-row-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.opp-row-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.opp-btn { border: 1px solid rgba(255,255,255,0.10); background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 6px 11px; border-radius: 9px; cursor: pointer; }
+.opp-btn:hover { background: rgba(255,255,255,0.06); }
+.opp-btn:disabled { opacity: 0.5; cursor: default; }
+.opp-btn-accent { border: 1px solid rgba(94,234,212,0.25); background: rgba(94,234,212,0.08); color: var(--accent); font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 6px 11px; border-radius: 9px; cursor: pointer; }
+.opp-btn-accent:hover { background: rgba(94,234,212,0.14); }
+.opp-btn-accent:disabled { opacity: 0.5; cursor: default; }
+.opp-delete { border: 0; background: transparent; color: var(--text-tertiary); font-size: 18px; cursor: pointer; padding: 0 4px; opacity: 0.5; line-height: 1; flex-shrink: 0; margin-left: auto; }
+.opp-delete:hover { color: var(--danger); opacity: 1; }
+.deadline-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; }
+.deadline-ok { background: rgba(107,227,164,0.1); color: var(--success); }
+.deadline-soon { background: rgba(242,192,99,0.14); color: var(--warning); }
+.deadline-past { background: rgba(255,107,107,0.12); color: var(--danger); }
+
+/* Gmail replies section */
+.reply-card { padding: 12px 14px; margin-bottom: 8px; background: rgba(107,227,164,0.04); border: 1px solid rgba(107,227,164,0.2); border-radius: 12px; }
+.reply-card-from { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.reply-card-subject { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.reply-card-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; display: flex; gap: 10px; }
+.reply-card-snippet { font-size: 11.5px; color: var(--text-tertiary); margin-top: 6px; font-style: italic; line-height: 1.4; }
+.reply-action { font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(94,234,212,0.08); border: 1px solid rgba(94,234,212,0.2); padding: 4px 10px; border-radius: 7px; cursor: pointer; font-family: inherit; margin-top: 8px; }
+.reply-action:hover { background: rgba(94,234,212,0.14); }
+
+/* Google connect notice */
+.connect-notice { font-size: 12px; color: var(--warning); background: rgba(242,192,99,0.08); border: 1px solid rgba(242,192,99,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
+.connect-notice a { color: var(--warning); }
 
 /* Search */
 .search-status { font-size: 12.5px; color: var(--text-tertiary); margin-top: 10px; font-style: italic; }
@@ -58,73 +108,67 @@ textarea.gm-input { resize: vertical; min-height: 100px; line-height: 1.5; margi
 .search-status.err { color: var(--danger); font-style: normal; }
 .no-apify-note { font-size: 12px; color: var(--warning); background: rgba(242,192,99,0.08); border: 1px solid rgba(242,192,99,0.25); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
 
-/* Google connect notice */
-.connect-notice { font-size: 12px; color: var(--warning); background: rgba(242,192,99,0.08); border: 1px solid rgba(242,192,99,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
-.connect-notice a { color: var(--warning); }
-
 /* Search result opportunity cards */
-.opp-card { padding: 16px 18px; margin-bottom: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; transition: border-color 0.15s; }
+.opp-card { padding: 16px 18px; margin-bottom: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; }
 .opp-card.applied { border-color: rgba(110,231,183,0.35); background: rgba(110,231,183,0.04); opacity: 0.7; }
 .opp-header { display: flex; align-items: flex-start; gap: 12px; }
 .opp-score { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; border: 1.5px solid; }
 .opp-score.high { border-color: var(--success); color: var(--success); background: rgba(110,231,183,0.1); }
-.opp-score.mid { border-color: var(--warning); color: var(--warning); background: rgba(242,192,99,0.1); }
-.opp-score.low { border-color: rgba(255,255,255,0.2); color: var(--text-tertiary); background: transparent; }
+.opp-score.mid  { border-color: var(--warning); color: var(--warning); background: rgba(242,192,99,0.1); }
+.opp-score.low  { border-color: rgba(255,255,255,0.2); color: var(--text-tertiary); background: transparent; }
 .opp-info { flex: 1; min-width: 0; }
-.opp-title { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
+.opp-title   { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
 .opp-company { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
-.opp-match { font-size: 11.5px; color: var(--text-secondary); margin-top: 5px; font-style: italic; }
-.opp-qual { font-size: 11px; color: var(--success); margin-top: 5px; line-height: 1.4; }
+.opp-match   { font-size: 11.5px; color: var(--text-secondary); margin-top: 5px; font-style: italic; }
+.opp-qual    { font-size: 11px; color: var(--success); margin-top: 5px; line-height: 1.4; }
 .opp-qual::before { content: '✓ '; }
 .opp-apply-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #7DD3FC; text-decoration: none; font-weight: 600; margin-top: 8px; }
 .opp-apply-link:hover { text-decoration: underline; }
 .opp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.opp-btn { border: 1px solid rgba(255,255,255,0.10); background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 7px 12px; border-radius: 9px; cursor: pointer; }
-.opp-btn:hover { background: rgba(255,255,255,0.06); }
-.opp-btn:disabled { opacity: 0.5; cursor: default; }
 .opp-applied-btn { border: 1px solid rgba(110,231,183,0.3); background: transparent; color: var(--success); font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 7px 12px; border-radius: 9px; cursor: pointer; }
 .opp-applied-btn.on { background: rgba(110,231,183,0.14); }
 .opp-email-box { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); font-size: 12.5px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap; display: none; }
 .opp-email-box.show { display: block; }
 .empty-state { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 20px 0; }
 
-/* Manual opportunity rows */
-.opp-row { display: flex; align-items: center; gap: 10px; padding: 14px 16px; margin-bottom: 8px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; transition: border-color 0.15s; }
-.opp-row.sent-row { border-color: rgba(94,234,212,0.3); background: rgba(94,234,212,0.03); }
-.opp-row-info { flex: 1; min-width: 0; }
-.opp-row-name { font-size: 13.5px; color: var(--text-primary); font-weight: 600; }
-.opp-row-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; }
-.sent-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 700; background: rgba(94,234,212,0.12); color: var(--accent); }
-.opp-delete { border: 0; background: transparent; color: var(--text-tertiary); font-size: 18px; cursor: pointer; padding: 0 4px; opacity: 0.5; line-height: 1; }
-.opp-delete:hover { color: var(--danger); opacity: 1; }
-.opp-draft-btn { border: 0; background: rgba(94,234,212,0.10); color: var(--accent); font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 7px 12px; border-radius: 9px; cursor: pointer; flex-shrink: 0; white-space: nowrap; }
-.opp-draft-btn:hover { background: rgba(94,234,212,0.18); }
-.opp-draft-btn:disabled { opacity: 0.5; cursor: default; }
+/* Status change select */
+.status-select { padding: 5px 9px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; color: var(--text-primary); font-family: inherit; font-size: 11.5px; font-weight: 600; outline: none; cursor: pointer; }
 
-/* Send modal */
+/* Send / cover letter modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 2000; display: flex; align-items: flex-end; justify-content: center; }
 .modal-sheet { background: #18181e; border-radius: 20px 20px 0 0; padding: 24px 22px max(24px, env(safe-area-inset-bottom)); width: 100%; max-width: 640px; max-height: 92dvh; overflow-y: auto; }
 @media (min-width: 680px) { .modal-overlay { align-items: center; } .modal-sheet { border-radius: 20px; max-height: 90dvh; } }
 .modal-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; margin: 0 auto 20px; }
 .modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0 0 18px; }
+.modal-tabs { display: flex; gap: 0; border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.modal-tab { flex: 1; padding: 9px; border: 0; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: center; }
+.modal-tab.on { background: rgba(255,255,255,0.10); color: var(--text-primary); }
 .modal-row { margin-bottom: 13px; }
 .modal-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 5px; display: block; }
 .modal-input { width: 100%; padding: 10px 13px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: 13.5px; outline: none; }
 .modal-input:focus { border-color: rgba(94,234,212,0.4); }
 .modal-textarea { width: 100%; min-height: 220px; resize: vertical; padding: 11px 13px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: 13px; line-height: 1.6; outline: none; }
 .modal-textarea:focus { border-color: rgba(94,234,212,0.4); }
+.modal-textarea.cover { min-height: 340px; }
 .modal-actions { display: flex; gap: 9px; margin-top: 18px; flex-wrap: wrap; }
 .modal-send-btn { padding: 12px 26px; background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%); border: 0; border-radius: 12px; color: #0A0A0B; font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
 .modal-send-btn:hover { filter: brightness(1.06); }
 .modal-send-btn:disabled { opacity: 0.5; cursor: default; }
 .modal-cancel-btn { padding: 11px 18px; background: transparent; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: var(--text-secondary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .modal-cancel-btn:hover { background: rgba(255,255,255,0.06); }
+.modal-copy-btn { padding: 11px 18px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: var(--text-secondary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.modal-copy-btn:hover { background: rgba(255,255,255,0.10); }
 .modal-status { font-size: 12.5px; margin-top: 10px; line-height: 1.4; }
-.modal-status.ok { color: var(--success); }
+.modal-status.ok  { color: var(--success); }
 .modal-status.err { color: var(--danger); }
 .modal-generating { font-size: 12.5px; color: var(--text-tertiary); font-style: italic; }
 
-@media (max-width: 480px) { body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; } .gm-card { padding: 16px; } .modal-sheet { padding: 20px 16px max(20px, env(safe-area-inset-bottom)); } }
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+  .pipeline-bar { grid-template-columns: repeat(4, 1fr); }
+  .modal-sheet { padding: 20px 16px max(20px, env(safe-area-inset-bottom)); }
+}
 </style>
 </head>
 <body>
@@ -135,18 +179,87 @@ textarea.gm-input { resize: vertical; min-height: 100px; line-height: 1.5; margi
     <span>Back</span>
   </a>
 
-  <h1 class="dash-title">Research &amp; Internships</h1>
-  <p class="dash-sub">Find opportunities, personalize your template email with AI, and send applications directly from here.</p>
+  <h1 class="dash-title">Labs &amp; Applications</h1>
+  <p class="dash-sub">Track research labs, internships, and jobs — AI-drafted emails, cover letters, inbox monitoring, and calendar follow-ups.</p>
 
-  <!-- Gmail connection notice (shown if no gmail.send scope) -->
+  <!-- Gmail connection notice -->
   <div class="connect-notice hidden" id="connectNotice">
     ✉ Gmail not connected — <a href="calendar.html">connect your Google account</a> with Gmail access to enable email sending.
   </div>
 
+  <!-- ── Pipeline stats ─────────────────────────────────────── -->
+  <div class="section-title" style="margin-top:0">Pipeline</div>
+  <div class="gm-card" style="padding:16px">
+    <div class="pipeline-bar" id="pipelineBar"></div>
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap" id="filterRow">
+      <button class="opp-btn active-filter" data-filter="all" id="filterAll" style="font-size:11px;padding:5px 11px">All</button>
+      <button class="opp-btn" data-filter="saved"        style="font-size:11px;padding:5px 11px">Saved</button>
+      <button class="opp-btn" data-filter="emailed"      style="font-size:11px;padding:5px 11px">Emailed</button>
+      <button class="opp-btn" data-filter="applied"      style="font-size:11px;padding:5px 11px">Applied</button>
+      <button class="opp-btn" data-filter="replied"      style="font-size:11px;padding:5px 11px">Replied</button>
+      <button class="opp-btn" data-filter="interviewing" style="font-size:11px;padding:5px 11px">Interview</button>
+      <button class="opp-btn" data-filter="offer"        style="font-size:11px;padding:5px 11px">Offer</button>
+      <button class="opp-btn" data-filter="closed"       style="font-size:11px;padding:5px 11px">Closed</button>
+    </div>
+  </div>
+
+  <!-- ── Gmail Replies ─────────────────────────────────────── -->
+  <div class="section-title" id="repliesHeading">Inbox replies</div>
+  <div class="gm-card" id="repliesCard">
+    <div id="repliesList"><div class="empty-state">No replies yet from your contacts — replies from saved emails will appear here automatically.</div></div>
+  </div>
+
+  <!-- ── Your Opportunities ──────────────────────────────────── -->
+  <div class="section-title">Your opportunities</div>
+  <div class="gm-card">
+    <div id="oppList"></div>
+    <details style="margin-top:10px" id="addDetails">
+      <summary style="font-size:12.5px;color:var(--text-tertiary);cursor:pointer;font-weight:600;user-select:none">+ Add opportunity</summary>
+      <div style="margin-top:14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label class="field-label">Type</label>
+            <select class="gm-input" id="oppType" style="margin-bottom:0">
+              <option value="research">🔬 Research Lab</option>
+              <option value="internship">💼 Internship</option>
+              <option value="job">🏢 Full-time Job</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Deadline (optional)</label>
+            <input class="gm-input" id="oppDeadline" type="date" style="margin-bottom:0;color-scheme:dark">
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label class="field-label">Role / project title</label>
+          <input class="gm-input" id="oppRole" type="text" placeholder="e.g. Computational Neuroscience REU, Software Engineering Intern" autocomplete="off">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label class="field-label">PI / Company / Lab</label>
+            <input class="gm-input" id="oppCompany" type="text" placeholder="e.g. Prof. Smith, Meta, NIH" autocomplete="off" style="margin-bottom:0">
+          </div>
+          <div>
+            <label class="field-label">Contact name (optional)</label>
+            <input class="gm-input" id="oppContactName" type="text" placeholder="e.g. Dr. Sarah Chen" autocomplete="off" style="margin-bottom:0">
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label class="field-label">Contact email</label>
+          <input class="gm-input" id="oppEmail" type="email" placeholder="pi@university.edu or recruiter@company.com" autocomplete="off">
+        </div>
+        <label class="field-label">Notes / posting description</label>
+        <textarea class="gm-input" id="oppNotes" placeholder="Paste the job/lab description or key requirements — AI uses this to personalize your email and cover letter" style="min-height:80px"></textarea>
+        <button class="gm-add" id="oppAdd" type="button">Add opportunity</button>
+      </div>
+    </details>
+  </div>
+
   <!-- ── AI Search ─────────────────────────────────────────── -->
-  <div class="section-title" style="margin-top:0">Find opportunities</div>
+  <div class="section-title">Find opportunities with AI</div>
   <div class="gm-card" id="searchCard">
-    <div id="noApifyNote" class="no-apify-note hidden">⚠ <b>APIFY_API_TOKEN not configured</b> — add it to Vercel env vars to enable automated search. You can still add opportunities manually below.</div>
+    <div id="noApifyNote" class="no-apify-note hidden">⚠ <b>APIFY_API_TOKEN not configured</b> — add it to Vercel env vars to enable automated search. You can still add opportunities manually above.</div>
 
     <div class="type-seg" id="typeSeg">
       <button data-t="internship" class="on">💼 Internship</button>
@@ -165,7 +278,7 @@ textarea.gm-input { resize: vertical; min-height: 100px; line-height: 1.5; margi
       <input class="gm-input" id="srchLoc" type="text" placeholder="e.g. Remote, New York, San Francisco" autocomplete="off">
     </div>
 
-    <label class="field-label" style="margin-top:10px">Your background (pulled from below if saved)</label>
+    <label class="field-label" style="margin-top:10px">Your background (pulled from profile if saved)</label>
     <textarea class="gm-input" id="srchResume" placeholder="Paste key resume sections, skills, GPA, relevant courses…"></textarea>
 
     <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
@@ -189,13 +302,12 @@ textarea.gm-input { resize: vertical; min-height: 100px; line-height: 1.5; margi
       <button class="gm-add" id="srchSearch" type="button" style="margin-top:10px">✦ Search with this profile</button>
     </div>
   </div>
-
   <div id="srchResults"></div>
 
   <!-- ── Email Template ──────────────────────────────────────── -->
   <div class="section-title">Email template</div>
   <div class="gm-card">
-    <p class="hint" style="margin-top:0">Paste or type your base template. AI fills in the role, company, and highlights from your resume for each opportunity. Use plain language — no special syntax needed.</p>
+    <p class="hint" style="margin-top:0">Your base cold-email template. AI fills in specific details for each opportunity. Use plain language — no special syntax needed.</p>
     <textarea class="gm-input" id="emailTemplate" style="min-height:180px" placeholder="Subject: Interest in [role] at [company]
 
 Hi [contact name or hiring team],
@@ -216,53 +328,46 @@ Best,
     </div>
   </div>
 
-  <!-- ── Your Background ─────────────────────────────────────── -->
-  <div class="section-title">Your background</div>
+  <!-- ── Your Profile ─────────────────────────────────────────── -->
+  <div class="section-title">Your profile</div>
   <div class="gm-card">
     <label class="field-label">Resume / bio context</label>
     <textarea class="gm-input" id="resumeCtx" placeholder="Name, major, year, university, GPA, skills, relevant experience, what you're looking for…" style="min-height:100px;margin-bottom:10px"></textarea>
-    <div style="display:flex;align-items:center;gap:10px">
-      <label style="cursor:pointer;padding:8px 13px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:9px;font-size:12px;font-weight:600;color:var(--text-secondary);transition:0.15s" id="resumeUploadLabel">
+
+    <label class="field-label" style="margin-top:6px">Writing style guide (optional)</label>
+    <textarea class="gm-input" id="styleGuide" placeholder="Describe how you write: e.g. direct and specific, no buzzwords, mention concrete projects not vague skills, avoid openers like 'I hope this finds you well', keep under 200 words, professional but not stiff…" style="min-height:70px;margin-bottom:10px"></textarea>
+
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <label style="cursor:pointer;padding:8px 13px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:9px;font-size:12px;font-weight:600;color:var(--text-secondary);" id="resumeUploadLabel">
         📎 Upload PDF / TXT
         <input type="file" id="resumeUpload" accept=".pdf,.txt,.md" style="display:none">
       </label>
       <span id="resumeUploadName" style="font-size:11px;color:var(--text-tertiary)"></span>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
-      <button class="gm-ghost" id="resumeSave" type="button">Save background</button>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="gm-ghost" id="resumeSave" type="button">Save profile</button>
       <span class="save-ok hidden" id="resumeSaveOk">Saved ✓</span>
     </div>
   </div>
 
-  <!-- ── Opportunities ───────────────────────────────────────── -->
-  <div class="section-title">Your opportunities</div>
-  <div class="gm-card">
-    <div id="oppList"></div>
-    <details style="margin-top:10px" id="addDetails">
-      <summary style="font-size:12.5px;color:var(--text-tertiary);cursor:pointer;font-weight:600;user-select:none">+ Add opportunity manually</summary>
-      <div style="margin-top:14px">
-        <label class="field-label">Role / project title</label>
-        <input class="gm-input" id="oppRole" type="text" placeholder="e.g. Software Engineering Intern, Computational Neuroscience REU" autocomplete="off">
-        <label class="field-label">Company / lab / professor</label>
-        <input class="gm-input" id="oppCompany" type="text" placeholder="e.g. Meta, Prof. Smith Lab @ CWRU" autocomplete="off">
-        <label class="field-label">Contact email</label>
-        <input class="gm-input" id="oppEmail" type="email" placeholder="recruiter@company.com or professor@university.edu" autocomplete="off">
-        <label class="field-label">Notes / job description</label>
-        <textarea class="gm-input" id="oppNotes" placeholder="Paste the job description, key requirements, why you want it — used by AI to personalize your email" style="min-height:80px"></textarea>
-        <button class="gm-add" id="oppAdd" type="button">Add opportunity</button>
-      </div>
-    </details>
-  </div>
-
 </div><!-- end .page -->
 
-<!-- ── Send Email Modal ────────────────────────────────────── -->
-<div class="modal-overlay hidden" id="sendModal" role="dialog" aria-modal="true" aria-label="Send application email">
+<!-- ── Email / Cover Letter Modal ─────────────────────── -->
+<div class="modal-overlay hidden" id="sendModal" role="dialog" aria-modal="true" aria-label="Draft and send">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">Send Application Email</div>
-    <div id="modalGenerating" class="modal-generating hidden">Personalizing your email with AI…</div>
-    <div id="modalForm">
+    <div class="modal-title" id="modalTitle">Draft &amp; Send</div>
+
+    <!-- Tab bar: Email | Cover Letter -->
+    <div class="modal-tabs" id="modalTabs">
+      <button class="modal-tab on" data-mtab="email"  id="mtabEmail">📧 Email</button>
+      <button class="modal-tab"   data-mtab="cover"  id="mtabCover">📄 Cover Letter</button>
+    </div>
+
+    <div id="modalGenerating" class="modal-generating hidden">Drafting with AI…</div>
+
+    <!-- Email tab -->
+    <div id="modalEmailPanel">
       <div class="modal-row">
         <label class="modal-label" for="modalTo">To</label>
         <input class="modal-input" id="modalTo" type="email" placeholder="recruiter@company.com" autocomplete="off">
@@ -281,6 +386,21 @@ Best,
         <button class="modal-cancel-btn" id="modalCancelBtn" type="button">Cancel</button>
       </div>
     </div>
+
+    <!-- Cover letter tab -->
+    <div id="modalCoverPanel" style="display:none">
+      <div id="coverGenerating" class="modal-generating hidden">Generating cover letter…</div>
+      <div class="modal-row">
+        <label class="modal-label" for="modalCoverBody">Cover Letter</label>
+        <textarea class="modal-textarea cover" id="modalCoverBody" placeholder="Cover letter will appear here after generation…"></textarea>
+      </div>
+      <div id="coverStatus" class="modal-status"></div>
+      <div class="modal-actions">
+        <button class="gm-add" id="coverGenBtn" type="button">✦ Generate cover letter</button>
+        <button class="modal-copy-btn" id="coverCopyBtn" type="button">Copy</button>
+        <button class="modal-cancel-btn" id="coverCancelBtn" type="button">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -289,15 +409,43 @@ Best,
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const RESUME_KEY    = 'internship:resume_ctx';
-  const OPP_KEY       = 'internship:opportunities';
-  const APPLIED_KEY   = 'internship:applied';
-  const TEMPLATE_KEY  = 'internship:email_template';
-  const SENT_KEY      = 'internship:sent_log';
+  const RESUME_KEY   = 'internship:resume_ctx';
+  const OPP_KEY      = 'internship:opportunities';
+  const APPLIED_KEY  = 'internship:applied';
+  const TEMPLATE_KEY = 'internship:email_template';
+  const SENT_KEY     = 'internship:sent_log';
+  const STYLE_KEY    = 'internship:style_guide';
+
+  const STATUSES      = ['saved','emailed','applied','replied','interviewing','offer','closed'];
+  const STATUS_LABELS = { saved:'Saved', emailed:'Emailed', applied:'Applied', replied:'Replied', interviewing:'Interview', offer:'Offer', closed:'Closed' };
 
   function loadJSON(k, fb) { try { const v = JSON.parse(localStorage.getItem(k)); return v != null ? v : fb; } catch (_) { return fb; } }
-  function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.warn('[Internship]', k, 'save failed', e); } }
+  function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.warn('[App]', k, 'save failed', e); } }
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function todayKey() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    const t = new Date(todayKey()+'T00:00'); const d = new Date(dateStr+'T00:00');
+    return Math.round((d-t)/86400000);
+  }
+
+  // ── Migrate legacy status from APPLIED/SENT keys ────────────
+  function migrateStatuses() {
+    const opps = loadJSON(OPP_KEY, []);
+    const applied = loadJSON(APPLIED_KEY, {});
+    const sent    = loadJSON(SENT_KEY, {});
+    let changed = false;
+    opps.forEach(o => {
+      if (!o.status) {
+        if (sent[o.id])    { o.status = 'emailed'; if (sent[o.id].sentAt) o.lastEmailSentAt = sent[o.id].sentAt; }
+        else if (applied[o.id]) { o.status = 'applied'; }
+        else                { o.status = 'saved'; }
+        changed = true;
+      }
+    });
+    if (changed) saveJSON(OPP_KEY, opps);
+    return opps;
+  }
 
   // ── Gmail connection check ──────────────────────────────────
   function checkGmailConnected() {
@@ -308,12 +456,13 @@ Best,
   }
   if (!checkGmailConnected()) $('connectNotice').classList.remove('hidden');
 
-  // ── Restore saved values ────────────────────────────────────
-  $('resumeCtx').value   = localStorage.getItem(RESUME_KEY) || '';
+  // ── Restore saved profile ───────────────────────────────────
+  $('resumeCtx').value     = localStorage.getItem(RESUME_KEY) || '';
   $('emailTemplate').value = localStorage.getItem(TEMPLATE_KEY) || '';
-  $('srchResume').value  = localStorage.getItem(RESUME_KEY) || '';
+  $('styleGuide').value    = localStorage.getItem(STYLE_KEY) || '';
+  $('srchResume').value    = localStorage.getItem(RESUME_KEY) || '';
 
-  // ── Resume file upload (PDF / TXT) ──────────────────────────
+  // ── Resume file upload ──────────────────────────────────────
   $('resumeUpload').addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0];
     e.target.value = '';
@@ -335,11 +484,7 @@ Best,
       } catch (err) { nameEl.textContent = '⚠ ' + (err.message || 'Error'); }
     } else {
       const reader = new FileReader();
-      reader.onload = ev => {
-        $('resumeCtx').value = ev.target.result || '';
-        $('srchResume').value = ev.target.result || '';
-        nameEl.textContent = '✓ ' + f.name;
-      };
+      reader.onload = ev => { $('resumeCtx').value = ev.target.result||''; $('srchResume').value = ev.target.result||''; nameEl.textContent = '✓ ' + f.name; };
       reader.onerror = () => { nameEl.textContent = '⚠ Could not read file'; };
       reader.readAsText(f, 'utf-8');
     }
@@ -348,24 +493,16 @@ Best,
   // ── Save buttons ────────────────────────────────────────────
   $('templateSave').addEventListener('click', () => {
     saveJSON(TEMPLATE_KEY, $('emailTemplate').value);
-    // immediate push so template is available on all devices
-    fetch('/api/db', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-App-Secret': window.DASH_APP_SECRET || '' },
-      body: JSON.stringify({ key: 'internships', data: { [TEMPLATE_KEY]: $('emailTemplate').value } }),
-    }).catch(e => console.warn('[Internship] template push failed', e));
+    pushData();
     $('templateSaveOk').classList.remove('hidden');
     setTimeout(() => $('templateSaveOk').classList.add('hidden'), 1600);
   });
   $('resumeSave').addEventListener('click', () => {
     const ctx = $('resumeCtx').value.trim();
     saveJSON(RESUME_KEY, ctx);
+    saveJSON(STYLE_KEY, $('styleGuide').value.trim());
     $('srchResume').value = ctx;
-    fetch('/api/db', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-App-Secret': window.DASH_APP_SECRET || '' },
-      body: JSON.stringify({ key: 'internships', data: { [RESUME_KEY]: ctx } }),
-    }).catch(e => console.warn('[Internship] resume push failed', e));
+    pushData();
     $('resumeSaveOk').classList.remove('hidden');
     setTimeout(() => $('resumeSaveOk').classList.add('hidden'), 1600);
   });
@@ -380,47 +517,289 @@ Best,
   }));
   if (!window.DASH_APIFY_ENABLED) $('noApifyNote').classList.remove('hidden');
 
-  // ── Email generation ────────────────────────────────────────
+  // ── Pipeline bar + filter ───────────────────────────────────
+  let activeFilter = 'all';
+
+  function renderPipeline() {
+    const opps = loadJSON(OPP_KEY, []);
+    const counts = {};
+    STATUSES.forEach(s => counts[s] = 0);
+    opps.forEach(o => { const s = o.status || 'saved'; if (counts[s] !== undefined) counts[s]++; });
+    $('pipelineBar').innerHTML = STATUSES.map(s => {
+      const isAct = activeFilter === s;
+      return `<div class="pipeline-stage${isAct ? ' active' : ''}" data-pstage="${s}">
+        <div class="pipeline-stage-num">${counts[s]}</div>
+        <div class="pipeline-stage-label">${STATUS_LABELS[s]}</div>
+      </div>`;
+    }).join('');
+    $('pipelineBar').querySelectorAll('[data-pstage]').forEach(el => {
+      el.addEventListener('click', () => {
+        activeFilter = activeFilter === el.dataset.pstage ? 'all' : el.dataset.pstage;
+        renderPipeline(); renderOpps();
+      });
+    });
+    // Update filter row highlight
+    $('filterRow').querySelectorAll('button').forEach(btn => {
+      btn.style.background = btn.dataset.filter === activeFilter ? 'rgba(255,255,255,0.10)' : '';
+      btn.style.color      = btn.dataset.filter === activeFilter ? 'var(--text-primary)' : '';
+    });
+  }
+
+  $('filterRow').querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.filter;
+      renderPipeline(); renderOpps();
+    });
+  });
+
+  // ── Gmail reply detection ───────────────────────────────────
+  function renderReplies() {
+    const opps = loadJSON(OPP_KEY, []);
+    const knownEmails = new Set(opps.map(o => (o.email || '').toLowerCase()).filter(Boolean));
+    if (!knownEmails.size) { $('repliesList').innerHTML = '<div class="empty-state">Add opportunities with contact emails to watch for replies.</div>'; return; }
+
+    let summary;
+    try { summary = JSON.parse(localStorage.getItem('gmail_summary_v1')); } catch (_) {}
+    if (!summary || !summary.threads || !summary.threads.length) {
+      $('repliesList').innerHTML = '<div class="empty-state">No Gmail data yet — open the coach panel to sync inbox.</div>';
+      return;
+    }
+
+    const matches = summary.threads.filter(t => {
+      const fromEmail = (t.fromEmail || t.from || '').toLowerCase();
+      return knownEmails.has(fromEmail) || Array.from(knownEmails).some(ke => fromEmail.includes(ke.split('@')[1] || ''));
+    });
+
+    if (!matches.length) {
+      $('repliesList').innerHTML = '<div class="empty-state">No replies from your contacts yet.</div>';
+      return;
+    }
+
+    // Auto-mark matching opportunities as replied
+    let updated = false;
+    const oppsArr = loadJSON(OPP_KEY, []);
+    matches.forEach(t => {
+      const fromEmail = (t.fromEmail || '').toLowerCase();
+      const opp = oppsArr.find(o => o.email && (o.email.toLowerCase() === fromEmail || fromEmail.includes(o.email.toLowerCase().split('@')[1] || '')));
+      if (opp && opp.status !== 'replied' && opp.status !== 'interviewing' && opp.status !== 'offer' && opp.status !== 'closed') {
+        opp.status = 'replied'; opp.repliedAt = Date.now(); updated = true;
+      }
+    });
+    if (updated) { saveJSON(OPP_KEY, oppsArr); pushData(); renderPipeline(); }
+
+    $('repliesList').innerHTML = matches.map(t => {
+      const opp = oppsArr.find(o => o.email && (o.email.toLowerCase() === (t.fromEmail||'').toLowerCase()));
+      const roleHint = opp ? `<span style="color:var(--accent);font-weight:700">${escapeHtml(opp.role)}</span> · ` : '';
+      return `<div class="reply-card">
+        <div class="reply-card-from">${escapeHtml(t.from)}</div>
+        <div class="reply-card-subject">${escapeHtml(t.subject)}</div>
+        <div class="reply-card-meta">${roleHint}<span>${escapeHtml(t.when)}</span>${t.isUnread ? '<span style="color:var(--success);font-weight:700">• Unread</span>' : ''}</div>
+        ${t.snippet ? `<div class="reply-card-snippet">${escapeHtml(t.snippet)}</div>` : ''}
+        ${opp ? `<button class="reply-action" data-reply-draft="${escapeHtml(opp.id)}">📧 Draft follow-up reply</button>` : ''}
+      </div>`;
+    }).join('');
+
+    $('repliesList').querySelectorAll('[data-reply-draft]').forEach(btn => {
+      btn.addEventListener('click', () => draftAndSend(btn.dataset.replyDraft, { isReply: true }));
+    });
+  }
+
+  // ── Status helpers ──────────────────────────────────────────
+  function updateStatus(id, newStatus) {
+    const opps = loadJSON(OPP_KEY, []);
+    const opp = opps.find(o => o.id === id);
+    if (!opp) return;
+    opp.status = newStatus;
+    if (newStatus === 'emailed' && !opp.lastEmailSentAt) opp.lastEmailSentAt = Date.now();
+    if (newStatus === 'replied' && !opp.repliedAt) opp.repliedAt = Date.now();
+    saveJSON(OPP_KEY, opps);
+    pushData();
+    renderPipeline(); renderOpps();
+  }
+
+  // ── Calendar follow-up reminder ─────────────────────────────
+  async function addFollowUpReminder(id) {
+    const opps = loadJSON(OPP_KEY, []);
+    const opp  = opps.find(o => o.id === id);
+    if (!opp) return;
+    const addFn = window.addGoogleCalendarEvent;
+    if (!addFn) { alert('Google Calendar not connected. Connect in Calendar page first.'); return; }
+    // Default: follow up 7 days after today
+    const followDate = new Date(); followDate.setDate(followDate.getDate() + 7);
+    const dateStr = followDate.getFullYear() + '-' + String(followDate.getMonth()+1).padStart(2,'0') + '-' + String(followDate.getDate()).padStart(2,'0');
+    try {
+      const result = await addFn({
+        title: 'Follow up: ' + opp.role + ' @ ' + opp.company,
+        datetime: dateStr + 'T09:00:00',
+        durationMinutes: 15,
+        notificationMinutes: 60,
+      });
+      if (result && result.ok !== false) {
+        opp.followUpDate = dateStr;
+        saveJSON(OPP_KEY, opps);
+        pushData();
+        renderOpps();
+      }
+    } catch (e) { console.warn('[App] calendar reminder failed', e); }
+  }
+
+  // ── Render opportunity list ─────────────────────────────────
+  function renderOpps() {
+    let opps = loadJSON(OPP_KEY, []);
+    const list = $('oppList');
+    if (activeFilter !== 'all') opps = opps.filter(o => (o.status||'saved') === activeFilter);
+    if (!opps.length) {
+      list.innerHTML = activeFilter === 'all'
+        ? '<div class="empty-state">No opportunities yet — add one above or use AI search.</div>'
+        : `<div class="empty-state">No opportunities with status "${STATUS_LABELS[activeFilter]||activeFilter}" yet.</div>`;
+      return;
+    }
+    list.innerHTML = opps.map(o => {
+      const status = o.status || 'saved';
+      const days = daysUntil(o.deadline);
+      let deadlineHtml = '';
+      if (o.deadline) {
+        const cls = days < 0 ? 'deadline-past' : days <= 3 ? 'deadline-soon' : 'deadline-ok';
+        const txt = days < 0 ? 'Past' : days === 0 ? 'Today' : days + 'd left';
+        deadlineHtml = `<span class="deadline-badge ${cls}">⏰ ${txt}</span>`;
+      }
+      const followUpHtml = o.followUpDate ? `<span style="font-size:10px;color:var(--text-tertiary)">Follow-up ${o.followUpDate}</span>` : '';
+      const sentHtml = o.lastEmailSentAt ? `<span style="font-size:10px;color:var(--text-tertiary)">Sent ${new Date(o.lastEmailSentAt).toLocaleDateString()}</span>` : '';
+      const replyHtml = o.repliedAt ? `<span style="font-size:10px;color:var(--success)">Replied ${new Date(o.repliedAt).toLocaleDateString()}</span>` : '';
+      const typeIcon = o.type === 'research' ? '🔬' : o.type === 'job' ? '🏢' : '💼';
+
+      return `<div class="opp-row${status==='replied'?' replied-row':''}" data-id="${escapeHtml(o.id)}">
+        <div class="opp-row-top">
+          <div class="opp-row-info">
+            <div class="opp-row-name">${typeIcon} ${escapeHtml(o.role)}</div>
+            <div class="opp-row-meta">
+              <span>${escapeHtml(o.company)}</span>
+              ${o.contactName ? `<span>${escapeHtml(o.contactName)}</span>` : ''}
+              ${o.email ? `<span>${escapeHtml(o.email)}</span>` : ''}
+              <span class="status-badge st-${status}">${STATUS_LABELS[status]||status}</span>
+              ${deadlineHtml}
+              ${followUpHtml}${sentHtml}${replyHtml}
+            </div>
+          </div>
+          <button class="opp-delete" data-del="${escapeHtml(o.id)}" type="button">×</button>
+        </div>
+        <div class="opp-row-actions">
+          <button class="opp-btn-accent" data-draft="${escapeHtml(o.id)}" type="button">📧 Draft &amp; Send</button>
+          <button class="opp-btn" data-cover="${escapeHtml(o.id)}" type="button">📄 Cover Letter</button>
+          <button class="opp-btn" data-followup="${escapeHtml(o.id)}" type="button">🗓 Follow-up</button>
+          <select class="status-select" data-setstatus="${escapeHtml(o.id)}">
+            ${STATUSES.map(s=>`<option value="${s}"${s===status?' selected':''}>${STATUS_LABELS[s]}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('[data-draft]').forEach(btn => {
+      btn.addEventListener('click', () => draftAndSend(btn.dataset.draft));
+    });
+    list.querySelectorAll('[data-cover]').forEach(btn => {
+      btn.addEventListener('click', () => openCoverModal(btn.dataset.cover));
+    });
+    list.querySelectorAll('[data-followup]').forEach(btn => {
+      btn.addEventListener('click', () => addFollowUpReminder(btn.dataset.followup));
+    });
+    list.querySelectorAll('[data-setstatus]').forEach(sel => {
+      sel.addEventListener('change', () => updateStatus(sel.dataset.setstatus, sel.value));
+    });
+    list.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const opps2 = loadJSON(OPP_KEY, []).filter(o => o.id !== btn.dataset.del);
+        saveJSON(OPP_KEY, opps2); pushData(); renderPipeline(); renderOpps();
+      });
+    });
+  }
+
+  $('oppAdd').addEventListener('click', () => {
+    const role    = $('oppRole').value.trim();
+    const company = $('oppCompany').value.trim();
+    if (!role || !company) { $('oppRole').focus(); return; }
+    const opps = loadJSON(OPP_KEY, []);
+    opps.unshift({
+      id: 'o_' + Date.now(),
+      role, company,
+      contactName: $('oppContactName').value.trim(),
+      email:    $('oppEmail').value.trim(),
+      type:     $('oppType').value || 'research',
+      deadline: $('oppDeadline').value || '',
+      notes:    $('oppNotes').value.trim(),
+      status:   'saved',
+      addedAt:  Date.now(),
+    });
+    saveJSON(OPP_KEY, opps);
+    $('oppRole').value = ''; $('oppCompany').value = ''; $('oppContactName').value = ''; $('oppEmail').value = ''; $('oppNotes').value = ''; $('oppDeadline').value = '';
+    try { $('addDetails').open = false; } catch (_) {}
+    pushData();
+    renderPipeline(); renderOpps();
+  });
+
+  // ── AI email generation ─────────────────────────────────────
   const EMAIL_GEN_SYS =
     'You are an expert at writing personalized internship and research application emails. '
     + 'Given an email template, the applicant\'s background, and a specific opportunity, '
-    + 'generate a tailored version that replaces template placeholders with specific details. '
-    + 'RULES: (1) Keep the template\'s tone and structure exactly. (2) Replace [bracketed] or '
-    + 'generic parts with specific, compelling details from the background and opportunity. '
-    + '(3) Keep the body under 230 words — concise and direct. (4) Sound like a real person. '
-    + '(5) Do NOT start with "I hope this email finds you well" or similar openers. '
+    + 'generate a tailored version. '
+    + 'RULES: (1) Keep the template\'s tone and structure. (2) Replace placeholders with specific details. '
+    + '(3) Keep the body under 230 words — concise. (4) Follow the writing style guide strictly if provided. '
+    + '(5) Do NOT start with "I hope this email finds you well" or similar. '
     + 'Respond ONLY with valid JSON on one line: {"subject":"...","body":"..."}';
 
   const DRAFT_FALLBACK_SYS =
     'You are an expert at writing concise, genuine cold outreach emails for internships and '
-    + 'research positions. Write a short, specific cold email (Subject + Body) that reads like a REAL '
-    + 'human wrote it, mentions 1-2 SPECIFIC reasons this opportunity is a good match, and ends with '
-    + 'a clear single ask. Do NOT start with platitudes. '
+    + 'research positions. Write a short, specific cold email (Subject + Body) that reads like a real '
+    + 'human wrote it, mentions 1-2 SPECIFIC reasons this is a good match, and ends with a clear single ask. '
+    + 'Do NOT start with platitudes. '
     + 'Reply in exactly this format: SUBJECT: <subject line>\\nBODY:\\n<email body>';
 
-  async function generateEmail(opp) {
-    const template = ($('emailTemplate').value || '').trim();
+  const COVER_SYS =
+    'You are an expert at writing concise, compelling cover letters for internships, research positions, and jobs. '
+    + 'Write a cover letter that is specific, avoids generic phrases, and directly ties the applicant\'s '
+    + 'experience to the role. Format: standard single-page letter (opening paragraph, body, closing). '
+    + 'Under 350 words. Follow the writing style guide strictly if provided. '
+    + 'Respond with the full cover letter text only — no JSON wrapper, no markdown.';
+
+  const REPLY_SYS =
+    'You are an expert at writing professional follow-up and reply emails. '
+    + 'The applicant has received a reply to their initial cold email. '
+    + 'Write a brief, professional follow-up that continues the conversation naturally. '
+    + 'Match the tone of the context, stay under 150 words. '
+    + 'Follow the writing style guide strictly if provided. '
+    + 'Respond ONLY with valid JSON on one line: {"subject":"...","body":"..."}';
+
+  async function generateEmail(opp, opts = {}) {
+    const template  = ($('emailTemplate').value || '').trim();
     const resumeCtx = ($('resumeCtx').value || localStorage.getItem(RESUME_KEY) || '').trim();
+    const styleGuide = ($('styleGuide').value || localStorage.getItem(STYLE_KEY) || '').trim();
     const secret = window.DASH_APP_SECRET || '';
-    const roleStr = opp.role || opp.title || '';
-    const companyStr = opp.company || '';
 
     let systemPrompt, userMsg;
-    if (template) {
-      systemPrompt = EMAIL_GEN_SYS;
+    const styleNote = styleGuide ? '\n\nWRITING STYLE GUIDE (follow strictly):\n' + styleGuide : '';
+
+    if (opts.isReply) {
+      systemPrompt = REPLY_SYS + styleNote;
+      userMsg = 'MY BACKGROUND:\n' + (resumeCtx || '(not provided)')
+        + '\n\nOPPORTUNITY:\nRole: ' + (opp.role||'') + '\nLab/Company: ' + (opp.company||'')
+        + (opp.email ? '\nContact: ' + opp.email : '')
+        + '\n\nContext: I received a reply to my initial email and need to respond professionally.';
+    } else if (template) {
+      systemPrompt = EMAIL_GEN_SYS + styleNote;
       userMsg = 'TEMPLATE:\n' + template
         + '\n\nMY BACKGROUND / RESUME:\n' + (resumeCtx || '(not provided)')
-        + '\n\nOPPORTUNITY:\nRole: ' + roleStr
-        + '\nCompany/Lab: ' + companyStr
+        + '\n\nOPPORTUNITY:\nRole: ' + (opp.role||opp.title||'')
+        + '\nCompany/Lab: ' + (opp.company||'')
         + (opp.email ? '\nContact email: ' + opp.email : '')
+        + (opp.contactName ? '\nContact name: ' + opp.contactName : '')
         + (opp.recruiter ? '\nContact name/recruiter: ' + opp.recruiter : '')
         + (opp.notes ? '\nDescription/Notes:\n' + opp.notes : '')
         + '\n\nGenerate the personalized email as JSON.';
     } else {
-      systemPrompt = DRAFT_FALLBACK_SYS;
+      systemPrompt = DRAFT_FALLBACK_SYS + styleNote;
       userMsg = 'My background:\n' + (resumeCtx || '(not provided)')
-        + '\n\nOpportunity:\nRole: ' + roleStr
-        + '\nCompany/lab: ' + companyStr
+        + '\n\nOpportunity:\nRole: ' + (opp.role||opp.title||'')
+        + '\nCompany/lab: ' + (opp.company||'')
         + (opp.notes ? '\nNotes: ' + opp.notes : '');
     }
 
@@ -434,49 +813,123 @@ Best,
     if (!res.ok || json.error) throw new Error(json.error || 'AI error');
     const text = (json.text || '').trim();
 
-    if (template) {
-      // JSON response
+    if (opts.isReply || template) {
       try { const p = JSON.parse(text); return { subject: p.subject || '', body: p.body || '' }; }
       catch (_) {
         const sub = text.match(/"subject"\s*:\s*"((?:[^"\\]|\\.)*)"/);
         const bod = text.match(/"body"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-        return {
-          subject: sub ? sub[1].replace(/\\n/g, '\n') : '',
-          body: bod ? bod[1].replace(/\\n/g, '\n') : text,
-        };
+        return { subject: sub ? sub[1].replace(/\\n/g,'\n') : '', body: bod ? bod[1].replace(/\\n/g,'\n') : text };
       }
     } else {
-      // SUBJECT: ...\nBODY:\n... format
       const lines = text.split('\n');
       const si = lines.findIndex(l => l.startsWith('SUBJECT:'));
       const bi = lines.findIndex(l => l.startsWith('BODY:'));
       return {
-        subject: si >= 0 ? lines[si].replace('SUBJECT:', '').trim() : '',
-        body: bi >= 0 ? lines.slice(bi + 1).join('\n').trim() : text,
+        subject: si >= 0 ? lines[si].replace('SUBJECT:','').trim() : '',
+        body:    bi >= 0 ? lines.slice(bi+1).join('\n').trim() : text,
       };
     }
   }
 
+  async function generateCoverLetter(opp) {
+    const resumeCtx  = ($('resumeCtx').value || localStorage.getItem(RESUME_KEY) || '').trim();
+    const styleGuide = ($('styleGuide').value || localStorage.getItem(STYLE_KEY) || '').trim();
+    const styleNote  = styleGuide ? '\n\nWRITING STYLE GUIDE (follow strictly):\n' + styleGuide : '';
+    const secret = window.DASH_APP_SECRET || '';
+    const userMsg = 'MY BACKGROUND / RESUME:\n' + (resumeCtx || '(not provided)')
+      + '\n\nOPPORTUNITY:\nRole: ' + (opp.role||'')
+      + '\nCompany/Lab: ' + (opp.company||'')
+      + (opp.notes ? '\n\nPosting / Description:\n' + opp.notes : '');
+    const res = await fetch('/api/ai/ai-chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': secret },
+      body: JSON.stringify({ system: COVER_SYS + styleNote, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (window.logApiUsage) window.logApiUsage(res.headers.get('X-Usage-Input-Tokens'), res.headers.get('X-Usage-Output-Tokens'), res.headers.get('X-Usage-Model'), 'internship');
+    const json = await res.json();
+    if (!res.ok || json.error) throw new Error(json.error || 'AI error');
+    return (json.text || '').trim();
+  }
+
   // ── Modal ───────────────────────────────────────────────────
   let activeOppId = null;
+  let activeTab   = 'email';
+
+  function setModalTab(tab) {
+    activeTab = tab;
+    $('mtabEmail').classList.toggle('on', tab === 'email');
+    $('mtabCover').classList.toggle('on', tab === 'cover');
+    $('modalEmailPanel').style.display = tab === 'email' ? '' : 'none';
+    $('modalCoverPanel').style.display = tab === 'cover' ? '' : 'none';
+  }
+  $('mtabEmail').addEventListener('click', () => setModalTab('email'));
+  $('mtabCover').addEventListener('click', () => setModalTab('cover'));
 
   function openModal({ to, subject, body, oppId, generating }) {
     activeOppId = oppId || null;
-    $('modalTo').value = to || '';
+    $('modalTo').value      = to || '';
     $('modalSubject').value = subject || '';
-    $('modalBody').value = body || '';
+    $('modalBody').value    = body || '';
     $('modalStatus').textContent = '';
-    $('modalStatus').className = 'modal-status';
-    $('modalSendBtn').disabled = false;
+    $('modalStatus').className   = 'modal-status';
+    $('modalSendBtn').disabled   = false;
     $('modalSendBtn').textContent = 'Send email';
     $('modalGenerating').classList.toggle('hidden', !generating);
-    $('modalForm').style.opacity = generating ? '0.4' : '1';
+    $('modalEmailPanel').style.opacity = generating ? '0.4' : '1';
+    setModalTab('email');
     $('sendModal').classList.remove('hidden');
-    if (!generating) setTimeout(() => $('modalTo').value ? $('modalSubject').focus() : $('modalTo').focus(), 60);
+    if (!generating) setTimeout(() => ($('modalTo').value ? $('modalSubject').focus() : $('modalTo').focus()), 60);
   }
-  function closeModal() { $('sendModal').classList.add('hidden'); activeOppId = null; }
+
+  function openCoverModal(oppId) {
+    activeOppId = oppId;
+    $('modalCoverBody').value = '';
+    $('coverStatus').textContent = '';
+    $('coverStatus').className = 'modal-status';
+    $('coverGenerating').classList.add('hidden');
+    const opp = loadJSON(OPP_KEY, []).find(o => o.id === oppId);
+    if (opp) $('modalTitle').textContent = 'Cover Letter — ' + opp.role;
+    else     $('modalTitle').textContent = 'Cover Letter';
+    $('modalTabs').style.display = 'none';
+    setModalTab('cover');
+    $('sendModal').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    $('sendModal').classList.add('hidden');
+    $('modalTabs').style.display = '';
+    $('modalTitle').textContent = 'Draft & Send';
+    activeOppId = null;
+  }
   $('modalCancelBtn').addEventListener('click', closeModal);
+  $('coverCancelBtn').addEventListener('click', closeModal);
   $('sendModal').addEventListener('click', e => { if (e.target === $('sendModal')) closeModal(); });
+
+  $('coverGenBtn').addEventListener('click', async () => {
+    const opp = activeOppId ? loadJSON(OPP_KEY, []).find(o => o.id === activeOppId) : null;
+    if (!opp) { $('coverStatus').textContent = 'No opportunity selected.'; $('coverStatus').className = 'modal-status err'; return; }
+    $('coverGenBtn').disabled = true; $('coverGenBtn').textContent = '⏳ Generating…';
+    $('coverGenerating').classList.remove('hidden');
+    $('coverStatus').textContent = '';
+    try {
+      const text = await generateCoverLetter(opp);
+      $('modalCoverBody').value = text;
+    } catch (e) {
+      $('coverStatus').textContent = 'Error: ' + (e.message || 'AI error');
+      $('coverStatus').className = 'modal-status err';
+    } finally {
+      $('coverGenBtn').disabled = false; $('coverGenBtn').textContent = '✦ Generate cover letter';
+      $('coverGenerating').classList.add('hidden');
+    }
+  });
+  $('coverCopyBtn').addEventListener('click', () => {
+    const text = $('modalCoverBody').value;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      $('coverCopyBtn').textContent = 'Copied!';
+      setTimeout(() => { $('coverCopyBtn').textContent = 'Copy'; }, 1500);
+    }).catch(() => {});
+  });
 
   function showModalStatus(msg, type) {
     const el = $('modalStatus');
@@ -491,149 +944,70 @@ Best,
     if (!to)      { showModalStatus('Enter a recipient email address.', 'err'); return; }
     if (!subject) { showModalStatus('Enter a subject line.', 'err'); return; }
     if (!body)    { showModalStatus('Email body is empty.', 'err'); return; }
-
     const sendFn = window.sendGmailNow;
-    if (!sendFn) {
-      showModalStatus('Gmail not connected. Connect your Google account in Calendar, then reload.', 'err');
-      return;
-    }
-
-    $('modalSendBtn').disabled = true;
-    $('modalSendBtn').textContent = 'Sending…';
+    if (!sendFn) { showModalStatus('Gmail not connected. Connect in Calendar, then reload.', 'err'); return; }
+    $('modalSendBtn').disabled = true; $('modalSendBtn').textContent = 'Sending…';
     showModalStatus('', '');
-
     try {
       const result = await sendFn({ to, subject, body }, window.DASH_APP_SECRET || '');
       if (result && result.ok === false) {
         showModalStatus(result.error || 'Failed to send.', 'err');
-        $('modalSendBtn').disabled = false;
-        $('modalSendBtn').textContent = 'Send email';
+        $('modalSendBtn').disabled = false; $('modalSendBtn').textContent = 'Send email';
         return;
       }
-      // Sent successfully
       if (activeOppId) {
-        const log = loadJSON(SENT_KEY, {});
-        log[activeOppId] = { sentAt: Date.now(), subject, to };
-        saveJSON(SENT_KEY, log);
-        pushInternshipData();
-        renderOpps();
+        updateStatus(activeOppId, 'emailed');
+        const opps2 = loadJSON(OPP_KEY, []);
+        const o = opps2.find(x => x.id === activeOppId);
+        if (o) { o.lastEmailSentAt = Date.now(); saveJSON(OPP_KEY, opps2); pushData(); }
       }
       showModalStatus('✓ Sent successfully!', 'ok');
-      if (!checkGmailConnected()) $('connectNotice').classList.remove('hidden');
-      else $('connectNotice').classList.add('hidden');
       setTimeout(closeModal, 1400);
     } catch (e) {
       showModalStatus('Error: ' + (e && e.message ? e.message : String(e)), 'err');
-      $('modalSendBtn').disabled = false;
-      $('modalSendBtn').textContent = 'Send email';
+      $('modalSendBtn').disabled = false; $('modalSendBtn').textContent = 'Send email';
     }
   });
 
-  function pushInternshipData() {
-    const data = {
-      [OPP_KEY]: loadJSON(OPP_KEY, []),
-      [APPLIED_KEY]: loadJSON(APPLIED_KEY, {}),
-      [SENT_KEY]: loadJSON(SENT_KEY, {}),
-    };
-    fetch('/api/db', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-App-Secret': window.DASH_APP_SECRET || '' },
-      body: JSON.stringify({ key: 'internships', data }),
-    }).catch(e => console.warn('[Internship] push failed', e));
-  }
-
   // ── Draft & send for an opportunity ────────────────────────
-  async function draftAndSend(oppId) {
+  async function draftAndSend(oppId, opts = {}) {
     const opp = loadJSON(OPP_KEY, []).find(o => o.id === oppId);
     if (!opp) return;
-
     const btn = document.querySelector(`[data-draft="${oppId}"]`);
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
-
-    // Open modal in loading state first so user sees activity
     openModal({ to: opp.email || '', subject: '', body: '', oppId, generating: true });
-
     try {
-      const { subject, body } = await generateEmail(opp);
+      const { subject, body } = await generateEmail(opp, opts);
       $('modalGenerating').classList.add('hidden');
-      $('modalForm').style.opacity = '1';
+      $('modalEmailPanel').style.opacity = '1';
       $('modalSubject').value = subject;
-      $('modalBody').value = body;
-      setTimeout(() => $('modalTo').value ? $('modalSubject').focus() : $('modalTo').focus(), 60);
+      $('modalBody').value    = body;
+      setTimeout(() => ($('modalTo').value ? $('modalSubject').focus() : $('modalTo').focus()), 60);
     } catch (e) {
       $('modalGenerating').classList.add('hidden');
-      $('modalForm').style.opacity = '1';
-      showModalStatus('Could not generate email: ' + (e.message || 'AI error'), 'err');
+      $('modalEmailPanel').style.opacity = '1';
+      showModalStatus('Could not generate: ' + (e.message || 'AI error'), 'err');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '📧 Draft & Send'; }
     }
   }
 
-  // ── Manual opportunities ─────────────────────────────────────
-  function renderOpps() {
-    const opps    = loadJSON(OPP_KEY, []);
-    const applied = loadJSON(APPLIED_KEY, {});
-    const sent    = loadJSON(SENT_KEY, {});
-    const list = $('oppList');
-    if (!opps.length) {
-      list.innerHTML = '<div class="empty-state">No opportunities yet — add one below.</div>';
-      return;
-    }
-    list.innerHTML = opps.map(o => {
-      const isSent    = !!sent[o.id];
-      const isApplied = !!applied[o.id];
-      const sentInfo  = isSent ? sent[o.id] : null;
-      return `<div class="opp-row${isSent ? ' sent-row' : ''}" data-id="${escapeHtml(o.id)}">
-        <div class="opp-row-info">
-          <div class="opp-row-name">${escapeHtml(o.role)}</div>
-          <div class="opp-row-meta">
-            <span>${escapeHtml(o.company)}</span>
-            ${o.email ? `<span style="color:var(--text-tertiary)">${escapeHtml(o.email)}</span>` : ''}
-            ${isSent ? `<span class="sent-badge">✓ Sent ${new Date(sentInfo.sentAt).toLocaleDateString()}</span>` : ''}
-            ${isApplied && !isSent ? `<span style="color:var(--success);font-size:10.5px;font-weight:700">Applied</span>` : ''}
-          </div>
-        </div>
-        <button class="opp-draft-btn" data-draft="${escapeHtml(o.id)}" type="button">📧 Draft &amp; Send</button>
-        <button class="opp-applied-btn${isApplied ? ' on' : ''}" data-applied="${escapeHtml(o.id)}" type="button" style="border:1px solid rgba(110,231,183,0.3);background:${isApplied?'rgba(110,231,183,0.14)':'transparent'};color:var(--success);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap">${isApplied ? '✓ Applied' : 'Mark applied'}</button>
-        <button class="opp-delete" data-del="${escapeHtml(o.id)}" type="button">×</button>
-      </div>`;
-    }).join('');
-
-    list.querySelectorAll('[data-draft]').forEach(btn => {
-      btn.addEventListener('click', () => draftAndSend(btn.dataset.draft));
-    });
-    list.querySelectorAll('[data-applied]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const a = loadJSON(APPLIED_KEY, {});
-        a[btn.dataset.applied] = !a[btn.dataset.applied];
-        saveJSON(APPLIED_KEY, a); pushInternshipData(); renderOpps();
-      });
-    });
-    list.querySelectorAll('[data-del]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const opps2 = loadJSON(OPP_KEY, []).filter(o => o.id !== btn.dataset.del);
-        saveJSON(OPP_KEY, opps2); pushInternshipData(); renderOpps();
-      });
-    });
+  // ── Sync ────────────────────────────────────────────────────
+  function pushData() {
+    fetch('/api/db', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-App-Secret': window.DASH_APP_SECRET || '' },
+      body: JSON.stringify({ key: 'internships', data: {
+        [OPP_KEY]:      loadJSON(OPP_KEY, []),
+        [TEMPLATE_KEY]: localStorage.getItem(TEMPLATE_KEY) || '',
+        [RESUME_KEY]:   localStorage.getItem(RESUME_KEY) || '',
+        [STYLE_KEY]:    localStorage.getItem(STYLE_KEY) || '',
+      }}),
+    }).catch(e => console.warn('[App] push failed', e));
   }
 
-  $('oppAdd').addEventListener('click', () => {
-    const role    = $('oppRole').value.trim();
-    const company = $('oppCompany').value.trim();
-    if (!role || !company) { $('oppRole').focus(); return; }
-    const opps = loadJSON(OPP_KEY, []);
-    opps.unshift({ id: 'o_' + Date.now(), role, company, email: $('oppEmail').value.trim(), notes: $('oppNotes').value.trim(), addedAt: Date.now() });
-    saveJSON(OPP_KEY, opps);
-    $('oppRole').value = ''; $('oppCompany').value = ''; $('oppEmail').value = ''; $('oppNotes').value = '';
-    try { $('addDetails').open = false; } catch (_) {}
-    pushInternshipData();
-    renderOpps();
-  });
-
   // ── AI Search ───────────────────────────────────────────────
-  let foundOpps = [];
-  let savedQuestions = [];
-  let appliedSet = loadJSON(APPLIED_KEY, {});
+  let foundOpps = [], savedQuestions = [];
 
   function setStatus(msg, cls) {
     const el = $('srchStatus');
@@ -643,15 +1017,12 @@ Best,
 
   function renderFoundOpps() {
     const wrap = $('srchResults');
-    const sent = loadJSON(SENT_KEY, {});
     if (!foundOpps.length) { wrap.innerHTML = ''; $('srchDownload').style.display = 'none'; return; }
     $('srchDownload').style.display = '';
     wrap.innerHTML = foundOpps.map((opp, idx) => {
-      const applied = !!appliedSet[opp.id];
-      const isSent  = !!sent[opp.id];
-      const score   = opp.matchScore || 0;
+      const score = opp.matchScore || 0;
       const scoreCls = score >= 7 ? 'high' : score >= 5 ? 'mid' : 'low';
-      return `<div class="opp-card${applied ? ' applied' : ''}" data-idx="${idx}">
+      return `<div class="opp-card" data-idx="${idx}">
         <div class="opp-header">
           <div class="opp-score ${scoreCls}">${score}</div>
           <div class="opp-info">
@@ -660,15 +1031,14 @@ Best,
             ${opp.matchReason ? `<div class="opp-match">${escapeHtml(opp.matchReason)}</div>` : ''}
             ${opp.qualificationNotes ? `<div class="opp-qual">${escapeHtml(opp.qualificationNotes)}</div>` : ''}
             ${opp.url ? `<a class="opp-apply-link" href="${escapeHtml(opp.url)}" target="_blank" rel="noopener">🔗 View / Apply</a>` : ''}
-            ${opp.recruiter ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Contact: ${escapeHtml(opp.recruiter)}</div>` : ''}
           </div>
         </div>
         <div class="opp-actions">
-          <button class="opp-btn opp-draft-found" data-idx="${idx}" type="button">📧 Draft &amp; Send${isSent ? ' ✓' : ''}</button>
-          <button class="opp-btn opp-show-draft" data-idx="${idx}" type="button">Show AI draft</button>
-          <button class="opp-applied-btn${applied ? ' on' : ''}" data-idx="${idx}" type="button">${applied ? '✓ Applied' : 'Mark applied'}</button>
+          <button class="opp-btn opp-draft-found" data-idx="${idx}" type="button">📧 Draft &amp; Send</button>
+          <button class="opp-btn opp-show-draft"  data-idx="${idx}" type="button">Show AI draft</button>
+          <button class="opp-btn opp-save-found"  data-idx="${idx}" type="button">+ Save to pipeline</button>
         </div>
-        <div class="opp-email-box" id="email-${idx}">${escapeHtml(opp.draftEmail || '')}</div>
+        <div class="opp-email-box" id="email-${idx}">${escapeHtml(opp.draftEmail||'')}</div>
       </div>`;
     }).join('');
 
@@ -676,26 +1046,21 @@ Best,
       btn.addEventListener('click', async () => {
         const opp = foundOpps[parseInt(btn.dataset.idx)];
         btn.disabled = true; btn.textContent = '⏳ Generating…';
-        // Use recruiter as contact if it looks like an email
-        const contactEmail = (opp.recruiter || '').includes('@') ? opp.recruiter : '';
+        const contactEmail = (opp.recruiter||'').includes('@') ? opp.recruiter : '';
         openModal({ to: contactEmail, subject: '', body: '', oppId: opp.id, generating: true });
         try {
           const { subject, body } = await generateEmail(opp);
           $('modalGenerating').classList.add('hidden');
-          $('modalForm').style.opacity = '1';
+          $('modalEmailPanel').style.opacity = '1';
           $('modalSubject').value = subject;
-          $('modalBody').value = body;
+          $('modalBody').value    = body;
         } catch (e) {
           $('modalGenerating').classList.add('hidden');
-          $('modalForm').style.opacity = '1';
-          showModalStatus('Could not generate email: ' + (e.message || 'AI error'), 'err');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = '📧 Draft & Send' + (loadJSON(SENT_KEY, {})[opp.id] ? ' ✓' : '');
-        }
+          $('modalEmailPanel').style.opacity = '1';
+          showModalStatus('Could not generate: ' + (e.message || 'AI error'), 'err');
+        } finally { btn.disabled = false; btn.textContent = '📧 Draft & Send'; }
       });
     });
-
     wrap.querySelectorAll('.opp-show-draft').forEach(btn => {
       btn.addEventListener('click', () => {
         const box = document.getElementById('email-' + btn.dataset.idx);
@@ -703,13 +1068,24 @@ Best,
         btn.textContent = showing ? 'Hide draft' : 'Show AI draft';
       });
     });
-
-    wrap.querySelectorAll('.opp-applied-btn').forEach(btn => {
+    wrap.querySelectorAll('.opp-save-found').forEach(btn => {
       btn.addEventListener('click', () => {
         const opp = foundOpps[parseInt(btn.dataset.idx)];
-        appliedSet[opp.id] = !appliedSet[opp.id];
-        saveJSON(APPLIED_KEY, appliedSet);
-        renderFoundOpps();
+        const opps = loadJSON(OPP_KEY, []);
+        if (opps.find(o => o.id === opp.id)) { btn.textContent = 'Already saved'; return; }
+        opps.unshift({
+          id: opp.id || 'o_' + Date.now(),
+          role: opp.title, company: opp.company,
+          email: (opp.recruiter||'').includes('@') ? opp.recruiter : '',
+          contactName: opp.recruiter || '',
+          notes: opp.matchReason || '',
+          url: opp.url || '',
+          type: searchType === 'research' ? 'research' : 'internship',
+          status: 'saved',
+          addedAt: Date.now(),
+        });
+        saveJSON(OPP_KEY, opps); pushData(); renderPipeline(); renderOpps();
+        btn.textContent = '✓ Saved'; btn.disabled = true;
       });
     });
   }
@@ -741,19 +1117,18 @@ Best,
     try {
       const res = await fetch('/api/search-opportunities', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-app-secret': (window.DASH_APP_SECRET || '') },
-        body: JSON.stringify({ type: searchType, field, university: $('srchUni').value.trim(), location: $('srchLoc').value.trim(), resumeContext: rc, count: parseInt($('srchCount').value, 10) || 5 }),
+        headers: { 'content-type': 'application/json', 'x-app-secret': (window.DASH_APP_SECRET||'') },
+        body: JSON.stringify({ type: searchType, field, university: $('srchUni').value.trim(), location: $('srchLoc').value.trim(), resumeContext: rc, count: parseInt($('srchCount').value,10)||5 }),
       });
       if (window.logApiUsage) window.logApiUsage(res.headers.get('X-Usage-Input-Tokens'), res.headers.get('X-Usage-Output-Tokens'), res.headers.get('X-Usage-Model'), 'internship');
       const data = await res.json();
-      if (!res.ok || data.error) { setStatus('Error: ' + (data.error || 'Something went wrong.'), 'err'); return; }
+      if (!res.ok || data.error) { setStatus('Error: ' + (data.error||'Something went wrong.'), 'err'); return; }
       if (data.needsInfo && data.questions && data.questions.length) {
-        savedQuestions = data.questions;
-        renderQuestions(data.questions);
+        savedQuestions = data.questions; renderQuestions(data.questions);
         $('srchQuestionsWrap').style.display = 'block';
-        setStatus('Answer these so we can match your actual qualifications.', '');
+        setStatus('Answer these so we can match your qualifications.', '');
       } else if (data.opportunities) {
-        foundOpps = data.opportunities || [];
+        foundOpps = data.opportunities||[];
         setStatus('Found ' + foundOpps.length + ' opportunities.', 'done');
         renderFoundOpps();
       }
@@ -763,12 +1138,12 @@ Best,
 
   $('srchSearch').addEventListener('click', async () => {
     const field = $('srchField').value.trim();
-    const rc = $('srchResume').value.trim();
+    const rc    = $('srchResume').value.trim();
     const additionalInfo = {};
     savedQuestions.forEach(q => {
       if (q.type === 'boolean') { const sel = document.querySelector(`input[name="q_${q.id}"]:checked`); if (sel) additionalInfo[q.question] = sel.value; }
-      else if (q.type === 'select') { const el = $('q_' + q.id); if (el && el.value) additionalInfo[q.question] = el.value; }
-      else { const el = $('q_' + q.id); if (el && el.value.trim()) additionalInfo[q.question] = el.value.trim(); }
+      else if (q.type === 'select') { const el = $('q_'+q.id); if (el && el.value) additionalInfo[q.question] = el.value; }
+      else { const el = $('q_'+q.id); if (el && el.value.trim()) additionalInfo[q.question] = el.value.trim(); }
     });
     const btn = $('srchSearch');
     btn.disabled = true; btn.textContent = '⏳ Searching…';
@@ -776,13 +1151,13 @@ Best,
     try {
       const res = await fetch('/api/search-opportunities', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-app-secret': (window.DASH_APP_SECRET || '') },
-        body: JSON.stringify({ type: searchType, field, university: $('srchUni').value.trim(), location: $('srchLoc').value.trim(), resumeContext: rc, additionalInfo, count: parseInt($('srchCount').value, 10) || 5 }),
+        headers: { 'content-type': 'application/json', 'x-app-secret': (window.DASH_APP_SECRET||'') },
+        body: JSON.stringify({ type: searchType, field, university: $('srchUni').value.trim(), location: $('srchLoc').value.trim(), resumeContext: rc, additionalInfo, count: parseInt($('srchCount').value,10)||5 }),
       });
       if (window.logApiUsage) window.logApiUsage(res.headers.get('X-Usage-Input-Tokens'), res.headers.get('X-Usage-Output-Tokens'), res.headers.get('X-Usage-Model'), 'internship');
       const data = await res.json();
-      if (!res.ok || data.error) { setStatus('Error: ' + (data.error || 'Something went wrong.'), 'err'); return; }
-      foundOpps = data.opportunities || [];
+      if (!res.ok || data.error) { setStatus('Error: ' + (data.error||'Something went wrong.'), 'err'); return; }
+      foundOpps = data.opportunities||[];
       $('srchQuestionsWrap').style.display = 'none';
       setStatus('Found ' + foundOpps.length + ' matched opportunities.', 'done');
       renderFoundOpps();
@@ -791,52 +1166,47 @@ Best,
   });
 
   $('srchDownload').addEventListener('click', () => {
-    const log = loadJSON(SENT_KEY, {});
     const lines = foundOpps.map((opp, i) => [
       '='.repeat(60),
       `#${i+1} | Score: ${opp.matchScore}/10 | ${opp.title} @ ${opp.company}`,
-      `URL: ${opp.url || 'N/A'}`,
-      `Contact: ${opp.recruiter || 'N/A'}`,
-      `Match: ${opp.matchReason || ''}`,
-      appliedSet[opp.id] ? '[ APPLIED ]' : log[opp.id] ? '[ EMAIL SENT ]' : '[ NOT YET ]',
-      '',
-      'DRAFT EMAIL:',
-      opp.draftEmail || '(none)',
+      `URL: ${opp.url||'N/A'} | Contact: ${opp.recruiter||'N/A'}`,
+      `Match: ${opp.matchReason||''}`,
+      '', 'DRAFT EMAIL:', opp.draftEmail || '(none)',
     ].join('\n'));
-    const text = 'RESEARCH & INTERNSHIPS\nGenerated: ' + new Date().toLocaleDateString() + '\n\n' + lines.join('\n\n');
+    const text = 'LABS & APPLICATIONS\nExported: ' + new Date().toLocaleDateString() + '\n\n' + lines.join('\n\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-    a.download = 'opportunities-' + new Date().toISOString().slice(0, 10) + '.txt';
+    a.download = 'opportunities-' + new Date().toISOString().slice(0,10) + '.txt';
     a.click();
     URL.revokeObjectURL(a.href);
   });
 
-  // ── Cloud sync ──────────────────────────────────────────────
-  // Restore synced data on load (opportunities, sent log, template, resume)
+  // ── Cloud sync on load ──────────────────────────────────────
   (function loadFromServer() {
     fetch('/api/db?key=internships', { headers: { 'X-App-Secret': window.DASH_APP_SECRET || '' } })
       .then(r => r.ok ? r.json() : null)
       .then(json => {
         if (!json || !json.data) return;
         const d = json.data;
-        if (d[OPP_KEY]      != null) { saveJSON(OPP_KEY, d[OPP_KEY]); }
-        if (d[APPLIED_KEY]  != null) { saveJSON(APPLIED_KEY, d[APPLIED_KEY]); appliedSet = loadJSON(APPLIED_KEY, {}); }
-        if (d[SENT_KEY]     != null) { saveJSON(SENT_KEY, d[SENT_KEY]); }
-        if (d[TEMPLATE_KEY] != null && !$('emailTemplate').value.trim()) {
-          $('emailTemplate').value = d[TEMPLATE_KEY];
-          saveJSON(TEMPLATE_KEY, d[TEMPLATE_KEY]);
-        }
-        if (d[RESUME_KEY]   != null && !$('resumeCtx').value.trim()) {
-          $('resumeCtx').value = d[RESUME_KEY];
-          $('srchResume').value = d[RESUME_KEY];
-          saveJSON(RESUME_KEY, d[RESUME_KEY]);
-        }
-        renderOpps();
+        if (d[OPP_KEY]      != null) saveJSON(OPP_KEY, d[OPP_KEY]);
+        if (d[TEMPLATE_KEY] != null && !$('emailTemplate').value.trim()) { $('emailTemplate').value = d[TEMPLATE_KEY]; saveJSON(TEMPLATE_KEY, d[TEMPLATE_KEY]); }
+        if (d[RESUME_KEY]   != null && !$('resumeCtx').value.trim())     { $('resumeCtx').value = d[RESUME_KEY];       $('srchResume').value = d[RESUME_KEY]; saveJSON(RESUME_KEY, d[RESUME_KEY]); }
+        if (d[STYLE_KEY]    != null && !$('styleGuide').value.trim())    { $('styleGuide').value = d[STYLE_KEY];       saveJSON(STYLE_KEY, d[STYLE_KEY]); }
+        migrateStatuses();
+        renderPipeline(); renderOpps(); renderReplies();
       })
-      .catch(e => console.warn('[Internship] server load failed', e));
+      .catch(e => console.warn('[App] server load failed', e));
   })();
 
+  migrateStatuses();
+  renderPipeline();
   renderOpps();
+  renderReplies();
+
+  // Re-render replies whenever gmail_summary_v1 is updated
+  window.addEventListener('storage', e => {
+    if (e.key === 'gmail_summary_v1') renderReplies();
+  });
 })();
 </script>
 </body>
