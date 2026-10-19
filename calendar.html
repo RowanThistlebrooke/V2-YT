@@ -309,6 +309,17 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
         accounts.push(updated);
       }
       saveAccounts(accounts);
+
+      // Store refresh token server-side for cross-device access.
+      // Errors are non-fatal: local token still works for this device.
+      if (refresh) {
+        fetch('/api/integrations/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-App-Secret': APP_SECRET },
+          body: JSON.stringify({ store_token: true, email: email, refresh_token: refresh }),
+        }).catch(function(e) { console.warn('[Calendar] server token store failed', e); });
+      }
+
       await fetchCalendarListForAccount(updated);
     } catch(e) {
       var accounts2 = getAccounts();
