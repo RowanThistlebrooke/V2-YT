@@ -316,7 +316,7 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
         fetch('/api/integrations/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-App-Secret': APP_SECRET },
-          body: JSON.stringify({ store_token: true, email: email, refresh_token: refresh }),
+          body: JSON.stringify({ store_token: true, email: email, refresh_token: refresh, scope: SCOPE }),
         }).catch(function(e) { console.warn('[Calendar] server token store failed', e); });
       }
 

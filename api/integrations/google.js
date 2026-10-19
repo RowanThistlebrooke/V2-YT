@@ -115,16 +115,31 @@ async function handleRefresh(req, res) {
 
   // Store token server-side (called by calendar.html after OAuth)
   if (body && body.store_token) {
-    const { email, refresh_token: rt } = body;
+    const { email, refresh_token: rt, scope } = body;
     if (!email || !rt) return res.status(400).json({ error: 'email and refresh_token required' });
     const supaUrl = process.env.SUPABASE_URL, sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supaUrl || !sk) return res.status(503).json({ error: 'Supabase not configured' });
     try {
       const existing = await getSupaTokens(supaUrl, sk);
-      await setSupaTokens(supaUrl, sk, Object.assign({}, existing, { [email]: rt }));
+      await setSupaTokens(supaUrl, sk, Object.assign({}, existing, { [email]: { rt, scope: scope || '' } }));
       return res.status(200).json({ ok: true });
     } catch (e) {
       return res.status(500).json({ error: 'store failed: ' + (e && e.message ? e.message : String(e)) });
+    }
+  }
+
+  // List connected accounts: emails + scopes only, never tokens
+  if (body && body.list_accounts) {
+    const supaUrl = process.env.SUPABASE_URL, sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supaUrl || !sk) return res.status(503).json({ error: 'Supabase not configured' });
+    try {
+      const store = await getSupaTokens(supaUrl, sk);
+      const accounts = Object.keys(store).map((email) => ({
+        email, scope: (store[email] && typeof store[email] === 'object') ? (store[email].scope || '') : '',
+      }));
+      return res.status(200).json({ accounts });
+    } catch (e) {
+      return res.status(500).json({ error: 'list failed: ' + (e && e.message ? e.message : String(e)) });
     }
   }
 
@@ -136,7 +151,8 @@ async function handleRefresh(req, res) {
     if (!supaUrl || !sk) return res.status(503).json({ error: 'Supabase not configured' });
     try {
       const store = await getSupaTokens(supaUrl, sk);
-      const rt = store[email];
+      const entry = store[email];
+      const rt = entry && typeof entry === 'object' ? entry.rt : entry;
       if (!rt) return res.status(404).json({ error: 'no stored token for ' + email + ' — reconnect in Calendar' });
       const data = await doOAuthRefresh(rt);
       return res.status(200).json(data);
