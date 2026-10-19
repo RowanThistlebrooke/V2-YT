@@ -182,6 +182,19 @@ body::after {
 
 @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 .spinning { display: inline-block; animation: spin 1s linear infinite; }
+/* ── Thread viewer ── */
+.tv-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 2000; display: flex; align-items: flex-end; justify-content: center; }
+.tv-sheet { background: #15161b; border-radius: 18px 18px 0 0; width: 100%; max-width: 720px; max-height: 92dvh; overflow-y: auto; padding: 20px 18px max(20px, env(safe-area-inset-bottom)); }
+@media (min-width: 760px) { .tv-overlay { align-items: center; } .tv-sheet { border-radius: 18px; } }
+.tv-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.tv-subject { flex: 1; font-size: 16px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+.tv-close { border: 1px solid var(--border); background: transparent; color: var(--text-secondary); border-radius: 8px; padding: 5px 10px; font-family: inherit; cursor: pointer; }
+.tv-msg { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+.tv-msg-hdr { display: flex; gap: 8px; font-size: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.tv-msg-from { font-weight: 700; color: var(--text-primary); }
+.tv-msg-date { color: var(--text-tertiary); margin-left: auto; }
+.tv-msg-body { font-size: 13px; line-height: 1.55; color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; max-height: 340px; overflow-y: auto; }
+.tv-reply { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -416,7 +429,7 @@ body::after {
     var ls = parseInt(localStorage.getItem(LAST_SYNC_KEY) || '0', 10);
     el('lastSyncLabel').textContent = ls ? 'Updated ' + relTime(ls) : '';
     var _connEmail = '';
-    try { var _ac = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); _connEmail = (_ac && _ac[0] && _ac[0].email) ? ' · ' + _ac[0].email : ''; } catch(_) {}
+    if (s.account) _connEmail = ' · ' + s.account;
     el('mailSub').textContent = threads.length + ' thread' + (threads.length === 1 ? '' : 's') +
       ' · ' + unread + ' unread' +
       (important.length ? ' · ' + important.length + ' important' : '') + _connEmail;
@@ -468,7 +481,7 @@ body::after {
         else if (t.isImportant) cls += ' is-important';
         else if (t.isShipping)  cls += ' is-shipping';
         var flags = (t.isImportant ? '<span class="flag-star">★</span>' : '') + (t.isShipping ? '📦' : '');
-        return '<div class="' + cls + '">' +
+        return '<div class="' + cls + '" data-thread="' + esc(t.threadId || t.id) + '">' +
           avatarHtml(t.from, t.isShipping) +
           '<div class="thread-body">' +
             '<div class="thread-meta">' +
@@ -641,6 +654,64 @@ body::after {
 
   el('refreshBtn').addEventListener('click', doRefresh);
 
+  // ── Thread viewer + in-thread reply ───────────────────────────────────────
+  function escT(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  async function openThread(threadId) {
+    var ov = document.createElement('div');
+    ov.className = 'tv-overlay';
+    ov.innerHTML = '<div class="tv-sheet"><div class="tv-head"><div class="tv-subject">Loading thread…</div><button class="tv-close" type="button">✕</button></div><div class="tv-list"></div></div>';
+    document.body.appendChild(ov);
+    function close() { ov.remove(); }
+    ov.querySelector('.tv-close').addEventListener('click', close);
+    ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
+
+    if (typeof window.loadGmailThread !== 'function') {
+      ov.querySelector('.tv-subject').textContent = '⚠ topbar.js not loaded — reload the page.';
+      return;
+    }
+    var res = await window.loadGmailThread(threadId, window.DASH_APP_SECRET || '');
+    if (!res.ok) { ov.querySelector('.tv-subject').textContent = '⚠ ' + res.error; return; }
+    var msgs = res.messages;
+    var last = msgs[msgs.length - 1] || {};
+    ov.querySelector('.tv-subject').textContent = (msgs[0] && msgs[0].subject) || '(no subject)';
+    ov.querySelector('.tv-list').innerHTML = msgs.map(function(m) {
+      return '<div class="tv-msg"><div class="tv-msg-hdr"><span class="tv-msg-from">' + escT(m.from) + '</span>' +
+        '<span style="color:var(--text-tertiary)">' + escT(m.fromEmail) + '</span>' +
+        '<span class="tv-msg-date">' + escT(m.date ? new Date(m.date).toLocaleString() : '') + '</span></div>' +
+        '<div class="tv-msg-body">' + escT(m.body) + '</div></div>';
+    }).join('') +
+      '<div class="tv-reply"><div class="compose-field"><label class="compose-label">Reply to ' + escT(last.fromEmail === res.account ? (last.to || '') : last.fromEmail) + '</label>' +
+      '<textarea class="compose-input compose-textarea tv-reply-body" placeholder="Write a reply…"></textarea></div>' +
+      '<div class="compose-actions"><button class="btn-primary tv-send" type="button">📤 Send reply</button></div>' +
+      '<div class="compose-status tv-status"></div></div>';
+
+    ov.querySelector('.tv-send').addEventListener('click', async function() {
+      var body = ov.querySelector('.tv-reply-body').value.trim();
+      var status = ov.querySelector('.tv-status');
+      if (!body) { status.textContent = 'Write a reply first.'; status.style.color = '#f87171'; return; }
+      // Reply to the other party, even if the last message in the thread is our own
+      var to = last.fromEmail === res.account ? (last.to || '').replace(/^.*<([^>]+)>.*$/, '$1') : last.fromEmail;
+      var subj = last.subject || (msgs[0] && msgs[0].subject) || '';
+      if (!/^re:/i.test(subj)) subj = 'Re: ' + subj;
+      this.disabled = true; this.textContent = '⟳ Sending…';
+      var r = await window.sendGmailNow({ to: to, subject: subj, body: body, threadId: threadId, replyToMsgId: last.messageId, references: last.references }, window.DASH_APP_SECRET || '');
+      if (r.ok) {
+        status.textContent = '📤 Reply sent from ' + r.from; status.style.color = '#6EE7B7';
+        localStorage.removeItem(LAST_SYNC_KEY);
+        setTimeout(function() { close(); doRefresh(); }, 1200);
+      } else {
+        status.textContent = '⚠ ' + r.error; status.style.color = '#f87171';
+        this.disabled = false; this.textContent = '📤 Send reply';
+      }
+    });
+  }
+
+  el('threadList').addEventListener('click', function(e) {
+    var row = e.target.closest('[data-thread]');
+    if (row) openThread(row.dataset.thread);
+  });
+
   // ── Compose ───────────────────────────────────────────────────────────────
   el('composeSend').addEventListener('click', async function() {
     var to = el('composeTo').value.trim(), subject = el('composeSubject').value.trim(), body = el('composeBody').value.trim();
@@ -654,7 +725,7 @@ body::after {
     }
     var result = await window.sendGmailNow({ to, subject, body }, window.DASH_APP_SECRET || '');
     if (result.ok) {
-      status.textContent = '📤 Sent to ' + to; status.style.color = '#6EE7B7';
+      status.textContent = '📤 Sent to ' + to + (result.from ? ' from ' + result.from : ''); status.style.color = '#6EE7B7';
       el('composeTo').value = ''; el('composeSubject').value = ''; el('composeBody').value = '';
       localStorage.removeItem(LAST_SYNC_KEY);
     } else { status.textContent = '⚠ ' + result.error; status.style.color = '#f87171'; }
@@ -666,7 +737,13 @@ body::after {
   });
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  function init() {
+  async function init() {
+    // New device with no local accounts: ask topbar.js to seed them from the server-side store
+    if (!hasGmailScope() && typeof window.getGmailAccount === 'function') {
+      el('mailSub').textContent = 'Checking for connected accounts…';
+      try { await window.getGmailAccount(window.DASH_APP_SECRET || ''); }
+      catch (e) { console.warn('[Mail] account seed failed', e); }
+    }
     if (!hasGmailScope()) {
       // Check whether the user has a calendar-only account (needs upgrade) vs no account at all
       try {
@@ -697,7 +774,7 @@ body::after {
     }
     if (activeEmail) el('mailSub').textContent = 'Connected: ' + activeEmail;
 
-    try { var c = JSON.parse(localStorage.getItem(SUMMARY_KEY)); if (c) renderSummary(c); } catch (_) {}
+    try { var c = JSON.parse(localStorage.getItem(SUMMARY_KEY)); if (c) renderSummary(c); } catch (e) { console.warn('[Mail] cached summary render failed', e); }
 
     var ls = parseInt(localStorage.getItem(LAST_SYNC_KEY) || '0', 10);
     if (!localStorage.getItem(SUMMARY_KEY) || Date.now() - ls > 15 * 60 * 1000) doRefresh();

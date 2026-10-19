@@ -1413,7 +1413,37 @@ body.topbar-modal-open {
     async function getGmailAccount(secret) {
       let accounts;
       try { accounts = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); } catch (_) { accounts = []; }
-      if (!accounts || !accounts.length) return null;
+      // New device: seed account metadata (email + scope, no tokens) from the server.
+      // expires:1 forces the refresh_by_email path below on first use.
+      if (!accounts || !accounts.length) {
+        try {
+          const lr = await fetch('/api/integrations/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-App-Secret': secret },
+            body: JSON.stringify({ list_accounts: true }),
+          });
+          const lj = await lr.json();
+          accounts = (lj.accounts || []).map(function(a) { return { email: a.email, name: a.email, scope: a.scope || undefined, expires: 1 }; });
+          if (accounts.length) {
+            try { localStorage.setItem('google_accounts_v1', JSON.stringify(accounts)); } catch (e) { console.warn('[Gmail] seed accounts write failed', e); }
+          }
+        } catch (e) { console.warn('[Gmail] list_accounts failed', e); }
+        if (!accounts || !accounts.length) return null;
+      }
+      // Backfill: accounts connected before server-side storage existed still only
+      // have their refresh token locally. Upload it once so other devices can use it.
+      if (!localStorage.getItem('google_tokens_backfilled_v1')) {
+        const withRt = accounts.filter(function(a) { return a.email && a.refresh; });
+        Promise.all(withRt.map(function(a) {
+          return fetch('/api/integrations/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-App-Secret': secret },
+            body: JSON.stringify({ store_token: true, email: a.email, refresh_token: a.refresh, scope: a.scope || '' }),
+          }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+        })).then(function() {
+          localStorage.setItem('google_tokens_backfilled_v1', '1');
+        }).catch(function(e) { console.warn('[Gmail] token backfill failed', e); });
+      }
       const preferredEmail = localStorage.getItem('gmail_preferred_account');
       let idx = 0;
       if (preferredEmail) {
@@ -1839,43 +1869,109 @@ body.topbar-modal-open {
     // executeCoachAction calls showGmailConfirmation() instead of sending immediately.
     // User must click "Send" to confirm — prevents accidental sends.
 
-    function buildRawEmail(to, subject, body, replyToMsgId) {
+    // replyToMsgId must be the RFC 822 Message-ID header (e.g. <abc@mail.gmail.com>), not Gmail's internal id.
+    function buildRawEmail(to, subject, body, replyToMsgId, references) {
+      // Non-ASCII subjects must be RFC 2047 encoded or Gmail shows mojibake
+      const encSubject = /[^\x20-\x7E]/.test(subject)
+        ? '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(subject))) + '?='
+        : subject;
       const lines = [
         'To: ' + to,
-        'Subject: ' + subject,
+        'Subject: ' + encSubject,
         'Content-Type: text/plain; charset=UTF-8',
         'MIME-Version: 1.0',
-        ...(replyToMsgId ? ['In-Reply-To: ' + replyToMsgId, 'References: ' + replyToMsgId] : []),
+        ...(replyToMsgId ? ['In-Reply-To: ' + replyToMsgId, 'References: ' + ((references ? references + ' ' : '') + replyToMsgId)] : []),
         '',
         body,
       ];
       const raw = lines.join('\r\n');
       // Base64url encode (RFC 4648 §5: + → -, / → _, no padding)
-      const b64 = typeof btoa !== 'undefined'
-        ? btoa(unescape(encodeURIComponent(raw)))
-        : Buffer.from(raw).toString('base64');
+      const b64 = btoa(unescape(encodeURIComponent(raw)));
       return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
+
+    // ===== COACH — GMAIL THREAD LOADER =====
+    // Returns { ok, messages:[{id, from, fromEmail, to, date, subject, messageId, references, body}] } oldest-first.
+    async function loadGmailThread(threadId, secret) {
+      secret = secret || window.DASH_APP_SECRET || '';
+      const account = await getGmailAccount(secret);
+      if (!account || !account.access) return { ok: false, error: (window.gmailLastError && window.gmailLastError.msg) || 'No Gmail account available.' };
+      try {
+        const p = new URLSearchParams({ path: '/users/me/threads/' + threadId, format: 'full' });
+        const r = await fetch('/api/integrations/google?' + p, { headers: { 'Authorization': 'Bearer ' + account.access, 'X-App-Secret': secret } });
+        const j = await r.json().catch(function() { return {}; });
+        if (!r.ok) return { ok: false, error: (j.error && j.error.message) || ('Gmail API error ' + r.status) };
+        function decodeB64Url(s) {
+          try {
+            const bin = atob(String(s || '').replace(/-/g, '+').replace(/_/g, '/'));
+            return decodeURIComponent(escape(bin));
+          } catch (e) { console.warn('[Gmail] body decode failed', e); return ''; }
+        }
+        function findPart(part, mime) {
+          if (!part) return null;
+          if (part.mimeType === mime && part.body && part.body.data) return part.body.data;
+          for (const sub of (part.parts || [])) { const f = findPart(sub, mime); if (f) return f; }
+          return null;
+        }
+        const messages = (j.messages || []).map(function(m) {
+          const hdrs = {};
+          ((m.payload && m.payload.headers) || []).forEach(function(h) { hdrs[h.name.toLowerCase()] = h.value; });
+          let body = '';
+          const plain = findPart(m.payload, 'text/plain');
+          if (plain) body = decodeB64Url(plain);
+          else {
+            const html = findPart(m.payload, 'text/html');
+            if (html) body = decodeB64Url(html).replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            else body = m.snippet || '';
+          }
+          const fromRaw = hdrs['from'] || '';
+          const em = fromRaw.match(/<([^>]+)>/);
+          return {
+            id: m.id,
+            from: fromRaw.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || fromRaw,
+            fromEmail: em ? em[1] : fromRaw.trim(),
+            to: hdrs['to'] || '',
+            date: hdrs['date'] || '',
+            subject: hdrs['subject'] || '',
+            messageId: hdrs['message-id'] || '',
+            references: hdrs['references'] || '',
+            body: body.trim().slice(0, 20000),
+          };
+        });
+        return { ok: true, messages, account: account.email };
+      } catch (e) {
+        console.warn('[Gmail] loadGmailThread failed', e);
+        return { ok: false, error: e && e.message ? e.message : String(e) };
+      }
+    }
+    window.loadGmailThread = loadGmailThread;
 
     async function sendGmailNow(draft, secret) {
       const account = await getGmailAccount(secret || window.DASH_APP_SECRET || '');
       if (!account) return { ok: false, error: 'No Google account connected.' };
-      if (!account.scope || !account.scope.includes('gmail.send')) {
-        return { ok: false, error: 'No gmail.send permission. Go to Calendar → reconnect your Google account.' };
+      // Legacy accounts with no stored scope get through; Gmail returns 403 if send wasn't granted.
+      if (account.scope && !account.scope.includes('gmail.send')) {
+        return { ok: false, error: 'No gmail.send permission on ' + account.email + '. Go to Calendar → reconnect your Google account.' };
+      }
+      if (!account.access) {
+        return { ok: false, error: (window.gmailLastError && window.gmailLastError.msg) || 'No valid access token for ' + account.email + '. Reconnect in Calendar.' };
       }
       try {
-        const rawB64 = buildRawEmail(draft.to, draft.subject, draft.body, draft.replyToMsgId || null);
-        const sendPath = '/users/me/messages/send' + (draft.threadId ? '?threadId=' + draft.threadId : '');
+        const rawB64 = buildRawEmail(draft.to, draft.subject, draft.body, draft.replyToMsgId || null, draft.references || '');
         const r = await fetch('/api/integrations/google?path=' + encodeURIComponent('/users/me/messages/send'), {
           method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + account.access, 'Content-Type': 'application/json', 'X-App-Secret': secret },
+          headers: { 'Authorization': 'Bearer ' + account.access, 'Content-Type': 'application/json', 'X-App-Secret': secret || window.DASH_APP_SECRET || '' },
           body: JSON.stringify({ raw: rawB64, ...(draft.threadId ? { threadId: draft.threadId } : {}) }),
         });
         const j = await r.json().catch(function() { return {}; });
-        if (r.ok) return { ok: true };
-        if (r.status === 403) return { ok: false, error: 'Gmail send permission denied — reconnect Google account in Calendar.' };
-        return { ok: false, error: (j && j.error && j.error.message) || ('Gmail API error ' + r.status) };
-      } catch (e) { return { ok: false, error: e && e.message ? e.message : String(e) }; }
+        if (r.ok) return { ok: true, id: j.id, threadId: j.threadId, from: account.email };
+        const apiMsg = (j && j.error && j.error.message) || '';
+        if (r.status === 403) return { ok: false, error: 'Gmail send denied (403) for ' + account.email + (apiMsg ? ': ' + apiMsg : '') + '. Check Gmail API is enabled, you are a test user, and reconnect in Calendar.' };
+        return { ok: false, error: apiMsg || ('Gmail API error ' + r.status) };
+      } catch (e) {
+        console.warn('[Gmail] send failed', e);
+        return { ok: false, error: e && e.message ? e.message : String(e) };
+      }
     }
 
     function showGmailConfirmation(draft) {
