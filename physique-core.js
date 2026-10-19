@@ -206,13 +206,13 @@
 
   // ===== TRAINING =====
   const MUSCLE_RULES = [
-    ['lats', /pulldown|pull-?up|chin-?up|lat\b|straight-arm/i],
-    ['upper chest', /incline/i],
+    ['lats', /pulldown|pull-?up|chin-?up|\blat\b(?! raise)|straight-arm/i],
+    ['upper chest', /incline(?!.*curl)/i],
     ['side delts', /lateral raise|lat raise|side raise|upright row/i],
     ['triceps', /tricep|pushdown|skull|\bdip\b|close-grip/i],
     ['biceps', /(?<!leg |wrist )curl/i],
     ['abs', /crunch|leg raise|sit-?up|rotation|ab wheel|plank|\bab\b/i],
-    ['chest', /bench|pec|chest|(?<!rear delt )fly|\bdip\b/i],
+    ['chest', /bench|pec|chest(?! supported)|(?<!rear delt |reverse )fly|\bdip\b/i],
     ['back', /\brow\b|t-bar|shrug|back extension/i],
     ['rear delts', /rear delt|face pull|reverse fly/i],
     ['quads', /squat|leg press(?! calf)|leg extension|lunge|hack/i],
@@ -296,7 +296,8 @@
       const fr = fatOver / fed.length;
       g.fat = fr <= 0.15 ? 'A' : fr <= 0.3 ? 'B' : fr <= 0.5 ? 'C' : fr <= 0.75 ? 'D' : 'F';
     }
-    const plannedLifts = past.filter(function (d) { return !/rest/i.test(d.plan.label); }).length;
+    // Today's lift only counts as planned once it's logged; otherwise it reads as missed all morning.
+    const plannedLifts = past.filter(function (d) { return !/rest/i.test(d.plan.label) && (!d.isToday || d.sess); }).length;
     const done = past.filter(function (d) { return d.sess; }).length;
     metrics.training = { done: done, planned: plannedLifts };
     if (plannedLifts) g.training = grade(done / plannedLifts);
@@ -339,9 +340,10 @@
     const out = { name: '', kcal: null, p: null, c: null, f: null, g: null, alc: false };
     const grab = function (re, key) { const m = t.match(re); if (m) { out[key] = parseFloat(m[1]); t = t.replace(m[0], ' '); } };
     grab(/\s(\d+(?:\.\d+)?)\s*(?:kcal|cal|calories)\b/i, 'kcal');
-    grab(/\s(\d+(?:\.\d+)?)\s*p(?:ro(?:tein)?)?\b/i, 'p');
-    grab(/\s(\d+(?:\.\d+)?)\s*c(?:arbs?)?\b/i, 'c');
-    grab(/\s(\d+(?:\.\d+)?)\s*f(?:at)?\b/i, 'f');
+    // Macro unit must touch the number ("18p", "46c"); with a space, "1 protein bar" read as 1 g protein.
+    grab(/\s(\d+(?:\.\d+)?)p(?:ro(?:tein)?)?\b/i, 'p');
+    grab(/\s(\d+(?:\.\d+)?)c(?:arbs?)?\b/i, 'c');
+    grab(/\s(\d+(?:\.\d+)?)f(?:at)?\b/i, 'f');
     grab(/\s(\d+(?:\.\d+)?)\s*g(?:rams?)?\b/i, 'g');
     if (/\salc(?:ohol)?\b/i.test(t)) { out.alc = true; t = t.replace(/\salc(?:ohol)?\b/i, ' '); }
     // A trailing bare number is calories when no kcal given ("omelette 210").
@@ -381,7 +383,8 @@
       case 'remove_food': {
         const d = dayRec(state, date);
         if (!d) return { ok: false, error: 'No log for ' + date };
-        const q = String(act.name || '').toLowerCase();
+        const q = String(act.name || '').trim().toLowerCase();
+        if (!q) return { ok: false, error: 'remove_food needs name' };
         let i = -1;
         d.items.forEach(function (x, idx) { if (String(x.name).toLowerCase().indexOf(q) !== -1) i = idx; });
         if (i < 0) return { ok: false, error: 'No food matching "' + act.name + '" on ' + date };
@@ -431,6 +434,8 @@
       }
       case 'log_set': {
         if (!act.exercise) return { ok: false, error: 'log_set needs exercise' };
+        const repsIn = Array.isArray(act.reps) ? act.reps : [act.reps];
+        if (!repsIn.length || repsIn.some(function (r) { return num(r) == null; })) return { ok: false, error: 'log_set needs numeric reps' };
         const s = findSession(state, date, act.split);
         if (act.gym) s.gym = act.gym;
         let ex = s.exercises.find(function (e) { return String(e.name).toLowerCase() === String(act.exercise).toLowerCase(); });
