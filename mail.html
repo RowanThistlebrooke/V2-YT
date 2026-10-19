@@ -147,6 +147,22 @@ body::after {
 .connect-desc { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6; max-width: 360px; margin-left: auto; margin-right: auto; }
 .connect-btn { display: inline-block; padding: 11px 26px; background: rgba(125,211,252,0.18); border: 1px solid rgba(125,211,252,0.4); border-radius: 11px; color: var(--accent); font-weight: 700; font-size: 13px; text-decoration: none; cursor: pointer; font-family: inherit; }
 .connect-btn:hover { background: rgba(125,211,252,0.28); }
+/* ── Error / diagnostic card ── */
+.diag-card { background: rgba(255,107,107,0.04); border: 1px solid rgba(255,107,107,0.2); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; }
+.diag-title { font-size: 13px; font-weight: 700; color: var(--danger); margin-bottom: 6px; }
+.diag-msg { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px; }
+.diag-steps { list-style: none; margin: 0; padding: 0; }
+.diag-steps li { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; padding-left: 20px; position: relative; line-height: 1.5; }
+.diag-steps li::before { content: counter(step); counter-increment: step; position: absolute; left: 0; font-weight: 700; color: var(--danger); font-size: 11px; }
+.diag-steps { counter-reset: step; }
+.diag-link { color: var(--accent); text-decoration: underline; }
+/* ── Account picker ── */
+.accounts-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.acc-chip { display: flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px; font-size: 11.5px; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
+.acc-chip.active { background: rgba(125,211,252,0.12); border-color: rgba(125,211,252,0.35); color: var(--accent); }
+.acc-chip:hover:not(.active) { background: rgba(255,255,255,0.06); }
+.acc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); flex-shrink: 0; }
+.acc-chip.active .acc-dot { background: var(--accent); }
 
 /* ── Compose ── */
 .compose-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
@@ -192,8 +208,21 @@ body::after {
     </div>
   </div>
 
+  <!-- Error / diagnostic card (shown on API failure) -->
+  <div id="diagCard" style="display:none" class="diag-card">
+    <div class="diag-title" id="diagTitle">⚠ Could not load Gmail</div>
+    <div class="diag-msg" id="diagMsg"></div>
+    <div id="diagStepsWrap" style="display:none">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-tertiary);margin-bottom:8px">Troubleshooting steps:</div>
+      <ol class="diag-steps" id="diagSteps"></ol>
+    </div>
+  </div>
+
   <!-- Main content -->
   <div id="mailContent" style="display:none">
+
+    <!-- Account picker (shown when multiple accounts connected) -->
+    <div id="accountsBar" class="accounts-bar" style="display:none"></div>
 
     <!-- Stats -->
     <div class="stats-row">
@@ -475,13 +504,90 @@ body::after {
   function hasGmailScope() {
     try {
       var a = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]');
-      if (!a || !a.length || !a[0].access) return false;
+      if (!a || !a.length) return false;
+      // Check preferred account first, then accounts[0]
+      var preferredEmail = localStorage.getItem('gmail_preferred_account');
+      var acc = a[0];
+      if (preferredEmail) {
+        var pref = a.find(function(x) { return x.email === preferredEmail; });
+        if (pref) acc = pref;
+      }
+      if (!acc.access && !acc.email) return false;
       // If scope is stored and explicitly lacks gmail.readonly, the user needs to reconnect.
-      // If scope isn't stored at all (accounts saved before scope tracking was added),
-      // allow through — the actual API call will 403 if Gmail wasn't granted.
-      if (a[0].scope && !a[0].scope.includes('gmail.readonly')) return false;
+      // If scope isn't stored at all (legacy accounts), allow through — API call will 403 if needed.
+      if (acc.scope && !acc.scope.includes('gmail.readonly')) return false;
       return true;
     } catch (_) { return false; }
+  }
+
+  function renderAccountPicker() {
+    try {
+      var accs = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]');
+      var bar = el('accountsBar');
+      if (!accs || accs.length < 1) { bar.style.display = 'none'; return; }
+      bar.style.display = 'flex';
+      var preferred = localStorage.getItem('gmail_preferred_account') || (accs[0] && accs[0].email);
+      function esc(s) { return String(s || '').replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+      bar.innerHTML = '<span style="font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:0.05em;text-transform:uppercase">Gmail account:</span>'
+        + accs.map(function(a) {
+          var isActive = a.email === preferred;
+          var hasGmail = !a.scope || a.scope.includes('gmail.readonly');
+          var dot = hasGmail ? '' : ' ⚠';
+          return '<button class="acc-chip' + (isActive ? ' active' : '') + '" data-accemail="' + esc(a.email) + '">'
+            + '<span class="acc-dot"></span>'
+            + esc(a.email || 'Unknown') + dot
+            + '</button>';
+        }).join('')
+        + '<a href="/calendar.html" style="font-size:11.5px;color:var(--text-tertiary);font-weight:600;text-decoration:none;margin-left:4px">+ Add account</a>';
+      bar.querySelectorAll('[data-accemail]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          localStorage.setItem('gmail_preferred_account', btn.dataset.accemail);
+          renderAccountPicker();
+          doRefresh();
+        });
+      });
+    } catch (e) { console.warn('[Mail] account picker render failed', e); }
+  }
+
+  function showDiagError(err) {
+    if (!err) { el('diagCard').style.display = 'none'; return; }
+    el('diagCard').style.display = '';
+    el('diagTitle').textContent = '⚠ Gmail error (code ' + (err.code || '?') + ')';
+    el('diagMsg').textContent = err.msg || 'Unknown error';
+
+    var steps = [];
+    var code = err.code || 0;
+    if (code === 403) {
+      steps = [
+        'Go to <a class="diag-link" href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank">Google Cloud Console → APIs → Gmail API</a> and confirm it is <strong>Enabled</strong>.',
+        'In Cloud Console → OAuth consent screen → <strong>Test users</strong>: add ' + String(err.account || 'your email').replace(/[<>&"]/g, '') + ' if the app is in "Testing" mode.',
+        'If using a CWRU (Google Workspace) account: ask your Google Workspace admin to allow OAuth for external apps, or try with a personal Gmail account first.',
+        'If your app is still in "Testing" status and the account is not a test user, Google will return 403 regardless of scopes. Publishing the app (or adding as test user) fixes this.',
+        '<strong>After any change above:</strong> reconnect your Google account in <a class="diag-link" href="/calendar.html">Calendar</a> and click Refresh here.',
+      ];
+    } else if (code === 401) {
+      steps = [
+        'Your access token expired and could not be refreshed. Reconnect in <a class="diag-link" href="/calendar.html">Calendar</a>.',
+        'On a new device: go to Calendar first to connect your Google account — then come back here.',
+      ];
+    } else if (code === 0 || err.action === 'connect') {
+      steps = [
+        'Go to <a class="diag-link" href="/calendar.html">Calendar</a> and connect your Google account.',
+        'Make sure you grant Gmail permission when prompted (check all permission checkboxes).',
+      ];
+    } else {
+      steps = [
+        'Open browser DevTools (Cmd+Option+I → Console) for the full error stack.',
+        'Try refreshing — transient network errors resolve on retry.',
+        'If this persists, reconnect your Google account in <a class="diag-link" href="/calendar.html">Calendar</a>.',
+      ];
+    }
+    if (steps.length) {
+      el('diagStepsWrap').style.display = '';
+      el('diagSteps').innerHTML = steps.map(function(s) { return '<li>' + s + '</li>'; }).join('');
+    } else {
+      el('diagStepsWrap').style.display = 'none';
+    }
   }
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -512,17 +618,26 @@ body::after {
         await window.loadGmailSummary(window.DASH_APP_SECRET || '');
     }
 
-    var s = null;
-    try { s = JSON.parse(localStorage.getItem(SUMMARY_KEY)); } catch (_) {}
-    if (s) {
-      renderSummary(s);
+    var err = window.gmailLastError || null;
+    if (typeof window.loadGmailSummary !== 'function') {
+      err = { code: -1, msg: 'Coach script (topbar.js) did not load, so Gmail cannot be fetched. Reload the page.' };
+    }
+    showDiagError(err);
+    if (err) {
+      el('mailSub').textContent = '⚠ ' + err.msg;
     } else {
-      // loadGmailSummary ran but produced no data — likely a token or scope issue
-      el('mailSub').textContent = '⚠ Could not load mail. Check that Gmail is authorized (reconnect in Calendar if needed), then refresh.';
+      var s = null;
+      try { s = JSON.parse(localStorage.getItem(SUMMARY_KEY)); } catch (e) { console.warn('[Mail] summary parse failed', e); }
+      if (s) renderSummary(s);
     }
     btn.disabled = false;
     btn.textContent = '⟳ Refresh';
   }
+
+  // Background refresh every 5 min while the tab is visible
+  setInterval(function() {
+    if (document.visibilityState === 'visible' && hasGmailScope() && !el('refreshBtn').disabled) doRefresh();
+  }, 5 * 60 * 1000);
 
   el('refreshBtn').addEventListener('click', doRefresh);
 
@@ -572,12 +687,15 @@ body::after {
     }
     el('connectPrompt').style.display = 'none';
     el('mailContent').style.display   = '';
+    renderAccountPicker();
 
-    // Show connected account email immediately as placeholder subtitle
-    try {
-      var _a = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]');
-      if (_a && _a[0] && _a[0].email) el('mailSub').textContent = 'Connected: ' + _a[0].email;
-    } catch(_) {}
+    // Show active account email immediately as placeholder subtitle
+    var activeEmail = localStorage.getItem('gmail_preferred_account');
+    if (!activeEmail) {
+      try { var _a = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); activeEmail = _a[0] && _a[0].email; }
+      catch (e) { console.warn('[Mail] accounts parse failed', e); }
+    }
+    if (activeEmail) el('mailSub').textContent = 'Connected: ' + activeEmail;
 
     try { var c = JSON.parse(localStorage.getItem(SUMMARY_KEY)); if (c) renderSummary(c); } catch (_) {}
 
