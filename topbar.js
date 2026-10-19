@@ -691,6 +691,44 @@ body.topbar-modal-open {
     const input = document.getElementById('coachInput');
     if (!fab || !panelBg) return;
 
+    // ===== COACH — PHYSIQUE CORE LOADER =====
+    // physique-core.js is only on physique.html; other pages lazy-load it once so the
+    // coach computes targets, totals and grades exactly like the Physique page does.
+    let _physiqueCorePromise = null;
+    function ensurePhysiqueCore() {
+      if (window.PhysiqueCore) return Promise.resolve(window.PhysiqueCore);
+      if (_physiqueCorePromise) return _physiqueCorePromise;
+      _physiqueCorePromise = new Promise(function(resolve) {
+        const s = document.createElement('script');
+        s.src = '/physique-core.js';
+        s.onload = function() { resolve(window.PhysiqueCore || null); };
+        s.onerror = function(e) { console.warn('[Coach] physique-core.js failed to load', e); _physiqueCorePromise = null; resolve(null); };
+        document.head.appendChild(s);
+      });
+      return _physiqueCorePromise;
+    }
+
+    // Compact physique view when the core isn't loaded yet. Never sends the raw days map.
+    function physiqueFallback(v) {
+      const days = (v && v.days) || {};
+      const t0 = new Date(); if (t0.getHours() < 4) t0.setDate(t0.getDate() - 1);
+      const key = function(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+      const tot = function(rec) {
+        if (!rec) return null;
+        if (rec.totals && rec.totals.kcal != null) return { kcal: rec.totals.kcal, p: rec.totals.p, c: rec.totals.c, f: rec.totals.f };
+        const items = rec.items || [];
+        if (!items.length) return null;
+        return items.reduce(function(s, i) { s.kcal += +i.kcal || 0; s.p += +i.p || 0; s.c += +i.c || 0; s.f += +i.f || 0; return s; }, { kcal: 0, p: 0, c: 0, f: 0 });
+      };
+      const last7 = [];
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date(t0); d.setDate(d.getDate() - i);
+        const t = tot(days[key(d)]);
+        if (t) last7.push(Object.assign({ when: i === 1 ? 'yesterday' : i + ' days ago' }, t));
+      }
+      return { note: 'compact fallback (physique core not loaded)', today: Object.assign({ date: key(t0) }, tot(days[key(t0)]) || {}), last_7_days: last7, targets: v && v.targets };
+    }
+
     // ===== COACH — DASHBOARD DATA (payload sent to AI) =====
     function dashboardData() {
       const SKIP = new Set([
@@ -915,6 +953,16 @@ body.topbar-modal-open {
             }
           }
           out[k] = { today_bottles: wTodayBottles, today_target: wTarget, today_pct: Math.round(wTodayBottles / wTarget * 100), unit: wUnit, recent_7d: wRecent };
+        } else if (k === 'physique_v1' && v && typeof v === 'object') {
+          // Precomputed summary with 'when' strings (Invariant §5). Never send the raw days map.
+          if (window.PhysiqueCore) {
+            let ext = [];
+            try { ext = JSON.parse(localStorage.getItem('po_coach_weights') || '[]'); } catch (e) { console.warn('[Coach] po_coach_weights parse failed', e); }
+            try { out[k] = window.PhysiqueCore.coachSummary(window.PhysiqueCore.normalize(v), Array.isArray(ext) ? ext : []); }
+            catch (e) { console.warn('[Coach] physique coachSummary failed', e); out[k] = physiqueFallback(v); }
+          } else {
+            out[k] = physiqueFallback(v);
+          }
         } else if (k === 'po_coach_weights' && Array.isArray(v)) {
           out[k] = v.slice(-20);
         } else if ((k === 'po_coach_photos' || k === 'po_coach_inbody') && v) {
@@ -959,7 +1007,7 @@ body.topbar-modal-open {
       let json = JSON.stringify(out);
       if (json.length > 40000) {
         const otherKeys = Object.keys(out)
-          .filter(k => k !== 'marathon_plan_v1')
+          .filter(k => k !== 'marathon_plan_v1' && k !== 'physique_v1')
           .sort((a,b) => JSON.stringify(out[b]).length - JSON.stringify(out[a]).length);
         for (const k of otherKeys) {
           out[k] = '[trimmed]';
@@ -975,6 +1023,15 @@ body.topbar-modal-open {
       }
       if (json.length > 40000 && out['marathon_plan_v1']) {
         out['marathon_plan_v1'] = '[trimmed]';
+        json = JSON.stringify(out);
+      }
+      // Physique last: drop rules/review/sessions first, then the whole summary.
+      if (json.length > 40000 && out['physique_v1'] && typeof out['physique_v1'] === 'object') {
+        out['physique_v1'] = Object.assign({}, out['physique_v1'], { rules: undefined, latest_review: undefined, recent_sessions: undefined, last_week: undefined });
+        json = JSON.stringify(out);
+      }
+      if (json.length > 40000 && out['physique_v1']) {
+        out['physique_v1'] = '[trimmed]';
       }
       return out;
     }
@@ -1070,6 +1127,24 @@ body.topbar-modal-open {
         "GMAIL (module:\"gmail\"): Read access via gmail_summary_v1 in dashboard data. To draft/send an email, emit a [COACH_ACTION] with op:\"send\" — a confirmation card appears and the email is NOT sent until the user clicks Send.\n" +
         " • Draft/send: {\"module\":\"gmail\",\"op\":\"send\",\"to\":\"name@domain.com\",\"subject\":\"Subject line\",\"body\":\"Full email body text\",\"cc\":\"optional\",\"threadId\":\"optional thread id for replies\"}\n" +
         "GMAIL RULES: Always write the full email body — do not truncate or summarize. If recipient, subject, or key content is unclear, ask before emitting. Do not mention the confirmation step in your reply text — it appears automatically.\n" +
+        "PHYSIQUE (module:\"physique\"): lean bulk tracker. Dashboard data physique_v1 is a precomputed summary: today {date, split, carb_day, target, eaten, remaining, items, program}, last_7_days, weight {avg7, rate_lb_per_wk, clean_weighins_last_7d, ...}, tdee, this_week {grades, metrics, adherence_pct, volume_sets}, recent_sessions, photos, rules. " +
+        "Use physique_v1.today.date as today's date for physique ops (it rolls over at 4 AM). Use `when` strings for timing, never the raw dates. Every op takes \"date\":\"YYYY-MM-DD\".\n" +
+        " • Log food: {\"module\":\"physique\",\"op\":\"log_food\",\"date\":\"YYYY-MM-DD\",\"name\":\"Chicken breast\",\"grams\":200,\"kcal\":330,\"p\":62,\"c\":0,\"f\":7} (add \"alcohol\":true,\"drinks\":2 for drinks). Clears that day's set_totals estimate.\n" +
+        " • Remove food: {\"module\":\"physique\",\"op\":\"remove_food\",\"date\":\"YYYY-MM-DD\",\"name\":\"substring of item name\"}\n" +
+        " • Day estimate: {\"module\":\"physique\",\"op\":\"set_totals\",\"date\":\"YYYY-MM-DD\",\"kcal\":2650,\"p\":172,\"c\":230,\"f\":102}\n" +
+        " • Weigh-in: {\"module\":\"physique\",\"op\":\"log_weight\",\"date\":\"YYYY-MM-DD\",\"lb\":142.4,\"bf\":11.0,\"clean\":true} (clean = own scale, fasted, on waking; otherwise false)\n" +
+        " • Sleep (logged on the wake-up date): {\"module\":\"physique\",\"op\":\"log_sleep\",\"date\":\"YYYY-MM-DD\",\"hours\":7.4,\"score\":81}\n" +
+        " • Cardio: {\"module\":\"physique\",\"op\":\"log_cardio\",\"date\":\"YYYY-MM-DD\",\"kind\":\"bike\",\"minutes\":25}\n" +
+        " • Alcohol: {\"module\":\"physique\",\"op\":\"log_alcohol\",\"date\":\"YYYY-MM-DD\",\"drinks\":4,\"kcal\":560}\n" +
+        " • Supplements: {\"module\":\"physique\",\"op\":\"supps\",\"date\":\"YYYY-MM-DD\",\"am\":true,\"pm\":true}\n" +
+        " • Day type: {\"module\":\"physique\",\"op\":\"set_day\",\"date\":\"YYYY-MM-DD\",\"type\":\"high|medium|low\",\"label\":\"Legs\"}\n" +
+        " • Sets: {\"module\":\"physique\",\"op\":\"log_set\",\"date\":\"YYYY-MM-DD\",\"exercise\":\"Barbell bench press\",\"weight\":185,\"reps\":[6,7]} (weight may be an array per set; add \"gym\":\"name\" when not at the home gym)\n" +
+        " • Session note: {\"module\":\"physique\",\"op\":\"session_note\",\"date\":\"YYYY-MM-DD\",\"text\":\"...\"}\n" +
+        " • Day note: {\"module\":\"physique\",\"op\":\"note\",\"date\":\"YYYY-MM-DD\",\"text\":\"...\"}\n" +
+        " • Weekly review: {\"module\":\"physique\",\"op\":\"add_review\",\"weekOf\":\"YYYY-MM-DD (Monday)\",\"grades\":{\"protein\":\"A\"},\"notes\":[\"...\"],\"changes\":[\"...\"]}\n" +
+        "PHYSIQUE RULES: When the user mentions food they ate or sets they did, LOG IT by emitting actions (estimate restaurant meals high). Map exercise names to the standard names already used in recent_sessions or today.program. " +
+        "For physique topics, physique_v1.rules override your default tone: 100% honest, no softening, plain and ranked, NO em dashes. On training days during a session, only log set data and confirm; give no suggestions. Never change the program mid-week; save changes for the weekly review. " +
+        "For 'what's left' questions use today.remaining. Before recommending any calorie change, check weight.avg7, weight.rate_lb_per_wk against target_rate, and weight.clean_weighins_last_7d; if fewer than 4 clean weigh-ins, say no change yet.\n" +
         "CRITICAL WRITE RULE: Whenever the user asks you to change, update, add, remove, move, reschedule, edit, modify, suppress, delete, or log ANYTHING — you MUST emit a [COACH_ACTION:{...}] block in the same reply. " +
         "Do NOT say 'I've noted that', 'I'll remember that', or 'those live in systems I can only read' — those statements are WRONG. The change is NOT saved unless you emit the block. " +
         "If the details are ambiguous, ask ONE clarifying question before emitting. Never emit for read-only questions (show me, what is, tell me about)." +
@@ -1101,6 +1176,11 @@ body.topbar-modal-open {
         "If last_logged_run is null, use the most recent strava_activities_v1 entry (pace is already MM:SS/mi format). " +
         "NEVER report a multi-week running gap if marathon plan entries_upcoming has a run today/recently or last_logged_run exists. " +
         "RACE: use marathon_plan_v1.race_when (precomputed) for countdown — do NOT calculate from raceDate yourself. Note upcoming key workouts (long runs, tempo, race) from entries_upcoming this week.\n\n" +
+        "2b. PHYSIQUE — Only if physique_v1 exists. Today's split, carb day (today.carb_day) and kcal/P/C/F target. What's left (today.remaining). " +
+        "Last night's sleep (today.sleepH, else the most recent last_7_days sleepH with its when) against 7.5 h. " +
+        "Weight trend: weight.avg7, weight.rate_lb_per_wk vs target_rate, and clean_weighins_last_7d out of 4 (if under 4, say no calorie change yet). " +
+        "This week's weakest grade from this_week.grades. Photo countdown only if photos.next_when is 3 days away or less. " +
+        "Supplement reminder if today.supps.am or today.supps.pm is not true. Plain, ranked, no em dashes.\n\n" +
         "3. HEALTH & HABITS — Supplement stack status (stack:items + stack:taken). " +
         "Hydration: po_water_v1 is pre-slimmed — use today_bottles vs today_target (both already in your unit). Compute pct from today_pct. " +
         "Any caffeine notes from caf:logs. Skip if nothing to report.\n\n" +
@@ -1279,7 +1359,8 @@ body.topbar-modal-open {
       // stale server data here would race with user edits and wipe newly added goals.
       // Skip goals: on this page; initCloudSync already keeps them current.
       const onGoalsPage = /\/(main\.html)?$/.test(window.location.pathname);
-      const rows = ['goals', 'health', 'profile', 'marathon', 'caffeine', 'gym'];
+      const rows = ['goals', 'health', 'profile', 'marathon', 'caffeine', 'gym', 'physique'];
+      let physiqueRefreshed = false;
       await Promise.allSettled(rows.map(async function(rowKey) {
         try {
           const r = await fetch('/api/db?key=' + encodeURIComponent(rowKey), {
@@ -1312,6 +1393,16 @@ body.topbar-modal-open {
                 }
               } catch (_) {}
             }
+            if (k === 'physique_v1') {
+              // Same guards as marathon: recent coach write this session, or local is same age/newer.
+              if (_coachLastPhysiqueWrite > 0 && Date.now() - _coachLastPhysiqueWrite < PROTECT_MS) return;
+              try {
+                const localP = JSON.parse(localStorage.getItem('physique_v1') || 'null');
+                const serverP = typeof v === 'object' ? v : JSON.parse(v);
+                if (localP && localP.updatedAt && (!serverP || !serverP.updatedAt || localP.updatedAt >= serverP.updatedAt)) return;
+              } catch (e) { console.warn('[Coach] physique updatedAt compare failed', e); return; }
+              physiqueRefreshed = true;
+            }
             if (k === 'po_water_v1') {
               // Merge water logs instead of overwriting — take max per date key so that
               // bottles logged on this device this session are not replaced by a stale
@@ -1338,6 +1429,12 @@ body.topbar-modal-open {
           });
         } catch (e) { console.warn('[Coach] primeCoachData fetch failed', e); }
       }));
+
+      // Physique summary needs the shared core; load it only for users who have physique data.
+      if (localStorage.getItem('physique_v1')) await ensurePhysiqueCore();
+      if (physiqueRefreshed) {
+        try { window.dispatchEvent(new CustomEvent('coach:physique:updated')); } catch (e) { console.warn('[Coach] physique event dispatch failed', e); }
+      }
 
       // ── Refresh Strava activities (throttled: once per 30 min) ──
       // strava_activities_v1 is local-only — only updated when marathon.html is open.
@@ -1619,6 +1716,9 @@ body.topbar-modal-open {
     // primeCoachData() uses these to avoid overwriting local changes with stale server data.
     let _coachLastGoalsWrite = 0;
     let _coachLastMarathonWrite = 0;
+    let _coachLastPhysiqueWrite = 0;
+    // Same idea as _pendingMarathonPlan: accumulates physique_v1 across sequential actions in one ask().
+    let _pendingPhysique = null;
 
     // In-memory marathon plan buffer for multi-action sequences.
     // When the coach sends replace_plan + append_entries in one reply, they execute
@@ -1771,6 +1871,7 @@ body.topbar-modal-open {
           // action 2 must see action 1's entries in localStorage before it appends.
           const results = [];
           _pendingMarathonPlan = null; // start each reply with a clean buffer
+          _pendingPhysique = null;
           for (const json of actionJsons) {
             let res;
             try {
@@ -1797,6 +1898,7 @@ body.topbar-modal-open {
             results.push({ status: 'fulfilled', value: res });
           }
           _pendingMarathonPlan = null; // release memory; next ask() starts fresh
+          _pendingPhysique = null;
           const errs = results.filter(function(r) { return r.status === 'rejected' || (r.value && !r.value.ok && !r.value.pendingConfirm); })
             .map(function(r) { return r.reason ? r.reason.message : (r.value && r.value.error) || 'unknown error'; });
           const hasPending = results.some(function(r) { return r.status === 'fulfilled' && r.value && r.value.pendingConfirm; });
@@ -2155,6 +2257,48 @@ body.topbar-modal-open {
           // Notify marathon.html (if open in same window) to re-render immediately
           // rather than waiting for the next 30-second sync poll.
           try { window.dispatchEvent(new CustomEvent('coach:marathon:updated', { detail: { updatedAt: plan.updatedAt } })); } catch (_) {}
+          return { ok: true };
+        }
+
+        // ── Physique ──────────────────────────────────────────────────
+        if (act.module === 'physique') {
+          const PC = await ensurePhysiqueCore();
+          if (!PC) return { ok: false, error: 'Physique module code failed to load.' };
+          let st = _pendingPhysique;
+          if (!st) {
+            const raw = localStorage.getItem(PC.KEY);
+            if (raw) {
+              st = PC.load();
+            } else {
+              // Without local data, a default state would be pushed over the server row
+              // (sync is replace-all) and wipe the history. Fetch the server copy first.
+              try {
+                const r = await fetch('/api/db?key=' + PC.APP_KEY, { headers: { 'X-App-Secret': secret } });
+                if (!r.ok) return { ok: false, error: 'Could not load physique data from the server (' + r.status + '). Nothing was changed.' };
+                const j = await r.json();
+                st = PC.normalize(j && j.data ? j.data[PC.KEY] : null);
+              } catch (e) {
+                console.warn('[Coach] physique server load failed', e);
+                return { ok: false, error: 'Could not reach the server to load physique data. Nothing was changed.' };
+              }
+            }
+          }
+          const res = PC.applyOp(st, act);
+          if (!res.ok) return res;
+          st.updatedAt = Date.now();
+          try { localStorage.setItem(PC.KEY, JSON.stringify(st)); } catch (e) { console.warn('[Coach] physique write failed', e); }
+          _pendingPhysique = st;
+          _coachLastPhysiqueWrite = Date.now(); // before the push await, like marathon
+          const pOpts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': secret }, body: JSON.stringify({ key: PC.APP_KEY, data: { [PC.KEY]: st } }) };
+          let pRes;
+          try { pRes = await fetch('/api/db', pOpts); }
+          catch (e) {
+            console.warn('[Coach] physique push failed, retrying', e);
+            try { await new Promise(function(r) { setTimeout(r, 1500); }); pRes = await fetch('/api/db', pOpts); }
+            catch (e2) { console.warn('[Coach] physique push retry failed', e2); return { ok: false, error: 'Network error. Physique log saved on this device only. Try again.' }; }
+          }
+          if (!pRes || !pRes.ok) return { ok: false, error: 'Server error (' + (pRes ? pRes.status : '?') + ') saving physique log. Saved on this device only.' };
+          try { window.dispatchEvent(new CustomEvent('coach:physique:updated', { detail: { updatedAt: st.updatedAt } })); } catch (e) { console.warn('[Coach] physique event dispatch failed', e); }
           return { ok: true };
         }
 
@@ -2662,7 +2806,7 @@ body.topbar-modal-open {
     // If coach_prompt_build fails to save (quota), the version check fires on every
     // page load → proactiveDayKey() is deleted → scan re-runs infinitely.
     pruneOldStorage();
-    const COACH_PROMPT_BUILD = '2026-09-13-v1';
+    const COACH_PROMPT_BUILD = '2026-10-19-v1';
     if (localStorage.getItem('coach_prompt_build') !== COACH_PROMPT_BUILD) {
       try { localStorage.removeItem(proactiveDayKey()); } catch (e) { console.warn('[Coach] proactive key remove failed', e); }
       // Retry once on quota — pruneOldStorage() should have freed space above,
