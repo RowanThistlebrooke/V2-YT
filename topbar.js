@@ -1404,22 +1404,30 @@ body.topbar-modal-open {
       } catch (e) { console.warn('[Coach] primeStravaActivities failed', e); }
     }
 
-    // ===== COACH — GMAIL SUMMARY LOADER =====
-    // Fetches recent inbox threads (excluding promotions/social) and identifies shipping
-    // emails. Stores result in gmail_summary_v1 for coach and mail.html.
-    // Requires google_accounts_v1 token with gmail.readonly scope.
-    async function loadGmailSummary(secret) {
-      try {
-        let accounts;
-        try { accounts = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); } catch (_) {}
-        if (!accounts || !accounts.length) return;
-        let account = accounts[0];
-        // Only block if scope is explicitly set and doesn't include gmail.readonly.
-        // Legacy accounts without a stored scope field get through (same logic as hasGmailScope() in mail.html).
-        if (account.scope && !account.scope.includes('gmail.readonly')) return;
+    // ===== COACH — GMAIL ACCOUNT HELPER =====
+    // Returns the best available Google account for Gmail operations:
+    //   1. The account whose email matches localStorage('gmail_preferred_account'), if set.
+    //   2. Otherwise google_accounts_v1[0].
+    // Refreshes the access token if it's expiring, with a server-side fallback for
+    // devices that don't have a local refresh token (cross-device).
+    async function getGmailAccount(secret) {
+      let accounts;
+      try { accounts = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); } catch (_) { accounts = []; }
+      if (!accounts || !accounts.length) return null;
+      const preferredEmail = localStorage.getItem('gmail_preferred_account');
+      let idx = 0;
+      if (preferredEmail) {
+        const pi = accounts.findIndex(function(a) { return a.email === preferredEmail; });
+        if (pi >= 0) idx = pi;
+      }
+      let account = accounts[idx];
+      if (account.scope && !account.scope.includes('gmail.readonly')) return null;
 
-        // Refresh token if expiring soon
-        if (account.expires && Date.now() > account.expires - 60000) {
+      const needsRefresh = account.expires && Date.now() > account.expires - 60000;
+      if (needsRefresh) {
+        let refreshed = false;
+        // Try local refresh_token first
+        if (account.refresh) {
           try {
             const rr = await fetch('/api/integrations/google', {
               method: 'POST',
@@ -1429,24 +1437,75 @@ body.topbar-modal-open {
             const jj = await rr.json();
             if (jj.access_token) {
               account = Object.assign({}, account, { access: jj.access_token, expires: Date.now() + (jj.expires_in || 3500) * 1000 });
-              accounts[0] = account;
+              accounts[idx] = account;
               try { localStorage.setItem('google_accounts_v1', JSON.stringify(accounts)); } catch (_) {}
+              refreshed = true;
             }
-          } catch (e) { console.warn('[Gmail] token refresh failed', e); }
+          } catch (e) { console.warn('[Gmail] local token refresh failed', e); }
+        }
+        // Fallback: server-side refresh using stored token (cross-device)
+        if (!refreshed && account.email) {
+          try {
+            const rr = await fetch('/api/integrations/google', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-App-Secret': secret },
+              body: JSON.stringify({ refresh_by_email: true, email: account.email }),
+            });
+            const jj = await rr.json();
+            if (jj.access_token) {
+              account = Object.assign({}, account, { access: jj.access_token, expires: Date.now() + (jj.expires_in || 3500) * 1000 });
+              accounts[idx] = account;
+              try { localStorage.setItem('google_accounts_v1', JSON.stringify(accounts)); } catch (_) {}
+              refreshed = true;
+            } else {
+              const e = { code: rr.status, msg: jj.error || ('Server refresh failed ' + rr.status) };
+              window.gmailLastError = Object.assign(e, { account: account.email });
+            }
+          } catch (e) { console.warn('[Gmail] server-side token refresh failed', e); }
+        }
+      }
+      return account;
+    }
+    window.getGmailAccount = getGmailAccount;
+
+    // ===== COACH — GMAIL SUMMARY LOADER =====
+    // Fetches recent inbox threads (excluding promotions/social) and identifies shipping
+    // emails. Stores result in gmail_summary_v1 for coach and mail.html.
+    // Sets window.gmailLastError on failure so mail.html can show actionable diagnostics.
+    async function loadGmailSummary(secret) {
+      window.gmailLastError = null;
+      try {
+        const account = await getGmailAccount(secret);
+        if (!account) {
+          window.gmailLastError = { code: 0, msg: 'No Google account connected with Gmail access. Connect in Calendar.', action: 'connect' };
+          return null;
+        }
+        if (!account.access) {
+          window.gmailLastError = { code: 401, msg: 'Token missing or expired. Reconnect your Google account in Calendar.', account: account.email, action: 'reconnect' };
+          return null;
         }
 
         const gHdr = { 'Authorization': 'Bearer ' + account.access, 'X-App-Secret': secret };
 
-        // Fetch up to 20 primary inbox messages (no promotions/social/updates)
-        const listParams = new URLSearchParams({ path: '/users/me/messages', maxResults: '20', q: 'in:inbox -category:promotions -category:social -category:updates' });
+        // Fetch up to 50 primary inbox messages (no promotions/social/updates)
+        const listParams = new URLSearchParams({ path: '/users/me/messages', maxResults: '50', q: 'in:inbox -category:promotions -category:social -category:updates' });
         const listR = await fetch('/api/integrations/google?' + listParams, { headers: gHdr });
-        if (!listR.ok) { console.warn('[Gmail] messages list failed:', listR.status); return; }
+        if (!listR.ok) {
+          let errMsg = 'Gmail API error ' + listR.status;
+          try { const ej = await listR.json(); errMsg = (ej.error && ej.error.message) || errMsg; } catch (_) {}
+          if (listR.status === 401) errMsg = 'Access token rejected by Google (401). Reconnect your account in Calendar.';
+          if (listR.status === 403) errMsg = 'Gmail access denied (403). Check that: (1) Gmail API is enabled in Google Cloud Console, (2) your account is added as a test user, (3) CWRU Workspace admin has allowed this app. See mail.html for steps.';
+          window.gmailLastError = { code: listR.status, msg: errMsg, account: account.email };
+          console.warn('[Gmail] messages list failed:', listR.status, errMsg);
+          return null;
+        }
         const listData = await listR.json();
-        const msgIds = ((listData.messages) || []).slice(0, 14).map(function(m) { return m.id; });
+        const msgIds = ((listData.messages) || []).slice(0, 50).map(function(m) { return m.id; });
         if (!msgIds.length) {
-          try { localStorage.setItem('gmail_summary_v1', JSON.stringify({ fetchedAt: Date.now(), threads: [], shipping: [], unreadCount: 0 })); } catch(_) {}
+          const emptySummary = { fetchedAt: Date.now(), threads: [], shipping: [], unreadCount: 0, account: account.email };
+          try { localStorage.setItem('gmail_summary_v1', JSON.stringify(emptySummary)); } catch(_) {}
           localStorage.setItem('gmail_last_sync', String(Date.now()));
-          return;
+          return emptySummary;
         }
 
         const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
@@ -1496,7 +1555,7 @@ body.topbar-modal-open {
 
         const threads = metaResults.map(function(r) { return r.status === 'fulfilled' ? r.value : null; }).filter(Boolean);
         const shipping = threads.filter(function(t) { return t.isShipping; });
-        const summary = { fetchedAt: Date.now(), threads, shipping, unreadCount: threads.filter(function(t) { return t.isUnread; }).length };
+        const summary = { fetchedAt: Date.now(), threads, shipping, unreadCount: threads.filter(function(t) { return t.isUnread; }).length, account: account.email };
         try { localStorage.setItem('gmail_summary_v1', JSON.stringify(summary)); } catch(e) { console.warn('[Gmail] write failed', e); }
         localStorage.setItem('gmail_last_sync', String(Date.now()));
 
@@ -1517,7 +1576,11 @@ body.topbar-modal-open {
         }).catch(function(e) { console.warn('[Gmail] alerts push failed', e); });
 
         return summary;
-      } catch (e) { console.warn('[Gmail] loadGmailSummary failed', e); }
+      } catch (e) {
+        window.gmailLastError = { code: -1, msg: 'Unexpected error: ' + (e && e.message ? e.message : String(e)) };
+        console.warn('[Gmail] loadGmailSummary failed', e);
+        return null;
+      }
     }
     window.loadGmailSummary = loadGmailSummary;
 
@@ -1734,27 +1797,9 @@ body.topbar-modal-open {
     // a 403 and tells them to reconnect in calendar.html with the new scope.
     async function addGoogleCalendarEvent(opts) {
       try {
-        var accounts = [];
-        try { accounts = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); } catch (_) {}
-        if (!accounts.length) return { ok: false, error: 'No Google account connected — go to Calendar and connect your account first.' };
-        var account = accounts[0];
         var secret = window.DASH_APP_SECRET || '';
-        // Refresh token if expired (expires has <60s left)
-        if (account.expires && Date.now() > account.expires - 60000) {
-          try {
-            var rr = await fetch('/api/integrations/google', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-App-Secret': secret },
-              body: JSON.stringify({ refresh_token: account.refresh }),
-            });
-            var jj = await rr.json();
-            if (jj.access_token) {
-              account = Object.assign({}, account, { access: jj.access_token, expires: Date.now() + (jj.expires_in || 3500) * 1000 });
-              accounts[0] = account;
-              try { localStorage.setItem('google_accounts_v1', JSON.stringify(accounts)); } catch (_) {}
-            }
-          } catch (e) { console.warn('[Coach] calendar token refresh failed', e); }
-        }
+        var account = await getGmailAccount(secret);
+        if (!account) return { ok: false, error: 'No Google account connected — go to Calendar and connect your account first.' };
         var tz = (typeof Intl !== 'undefined') ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'America/New_York';
         var startDt = opts.datetime; // e.g. "2026-07-25T14:30:00"
         var durMs = (opts.durationMinutes || 60) * 60000;
@@ -1813,27 +1858,10 @@ body.topbar-modal-open {
     }
 
     async function sendGmailNow(draft, secret) {
-      let accounts;
-      try { accounts = JSON.parse(localStorage.getItem('google_accounts_v1') || '[]'); } catch (_) {}
-      if (!accounts || !accounts.length) return { ok: false, error: 'No Google account connected.' };
-      let account = accounts[0];
+      const account = await getGmailAccount(secret || window.DASH_APP_SECRET || '');
+      if (!account) return { ok: false, error: 'No Google account connected.' };
       if (!account.scope || !account.scope.includes('gmail.send')) {
         return { ok: false, error: 'No gmail.send permission. Go to Calendar → reconnect your Google account.' };
-      }
-      // Refresh if expiring
-      if (account.expires && Date.now() > account.expires - 60000) {
-        try {
-          const rr = await fetch('/api/integrations/google', {
-            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': secret },
-            body: JSON.stringify({ refresh_token: account.refresh }),
-          });
-          const jj = await rr.json();
-          if (jj.access_token) {
-            account = Object.assign({}, account, { access: jj.access_token, expires: Date.now() + (jj.expires_in || 3500) * 1000 });
-            accounts[0] = account;
-            try { localStorage.setItem('google_accounts_v1', JSON.stringify(accounts)); } catch (_) {}
-          }
-        } catch (e) { console.warn('[Gmail] send token refresh failed', e); }
       }
       try {
         const rawB64 = buildRawEmail(draft.to, draft.subject, draft.body, draft.replyToMsgId || null);
