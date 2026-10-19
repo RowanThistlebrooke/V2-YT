@@ -141,7 +141,8 @@
         alcKcal: t.alcKcal != null ? +t.alcKcal : sum.alcKcal, fiber: t.fiber != null ? +t.fiber : sum.fiber,
         na: t.na != null ? +t.na : sum.na, source: 'estimate', partial: !!rec.partial };
     }
-    if (!rec.items.length) return null;
+    // Days can exist with only a weigh-in/sleep and no items array (seed Oct 10)
+    if (!(rec.items || []).length) return null;
     return Object.assign(sum, { source: 'items', partial: !!rec.partial });
   }
 
@@ -313,11 +314,13 @@
     const drinks = past.reduce(function (s, d) { return s + (d.alcohol ? +d.alcohol.drinks || 0 : 0); }, 0);
     metrics.alcohol = { drinks: drinks };
     g.alcohol = drinks === 0 ? 'A' : drinks <= state.limits.drinksPer14d ? 'B' : drinks <= 6 ? 'C' : drinks <= 9 ? 'D' : 'F';
-    const suppDays = past.filter(function (d) { return d.supps; });
+    // Today's PM dose isn't due yet, so grade supplements on finished days only
+    const doneDays = past.filter(function (d) { return !d.isToday; });
+    const suppDays = doneDays.filter(function (d) { return d.supps; });
     if (suppDays.length) {
       const hits = suppDays.reduce(function (s, d) { return s + (d.supps.am ? 1 : 0) + (d.supps.pm ? 1 : 0); }, 0);
-      metrics.supps = { hit: hits, of: past.length * 2 };
-      g.supps = grade(hits / (past.length * 2));
+      metrics.supps = { hit: hits, of: doneDays.length * 2 };
+      g.supps = grade(hits / (doneDays.length * 2));
     }
     const tr = trend(state, external, addDays(monday, 6) < ref ? addDays(monday, 6) : ref);
     metrics.weight = { avg7: tr.avg7 ? +tr.avg7.avg.toFixed(1) : null, rateLbWk: tr.rateLbWk != null ? +tr.rateLbWk.toFixed(2) : null, clean: tr.cleanThisWeek };
@@ -382,7 +385,7 @@
       }
       case 'remove_food': {
         const d = dayRec(state, date);
-        if (!d) return { ok: false, error: 'No log for ' + date };
+        if (!d || !(d.items || []).length) return { ok: false, error: 'No food logged on ' + date };
         const q = String(act.name || '').trim().toLowerCase();
         if (!q) return { ok: false, error: 'remove_food needs name' };
         let i = -1;
