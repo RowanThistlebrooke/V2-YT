@@ -6,6 +6,13 @@
 // POST /api/integrations/google   { refresh_token }
 //      Exchanges a refresh_token for a new access_token via Google's
 //      OAuth endpoint (access tokens expire after ~1 hour).
+// POST /api/integrations/google   { store_token: true, email, refresh_token }
+//      Stores the refresh token server-side in Supabase (key: google_tokens_secure).
+//      Refresh tokens are never in client sync payloads — only the server holds them.
+// POST /api/integrations/google   { refresh_by_email: true, email }
+//      Looks up the stored refresh token for this email from Supabase, performs
+//      token refresh, returns { access_token, expires_in }. Lets Device B get a
+//      fresh access token without ever having done OAuth itself.
 //
 // Combined into one file (data-proxy + token-refresh both for Google
 // Calendar) to match the WHOOP/Strava integration pattern.
@@ -67,35 +74,85 @@ async function handleData(req, res, method) {
   }
 }
 
+async function doOAuthRefresh(refreshToken) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error('server not configured');
+  const form = new URLSearchParams({
+    grant_type: 'refresh_token', refresh_token: refreshToken,
+    client_id: clientId, client_secret: clientSecret,
+  });
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form,
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error('Google OAuth error ' + r.status + ': ' + text);
+  return JSON.parse(text);
+}
+
+async function getSupaTokens(supaUrl, serviceKey) {
+  const hdrs = { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey };
+  const r = await fetch(supaUrl + '/rest/v1/app_state?key=eq.google_tokens_secure&select=data', { headers: hdrs });
+  if (!r.ok) return {};
+  const rows = await r.json();
+  return (rows && rows[0] && rows[0].data) ? rows[0].data : {};
+}
+
+async function setSupaTokens(supaUrl, serviceKey, data) {
+  const hdrs = {
+    'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey,
+    'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates',
+  };
+  await fetch(supaUrl + '/rest/v1/app_state', {
+    method: 'POST', headers: hdrs, body: JSON.stringify({ key: 'google_tokens_secure', data }),
+  });
+}
+
 async function handleRefresh(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+
+  // Store token server-side (called by calendar.html after OAuth)
+  if (body && body.store_token) {
+    const { email, refresh_token: rt } = body;
+    if (!email || !rt) return res.status(400).json({ error: 'email and refresh_token required' });
+    const supaUrl = process.env.SUPABASE_URL, sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supaUrl || !sk) return res.status(503).json({ error: 'Supabase not configured' });
+    try {
+      const existing = await getSupaTokens(supaUrl, sk);
+      await setSupaTokens(supaUrl, sk, Object.assign({}, existing, { [email]: rt }));
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      return res.status(500).json({ error: 'store failed: ' + (e && e.message ? e.message : String(e)) });
+    }
+  }
+
+  // Refresh by email (cross-device: looks up server-stored refresh token)
+  if (body && body.refresh_by_email) {
+    const { email } = body;
+    if (!email) return res.status(400).json({ error: 'email required' });
+    const supaUrl = process.env.SUPABASE_URL, sk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supaUrl || !sk) return res.status(503).json({ error: 'Supabase not configured' });
+    try {
+      const store = await getSupaTokens(supaUrl, sk);
+      const rt = store[email];
+      if (!rt) return res.status(404).json({ error: 'no stored token for ' + email + ' — reconnect in Calendar' });
+      const data = await doOAuthRefresh(rt);
+      return res.status(200).json(data);
+    } catch (e) {
+      return res.status(500).json({ error: e && e.message ? e.message : String(e) });
+    }
+  }
+
+  // Standard refresh with explicit refresh_token
   const refresh = body && body.refresh_token;
   if (!refresh) return res.status(400).json({ error: 'refresh_token required' });
-
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return res.status(500).json({ error: 'server not configured' });
-
   try {
-    const form = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refresh,
-      client_id: clientId,
-      client_secret: clientSecret,
-    });
-    const r = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form,
-    });
-    const text = await r.text();
-    if (!r.ok) return res.status(500).json({ error: 'refresh failed: ' + text });
-    try { return res.status(200).json(JSON.parse(text)); }
-    catch { return res.status(500).json({ error: 'non-JSON response from Google' }); }
+    const data = await doOAuthRefresh(refresh);
+    return res.status(200).json(data);
   } catch (e) {
-    return res.status(500).json({ error: 'fetch error: ' + (e && e.message ? e.message : String(e)) });
+    return res.status(500).json({ error: e && e.message ? e.message : String(e) });
   }
 }
 
