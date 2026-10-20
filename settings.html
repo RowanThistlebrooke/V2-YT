@@ -448,6 +448,8 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
   // Each entry describes what changed for that release so you can trace
   // what was added when, which is useful for debugging "when did X appear?"
   const CHANGELOG = [
+    { ver: '3.156', date: '2026-10-20', items: ['chore: CLAUDE.md changelog for f7ee187 (Gmail repeated-param fix)', 'Fix Gmail inbox showing no subject/sender: forward repeated query params separately', 'chore: update CLAUDE.md for Gmail fixes and internship rebuild', 'Gmail: new-device account seeding, token backfill, thread view with in-thread replies', 'google.js: list_accounts op and scope stored with server-side refresh tokens', 'mail.html: account picker, visible Gmail errors with fix steps, background refresh', 'topbar.js: account picker, real error surface, 50 messages, cross-device token refresh'] },
+
     { ver: '3.155', date: '2026-09-13', items: ['Fix stale calendar dates in coach + mail error UX'] },
 
     { ver: '3.154', date: '2026-08-23', items: ['chore: update CLAUDE.md for 16e28d8 (Google routing fix, Gmail scope fix)', 'Fix Calendar API routing bug + mail Gmail scope check'] },
