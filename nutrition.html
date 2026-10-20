@@ -82,6 +82,12 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
 
   <h1 class="dash-title">Nutrition</h1>
 
+  <a class="gm-card" id="physiqueCard" href="physique.html" style="display:none;text-decoration:none;border:1px solid rgba(94,234,212,0.25)">
+    <div style="font-size:10.5px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#5EEAD4">Carb cycling active</div>
+    <div id="physiqueLine" style="margin-top:6px;font-size:15px;font-weight:600;color:var(--text-primary);font-variant-numeric:tabular-nums"></div>
+    <div style="margin-top:4px;font-size:12px;color:var(--text-tertiary)">Open Physique →</div>
+  </a>
+
   <div class="gm-card">
     <div class="goal-seg" id="goalSeg">
       <button data-g="cut">Cut</button>
@@ -244,6 +250,47 @@ body::after { content: ''; position: fixed; inset: 0; background-image: radial-g
   if (window.initCloudSync) {
     window.initCloudSync({ appKey: 'nutrition', syncedKeys: [STORE_KEY], onApplied: () => { state = load(); render(); } });
   }
+
+  // ── Physique carb-cycling card ───────────────────────────────
+  // Read-only view of physique_v1. Not synced here (Invariant §8: appKey 'physique' is
+  // owned by physique.html); one GET refresh, written back only if the server is newer.
+  function renderPhysiqueCard() {
+    const PC = window.PhysiqueCore;
+    if (!PC || !localStorage.getItem(PC.KEY)) return;
+    const st = PC.load();
+    const k = PC.todayKey();
+    const plan = PC.dayPlan(st, k), tgt = PC.targetsFor(st, k), tot = PC.dayTotals(st, k);
+    const label = { high: 'HIGH', medium: 'MED', low: 'LOW' }[plan.type] || plan.type;
+    document.getElementById('physiqueLine').textContent =
+      'Today ' + label + ' (' + plan.label + '): ' + Math.round(tot ? tot.kcal : 0).toLocaleString() + ' / ' + tgt.kcal.toLocaleString() + ' kcal · ' +
+      Math.round(tot ? tot.p : 0) + ' / ' + tgt.p + 'g protein';
+    document.getElementById('physiqueCard').style.display = '';
+  }
+  function loadPhysiqueCore() {
+    if (window.PhysiqueCore) return Promise.resolve();
+    return new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'physique-core.js';
+      s.onload = resolve;
+      s.onerror = (e) => { console.warn('[nutrition] physique-core.js failed to load', e); resolve(); };
+      document.head.appendChild(s);
+    });
+  }
+  loadPhysiqueCore().then(() => {
+    renderPhysiqueCard();
+    return fetch('/api/db?key=physique', { headers: { 'X-App-Secret': window.DASH_APP_SECRET || '' } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => {
+        const remote = j && j.data && j.data.physique_v1;
+        if (!remote) return;
+        let local = null;
+        try { local = JSON.parse(localStorage.getItem('physique_v1') || 'null'); } catch (e) { console.warn('[nutrition] physique_v1 parse failed', e); }
+        if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) {
+          try { localStorage.setItem('physique_v1', JSON.stringify(remote)); } catch (e) { console.warn('[nutrition] physique_v1 cache write failed', e); }
+        }
+        renderPhysiqueCard();
+      });
+  }).catch((e) => console.warn('[nutrition] physique card refresh failed', e));
 })();
 </script>
 </body>
