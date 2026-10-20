@@ -150,6 +150,9 @@ When a page has a large object that the coach can also write (e.g. `marathon_pla
 | `saved-links.html` | **Saved Links** | Paste/share links, AI auto-categorize via Claude. |
 | `health.html` | **Supplements** | Daily supplement stack tracker. |
 | `marathon.html` | **Marathon** | Marathon training plan, long-run tracking. |
+| `physique.html` | **Physique** | Lean bulk HUD: carb-cycling fuel rings, terminal quick log, weigh-in telemetry (7-day avg, FFMI), adaptive TDEE, week matrix + grades, set logger + e1RM, priority volume, recovery, supplements/photos, weekly review, one-time history import. Syncs `physique_v1` under `appKey: 'physique'`. |
+| `physique-core.js` | **Physique core** | `window.PhysiqueCore`: pure shared logic (targets, totals, trend, TDEE, grades, `parseQuickLog`, `applyOp`, `coachSummary`). Loaded by physique.html; lazy-loaded by topbar.js (`ensurePhysiqueCore`) and nutrition.html. Any change affects the page AND the coach. |
+| `physique-seed.js` | **Physique seed** | `window.PHYSIQUE_SEED`: Oct 10-19 2026 coaching history. Lazy-loaded only by the Import button; merge is additive and gated by `state.imports[seed.id]`. Do not edit data values. |
 | `brain.html` | **Notes / Brain** | Obsidian-connected notes and observations. |
 | `mail.html` | **Mail** | Gmail inbox viewer, shipping tracker, compose. Reads `gmail_summary_v1` from localStorage (populated by `topbar.js`). Compose calls `window.sendGmailNow()`. |
 | `internship.html` | **Internships / Research** | AI opportunity search, manual opportunity list, email template, AI email personalization, Gmail send modal. Stores data under `appKey: 'internships'`. |
@@ -185,6 +188,7 @@ When a page has a large object that the coach can also write (e.g. `marathon_pla
 | `po_water_v1` | Profile / Water | Yes (exact key) | `profile` |
 | `subs`, `wishlist`, `nw:*` etc. | Finance | Yes | `finance` |
 | `caf:logs`, `caf:custom` | Caffeine | Yes | `caffeine` |
+| `physique_v1` | Physique | Yes (exact key; `updatedAt`-guarded, Invariant §13) | `physique` |
 
 **appKey registry** — each appKey must be unique to its data domain. Never share an appKey between two pages that sync different sets of keys (Invariant §8).
 
@@ -199,6 +203,7 @@ When a page has a large object that the coach can also write (e.g. `marathon_pla
 | `savedlinks` | `saved-links.html` | `savedlinks:items` |
 | `caffeine` | `caffeine.html` | `caf:logs`, `caf:custom` |
 | `marathon` | `marathon.html` | `PLAN_KEY` |
+| `physique` | `physique.html` (coach writes via direct POST; nutrition.html reads only) | `physique_v1` |
 | `nutrition` | `nutrition.html` | store key |
 | `notes` | `notes.html` | store key, cat key |
 | `shopping` | `shopping.html` | purchase key |
@@ -220,6 +225,7 @@ Entries are newest-first within each section. Add a new entry at the **top** of 
 
 | Date | Commit | Change | What could break |
 |------|--------|--------|-----------------|
+| 2026-10-19 | `af27d7d` | Coach Physique integration. `ensurePhysiqueCore()` lazy-loads `/physique-core.js` once. `dashboardData()` sends `PhysiqueCore.coachSummary(normalize(v), po_coach_weights)` for `physique_v1` (compact `physiqueFallback` if the core isn't loaded), never the raw days map. It's protected in the 40 KB trim, dropping rules/review/sessions before the whole summary. `primeCoachData()` fetches the `physique` row with the marathon guards (`_coachLastPhysiqueWrite`, local `updatedAt >=` server), loads the core when `physique_v1` exists, and dispatches `coach:physique:updated` after refreshing. `executeCoachAction({module:"physique"})` runs every `applyOp` op through the `_pendingPhysique` buffer, sets the guard before the awaited push, retries once, then dispatches the event. With no local copy it fetches the server row first and refuses to write if that fails. CHAT_SYS gains a PHYSIQUE section (op schemas, log-what-I-mention, coaching rules, `today.remaining`, 4-clean-weigh-in gate). PROACTIVE_SYS gains section 2b. `COACH_PROMPT_BUILD` → `'2026-10-19-v1'`. | Physique ops use `physique_v1.today.date` (4 AM rollover), while goals/water use 6 AM. Between 4 and 6 AM the coach's "today" differs by module. If the server row truly doesn't exist (new user), the first coach write creates it from defaults, which is intended. A user who never opened physique.html gets the core loaded on every coach open only once `physique_v1` exists locally. |
 | 2026-10-19 | `3534967` | Gmail round 2. `getGmailAccount()` seeds `google_accounts_v1` (email + scope only) from the server's `list_accounts` on a new device, then gets a token via `refresh_by_email`. One-time backfill uploads legacy local refresh tokens (`google_tokens_backfilled_v1` flag). New `loadGmailThread(threadId)` (exposed on `window`) returns a full thread with decoded bodies and Message-ID/References. `buildRawEmail` RFC 2047-encodes non-ASCII subjects (em dashes and emoji were garbled) and chains References for replies. `sendGmailNow` no longer blocks legacy accounts with no stored scope, returns `{ok, id, threadId, from}`, and includes Google's reason on 403. | Seeded accounts have `expires:1` and no `access`, so the first Gmail call on a new device always hits the server. If `google_tokens_secure` has no entry for that email (account connected before this deploy and never opened on its original device since), the user must reconnect in Calendar. |
 | 2026-10-19 | `5a91376` | Added `getGmailAccount(secret)`: picks the account in `gmail_preferred_account` (else `accounts[0]`), refreshes locally then falls back to server-side `refresh_by_email`. `loadGmailSummary`, `sendGmailNow` and `addGoogleCalendarEvent` all use it, replacing three copies of inline refresh code. `loadGmailSummary` now sets `window.gmailLastError = {code, msg, account}` on every failure path and returns `null` (previously silent `return`). Inbox fetch raised from 14 to 50 messages. `gmail_summary_v1` gains an `account` field. | `addGoogleCalendarEvent` now uses the Gmail-preferred account for calendar writes too. With one account this is identical; with several, calendar events go to whichever account Mail is set to. `getGmailAccount` returns `null` for accounts whose stored scope lacks `gmail.readonly`, which also blocks calendar writes for a calendar-only account. Reconnecting with full scope fixes it. |
 | 2026-08-23 | `16e28d8` | Fixed `loadGmailSummary` exiting early for legacy Google accounts (connected before scope tracking was added). Root cause: `if (!account.scope \|\| !account.scope.includes('gmail.readonly')) return` blocks any account without a stored `scope` field — even if the token actually has Gmail access. Fix: `if (account.scope && !account.scope.includes('gmail.readonly')) return` — only block when scope is explicitly set and doesn't include gmail.readonly. This matches `hasGmailScope()` logic in mail.html. | Accounts without a scope field will now always attempt Gmail fetch. If the token genuinely lacks Gmail scope, the fetch will fail with 403 and be caught silently — no worse than before. |
@@ -369,6 +375,13 @@ The `save()` function only called `localStorage.setItem`, relying on sync.js's 2
 ### "Coach edit to marathon plan disappears on mobile after tab switch"
 Mobile tab eviction causes the page to reload from scratch, which triggers `onApplied` before the push completed. Fix: `executeCoachAction()` awaits the push with retry; `marathon.html` guards `onApplied` with `updatedAt` check (Invariant §13). If the plan still reverts, check that `plan.updatedAt` is being set in the coach write path AND in `savePlan()`.
 
+### "Physique log reverted / coach-logged food or sets disappeared"
+1. Check the `updatedAt` guard in physique.html `onApplied`. It must compare the incoming `physique_v1.updatedAt` with in-memory `state.updatedAt` and restore localStorage when rejecting (Invariant §13).
+2. Check `_coachLastPhysiqueWrite` in topbar.js. It must be set before the push `await`, and `primeCoachData` must skip `physique_v1` within 5 min of a coach write or when local `updatedAt >=` server.
+3. Check `_pendingPhysique` is reset at the start and end of each `ask()`. Multi-action replies must read the buffer, not localStorage.
+4. Check no other page added `physique_v1` to its own `initCloudSync` (Invariant §8). nutrition.html must only read it.
+5. Import showed "failed" but data appeared: a render error after `save()`. Check the console for a `physique-core.js` stack trace.
+
 ### "Gmail inbox empty / Mail module shows connection prompt"
 0. Read the red diagnostic card on mail.html, or `window.gmailLastError` in the console. It carries the real HTTP code and Google's message. A 403 that says "Gmail API has not been used in project…" means the API is disabled. A 403 or `access_denied` for a `@case.edu` account usually means the app is in Testing mode without that test user, or the CWRU Workspace admin blocks third-party apps.
 0b. Check which account is active (chips at the top of Mail, `gmail_preferred_account`).
@@ -397,6 +410,7 @@ Mobile tab eviction causes the page to reload from scratch, which triggers `onAp
 
 | Date | Commit | Change | What could break |
 |------|--------|--------|-----------------|
+| 2026-10-19 | `62a6472` | Added tile ·24 (Physique, `physique.html`, `data-cat="overview health training"`, accent #5EEAD4, "Lean bulk HUD"). | Tile count is now 24. |
 | 2026-07-23 | *(this session)* | Added tile ·23 (Mail, `mail.html`, accent #7DD3FC) to the bento grid. | Tile count is now 23. If adding more tiles, continue the numbering sequence. |
 | 2026-07-14 | *(this session)* | Changed sync from `appKey: 'health'` to `appKey: 'profile'` for po_water_v1. Prevents profile saves from overwriting the supplement stack on the server. | — |
 
@@ -437,6 +451,16 @@ Mobile tab eviction causes the page to reload from scratch, which triggers `onAp
 
 ---
 
+### `physique.html` / `physique-core.js` / `physique-seed.js` — Physique
+
+| Date | Commit | Change | What could break |
+|------|--------|--------|-----------------|
+| 2026-10-19 | `d7f2a2b` | New page. `initCloudSync({appKey:'physique', syncedKeys:['physique_v1']})` inside the main IIFE (§1). `onApplied` rejects snapshots older than in-memory `updatedAt` and restores localStorage first (§13), and only re-renders (§4: inputs are static, never cleared). Listens for `coach:physique:updated`. All writes go through `PhysiqueCore.applyOp` + `save()` (stamps `updatedAt`, immediate push, §9). Import lazy-loads the seed and merges additively (fills default/empty config, adds missing days/sessions/reviews/foods, fills missing day fields, never overwrites). Charts are drawn at the element's pixel width and redrawn on resize. Merges `po_coach_weights` read-only. | `firstRender` ring animation starts at 0 only on the first render. The day-label override uses the input placeholder for the current label, so it never shows a value the user didn't type. The training "Undo last set" removes the last set of the last exercise in that day's session. |
+| 2026-10-19 | `1c7f677`, `79400bc` | Core fixes vs the handoff copy (no data values changed). Quick-log macro units must touch the number ("1 protein bar 200" read as 1 g protein). Muscle map: lat raise ≠ lats, reverse fly ≠ chest, incline curl ≠ upper chest, chest-supported row ≠ chest. Today's lift counts as planned only once logged. `remove_food` rejects empty names, `log_set` rejects non-numeric reps. `dayTotals`/`remove_food` no longer crash on days with no `items` array (seed Oct 10 crashed the whole render). Supplements are graded on finished days only. | Quick log now needs "18p", not "18 p". A space between number and unit is read as part of the name. |
+| 2026-10-19 | `3da9eca` | Added verbatim from the Fitness Coach handoff. | — |
+
+---
+
 ### `marathon.html` — Marathon Training
 
 | Date | Commit | Change | What could break |
@@ -453,6 +477,7 @@ Mobile tab eviction causes the page to reload from scratch, which triggers `onAp
 
 | Date | Commit | Change | What could break |
 |------|--------|--------|-----------------|
+| 2026-10-19 | `7d62cb2` | nutrition.html: "Carb cycling active" card at the top when `physique_v1` exists (today's type, split, kcal and protein vs target via lazy-loaded physique-core.js). One GET `/api/db?key=physique`, cached locally only if the server is newer. Not added to nutrition's `initCloudSync` (§8). | The card shows the physique day's totals, not the nutrition page's own log, so the two pages can disagree if food is logged in both. |
 | 2026-07-16 | *(this session)* | Added immediate push to all save functions (Invariant §9). Each module now fires `fetch('/api/db', ...)` immediately after `localStorage.setItem`, bypassing the 250ms debounce race window. Added `try/catch` with `console.error` for localStorage quota errors. Two pushes per save (immediate + debounced) — idempotent. | Each save now makes 2 HTTP requests instead of 1. If the server is slow, this doubles the load from these modules. Still idempotent. |
 
 ---
@@ -480,6 +505,7 @@ Mobile tab eviction causes the page to reload from scratch, which triggers `onAp
 
 | Date | Commit | Change | What could break |
 |------|--------|--------|-----------------|
+| 2026-10-19 | `3ad588f` | `nutrition` (4 PM ET) reads the `physique` row. Title is the carb day + split, body is kcal and protein left (day override > split; coach totals > item sum, same as physique-core). Falls back to the generic message without physique data. | Uses the server's UTC date and weekday, which match ET at 20:00 UTC. If the cron time moves past midnight UTC (8 PM ET in summer, 7 PM in winter), it will read tomorrow's plan. |
 | 2026-07-27 | `2c8688b` | Three goals fixes + Gmail alert notifications. (1) Goals: 3-day rolling fallback (today→yesterday→2daysago) so notif fires before the app is opened. (2) Goals: snoozed goals (`snoozedUntil > today`) excluded from pending count — intentionally ignored goals no longer appear as overdue. (3) Morning notif body: includes the first pending goal's text (e.g. `"Study for MATH 223"`) not just a count. (4) Reads `gmail_alerts` from Supabase (pushed by topbar.js); `reminders` surfaces important email alerts when no goals are pending; `morning` appends important email count to body parts. | Gmail alerts in notifications require the user to have opened the coach panel at least once (which triggers `loadGmailSummary` → pushes `gmail_alerts`). If `gmail_alerts` has never been pushed, `fetchModuleData` returns null and email info is silently omitted. |
 | 2026-07-23 | *(this session)* | Added per-type notification preferences gate. On cron calls, reads `notification_prefs` key from Supabase. If `notifPrefs[type] === false`, returns `{sent:0}` immediately without sending. Manual test calls (from settings.html test buttons) always fire regardless of prefs. Default is enabled for all types (only explicitly `false` skips). | If Supabase is unreachable when fetching prefs, `fetchModuleData` returns null and the gate is bypassed (notification fires anyway). This is safe — if anything, it over-sends rather than silently drops. |
 | 2026-07-23 | *(this session)* | Fixed morning notification always saying "nothing to do": added `goals:yesterday` fallback when `goals:today` is absent in Supabase. At 9 AM cron time, the user hasn't opened the app yet so `goals:today` doesn't exist (rollover only runs in-browser). Since rollover copies uncompleted goals forward, yesterday's pending goals === today's pending goals. `morning` notification now includes pending goal count + today's marathon run in the body. `reminders` case received the same fallback. | If the user completes all goals the night before AND opens the app AND the cron fires before the new day's key is written — yesterday's key shows 0 pending, so fallback returns nothing. Acceptable edge case; notification body falls back to "Open coach for your full briefing." |
