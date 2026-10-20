@@ -38,7 +38,11 @@ async function handleData(req, res, method) {
 
   const fwd = new URLSearchParams();
   for (const [k, v] of Object.entries(req.query || {})) {
-    if (k !== 'path') fwd.set(k, String(v));
+    if (k === 'path') continue;
+    // Repeated params (Gmail's metadataHeaders=Subject&metadataHeaders=From) arrive as an
+    // array; String() would join them into "Subject,From", which matches no header.
+    if (Array.isArray(v)) v.forEach((x) => fwd.append(k, String(x)));
+    else fwd.set(k, String(v));
   }
   const qs = fwd.toString();
   // Route by path prefix:
