@@ -65,8 +65,32 @@ async function buildPayload(type, supaUrl, supaKey) {
       return { tag: 'training', title: '💪 Training Reminder', body: 'Stay consistent — check your Fitness and Marathon modules.', url: '/gym.html' };
     }
 
-    case 'nutrition':
+    case 'nutrition': {
+      // Mirrors physique-core dayPlan/dayTotals: day override > weekly split; coach totals > item sum.
+      // Cron runs 20:00 UTC (4 PM ET), so the UTC date matches the user's local date.
+      const raw = await fetchModuleData(supaUrl, supaKey, 'physique');
+      const ph = raw && raw.physique_v1;
+      if (ph && ph.targets && ph.split) {
+        const dow = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+        const rec = (ph.days && ph.days[today]) || {};
+        const base = ph.split[dow] || { label: 'Rest', type: 'low' };
+        const type = rec.type || base.type, label = rec.label || base.label;
+        const tgt = ph.targets[type] || ph.targets.medium;
+        let kcal = 0, p = 0;
+        if (rec.totals && rec.totals.kcal != null) { kcal = +rec.totals.kcal || 0; p = +rec.totals.p || 0; }
+        else (rec.items || []).forEach((i) => { kcal += +i.kcal || 0; p += +i.p || 0; });
+        if (tgt) {
+          const kLeft = Math.round(tgt.kcal - kcal), pLeft = Math.round(tgt.p - p);
+          const tag = { high: 'HIGH', medium: 'MED', low: 'LOW' }[type] || type;
+          return {
+            tag: 'nutrition', title: '🥗 ' + tag + ' day · ' + label,
+            body: (kLeft >= 0 ? kLeft + ' kcal' : -kLeft + ' kcal over') + ' and ' + (pLeft > 0 ? pLeft + ' g protein left' : 'protein hit') + ' (' + Math.round(kcal) + ' / ' + tgt.kcal + ' kcal so far).',
+            url: '/physique.html',
+          };
+        }
+      }
       return { tag: 'nutrition', title: '🥗 Nutrition · Log Check-in', body: 'Have you logged meals today? Track calories and macros to stay on target.', url: '/nutrition.html' };
+    }
 
     case 'skincare': {
       const hour = new Date().getUTCHours();
